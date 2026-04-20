@@ -2,19 +2,20 @@
 import React, { useState, useMemo } from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { Search, Sparkles, BookOpen, Star } from 'lucide-react';
-import { RAW_SPELLS } from '../data/spells';
-import { FEATURES } from '../data/features';
+import { useHomebrew } from '../hooks/useHomebrew';
 import { INVOCATIONS } from '../data/invocations';
+import { fixTextEncoding } from '../lib/utils';
 
 export default function SpellsFeatsStep() {
   const { currentCharacter, dispatch } = useCharacter();
+  const homebrew = useHomebrew();
   const [tab, setTab] = useState<'incantesimi' | 'talenti' | 'invocazioni'>('incantesimi');
   const [search, setSearch] = useState('');
 
   const filteredData = useMemo(() => {
     let base = [];
-    if (tab === 'incantesimi') base = RAW_SPELLS;
-    if (tab === 'talenti') base = FEATURES;
+    if (tab === 'incantesimi') base = homebrew.spells;
+    if (tab === 'talenti') base = homebrew.feats;
     if (tab === 'invocazioni') base = INVOCATIONS;
 
     return base.filter((item: any) => 
@@ -93,7 +94,7 @@ export default function SpellsFeatsStep() {
                 </div>
                 <div 
                   className="text-xs text-text-muted line-clamp-3 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: item.description }}
+                  dangerouslySetInnerHTML={{ __html: fixTextEncoding(item.description) }}
                 />
               </button>
             );

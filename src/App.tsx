@@ -5,14 +5,15 @@ import CharacterWizard from './components/CharacterWizard';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
-import { Wand2, Menu, Moon, Sun, Shield, X, Users, PlusCircle, LogOut } from 'lucide-react';
+import HomebrewCreator from './components/HomebrewCreator';
+import { Wand2, Menu, Moon, Sun, Shield, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
 import { db, auth } from './firebase';
 import { collection, getDocsFromServer, limit, query } from 'firebase/firestore';
 import { AnimatePresence, motion } from 'motion/react';
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [view, setView] = useState<'dashboard' | 'wizard' | 'sheet'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'wizard' | 'sheet' | 'homebrew'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Test Firestore Connection
@@ -40,7 +41,7 @@ function AppContent() {
 
   if (!user) return <Login />;
 
-  const navigateTo = (viewName: 'dashboard' | 'wizard' | 'sheet') => {
+  const navigateTo = (viewName: 'dashboard' | 'wizard' | 'sheet' | 'homebrew') => {
     setView(viewName);
     setIsMobileMenuOpen(false);
   };
@@ -56,23 +57,38 @@ function AppContent() {
       <header className="sticky top-0 z-50 bg-[#121212] border-b-2 border-primary shadow-md">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="text-gray-300 hover:text-white transition-colors lg:hidden"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <div 
-              className="flex items-center gap-2 cursor-pointer group"
-              onClick={() => setView('dashboard')}
-            >
-              <div className="bg-primary p-1.5 rounded flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-lg md:text-xl font-serif font-black text-white uppercase tracking-wider">
-                D&D <span className="text-primary font-sans font-bold text-xs md:text-sm ml-1 tracking-tight">MANAGEMENT</span>
-              </span>
-            </div>
+             <button 
+               onClick={() => setIsMobileMenuOpen(true)}
+               className="text-gray-300 hover:text-white transition-colors lg:hidden"
+             >
+               <Menu className="w-6 h-6" />
+             </button>
+             <div 
+               className="flex items-center gap-2 cursor-pointer group"
+               onClick={() => setView('dashboard')}
+             >
+               <div className="bg-primary p-1.5 rounded flex items-center justify-center transform group-hover:scale-105 transition-transform">
+                 <Shield className="w-5 h-5 text-white" />
+               </div>
+               <span className="text-lg md:text-xl font-serif font-black text-white uppercase tracking-wider">
+                 D&D <span className="text-primary font-sans font-bold text-xs md:text-sm ml-1 tracking-tight">MANAGEMENT</span>
+               </span>
+             </div>
+             
+             <nav className="hidden lg:flex items-center gap-1 ml-4 border-l border-white/10 pl-4">
+                <button 
+                  onClick={() => setView('dashboard')} 
+                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'dashboard' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Dashboard
+                </button>
+                <button 
+                  onClick={() => setView('homebrew')} 
+                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'homebrew' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Homebrew
+                </button>
+             </nav>
           </div>
           
           <div className="flex items-center gap-4">
@@ -129,6 +145,9 @@ function AppContent() {
                 <button onClick={() => navigateTo('dashboard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
                   <Users className="w-5 h-5 text-accent" /> Dashboard
                 </button>
+                <button onClick={() => navigateTo('homebrew')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
+                  <Hammer className="w-5 h-5 text-accent" /> Creatore Homebrew
+                </button>
                 <button onClick={() => navigateTo('wizard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
                   <PlusCircle className="w-5 h-5 text-accent" /> Nuovo Personaggio
                 </button>
@@ -147,6 +166,11 @@ function AppContent() {
       {/* Main Content Area */}
       <main className="flex-1 w-full relative">
         {view === 'wizard' && <CharacterWizard onComplete={() => setView('dashboard')} onCancel={() => setView('dashboard')} />}
+        {view === 'homebrew' && (
+           <div className="p-4 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <HomebrewCreator />
+           </div>
+        )}
         {view === 'sheet' && (
            <div className="relative pt-4">
              {/* Mobile Back Button */}

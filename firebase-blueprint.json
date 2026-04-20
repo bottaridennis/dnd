@@ -37,17 +37,67 @@
         "hpCurrent": { "type": "integer" },
         "hpTemp": { "type": "integer" },
         "equipment": { "type": "array" },
+        "resistances": { "type": "array", "description": "Character damage resistances" },
         "currency": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "name", "level", "classId", "speciesId", "backgroundId"]
+    },
+    "HomebrewSpell": {
+      "title": "Homebrew Spell",
+      "description": "Custom user-created spell",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "level": { "type": "integer" },
+        "school": { "type": "string" },
+        "castingTime": { "type": "string" },
+        "range": { "type": "string" },
+        "components": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "HomebrewWeapon": {
+      "title": "Homebrew Weapon",
+      "description": "Custom user-created weapon",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "damage": { "type": "string" },
+        "damageType": { "type": "string" },
+        "properties": { "type": "string" },
+        "mastery": { "type": "string" }
+      }
+    },
+    "HomebrewFeat": {
+      "title": "Homebrew Feat",
+      "description": "Custom user-created feat or feature",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "prerequisite": { "type": "string" }
+      }
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": "User",
       "description": "User profile document"
+    },
+    "/users/{uid}/homebrewSpells/{spellId}": {
+      "schema": "HomebrewSpell",
+      "description": "User-created spell"
+    },
+    "/users/{uid}/homebrewWeapons/{weaponId}": {
+      "schema": "HomebrewWeapon",
+      "description": "User-created weapon"
+    },
+    "/users/{uid}/homebrewFeats/{featId}": {
+      "schema": "HomebrewFeat",
+      "description": "User-created feat"
     },
     "/characters/{characterId}": {
       "schema": "Character",

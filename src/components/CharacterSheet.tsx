@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCharacter, CharacterData } from '../contexts/CharacterContext';
 import { useCharacterMath } from '../hooks/useCharacterMath';
+import { useHomebrew } from '../hooks/useHomebrew';
 import { characterService } from '../services/characterService';
 import { classesData, speciesData, backgroundsData } from '../data/rules2024';
 import { subclassesData } from '../data/subclasses';
@@ -13,15 +14,17 @@ import {
   TrendingUp, Dna, MapPin, Hash, Sparkles,
   Info, Search, Star, X, Edit3, Check
 } from 'lucide-react';
-import { formatModifier, abilityMap } from '../lib/utils';
+import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import CombatAndRests from './CombatAndRests';
 import ResourceTracker from './ResourceTracker';
+import WeaponTracker from './WeaponTracker';
 
 export default function CharacterSheet() {
   const { currentCharacter, dispatch } = useCharacter();
   const math = useCharacterMath(currentCharacter);
-  const [activeTab, setActiveTab] = useState<'stats' | 'spells' | 'feats' | 'equipment' | null>('stats');
+  const homebrew = useHomebrew();
+  const [activeTab, setActiveTab] = useState<'stats' | 'spells' | 'feats' | 'equipment' | 'mastery' | null>('stats');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
@@ -55,13 +58,13 @@ export default function CharacterSheet() {
   const charSpecies = speciesData.find(s => s.id === currentCharacter.speciesId);
   const charBackground = backgroundsData.find(b => b.id === currentCharacter.backgroundId);
 
-  const getSpellDetails = (name: string) => RAW_SPELLS.find(s => s.name === name);
+  const getSpellDetails = (name: string) => homebrew.spells.find(s => s.name === name);
   const getFeatDetails = (name: string) => {
     if (!name) return undefined;
-    const exact = FEATURES.find(f => f.name === name);
+    const exact = homebrew.feats.find(f => f.name === name);
     if (exact) return exact;
     const baseName = name.split(' (')[0];
-    return FEATURES.find(f => f.name === baseName);
+    return homebrew.feats.find(f => f.name === baseName);
   };
   const getInvocationDetails = (name: string) => INVOCATIONS.find(i => i.name === name);
 
@@ -82,8 +85,8 @@ export default function CharacterSheet() {
 
   const renderFeatureModal = () => {
     let base = [];
-    if (featureModal.tab === 'spells') base = RAW_SPELLS;
-    if (featureModal.tab === 'talenti') base = FEATURES;
+    if (featureModal.tab === 'spells') base = homebrew.spells;
+    if (featureModal.tab === 'talenti') base = homebrew.feats;
     if (featureModal.tab === 'invocazioni') base = INVOCATIONS;
 
     const filteredData = base.filter((item: any) => 
@@ -158,7 +161,7 @@ export default function CharacterSheet() {
                      </div>
                      <div 
                        className="text-[11px] text-text-muted line-clamp-3 leading-relaxed"
-                       dangerouslySetInnerHTML={{ __html: item.description }}
+                       dangerouslySetInnerHTML={{ __html: fixTextEncoding(item.description) }}
                      />
                    </button>
                  );
@@ -268,7 +271,7 @@ export default function CharacterSheet() {
               
               <div 
                 className="text-sm leading-relaxed text-text-muted max-h-[40vh] overflow-y-auto no-scrollbar"
-                dangerouslySetInnerHTML={{ __html: selectedItem.description }}
+                dangerouslySetInnerHTML={{ __html: fixTextEncoding(selectedItem.description) }}
               />
 
               <div className="grid grid-cols-2 gap-4 text-[10px] font-black uppercase tracking-widest pt-6 border-t border-border">
@@ -499,6 +502,7 @@ export default function CharacterSheet() {
                 { id: 'spells', label: 'Incantesimi', Icon: Sparkles },
                 { id: 'feats', label: 'Talenti', Icon: Book },
                 { id: 'equipment', label: 'Equipaggiamento', Icon: Backpack },
+                { id: 'mastery', label: 'Maestrie', Icon: Sword },
               ].map(t => (
                 <button
                   key={t.id}
@@ -653,6 +657,11 @@ export default function CharacterSheet() {
                                     </div>
                                  </div>
                               )}
+                              {t.id === 'mastery' && (
+                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                   <WeaponTracker />
+                                 </div>
+                              )}
                               {t.id === 'equipment' && (
                                  <div className="space-y-6">
                                     <div className="grid grid-cols-4 gap-2">
@@ -717,7 +726,47 @@ export default function CharacterSheet() {
                          </div>
                        </motion.div>
                      )}
-                   </AnimatePresence>
+                      {activeTab === 'mastery' && (
+                    <motion.div 
+                      key="mastery"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+                    >
+                      <WeaponTracker />
+                    </motion.div>
+                  )}
+                  {activeTab === 'mastery' && (
+                    <motion.div 
+                      key="mastery"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+                    >
+                      <WeaponTracker />
+                    </motion.div>
+                  )}
+                  {activeTab === 'mastery' && (
+                    <motion.div 
+                      key="mastery"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+                    >
+                      <WeaponTracker />
+                    </motion.div>
+                  )}
+                  {activeTab === 'mastery' && (
+                    <motion.div 
+                      key="mastery"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+                    >
+                      <WeaponTracker />
+                    </motion.div>
+                  )}
+               </AnimatePresence>
                  </div>
               ))}
            </div>

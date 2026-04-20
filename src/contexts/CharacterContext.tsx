@@ -25,6 +25,7 @@ export interface CharacterData {
   feats: string[];
   invocations: string[];
   equipment: string[];
+  weaponMasteries?: Record<string, string>;
   alignment: string;
   appearance: string;
   description: string;
@@ -86,6 +87,7 @@ const initialCharacter: CharacterData = {
   feats: [],
   invocations: [],
   equipment: [],
+  weaponMasteries: {},
   alignment: '',
   appearance: '',
   description: '',
