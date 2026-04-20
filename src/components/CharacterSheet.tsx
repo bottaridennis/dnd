@@ -500,9 +500,9 @@ export default function CharacterSheet() {
               {[
                 { id: 'stats', label: 'Abilità', Icon: Scroll },
                 { id: 'spells', label: 'Incantesimi', Icon: Sparkles },
-                { id: 'feats', label: 'Talenti', Icon: Book },
+                 { id: 'mastery', label: 'Maestrie', Icon: Sword },
+                 { id: 'feats', label: 'Talenti', Icon: Book },
                 { id: 'equipment', label: 'Equipaggiamento', Icon: Backpack },
-                { id: 'mastery', label: 'Maestrie', Icon: Sword },
               ].map(t => (
                 <button
                   key={t.id}
@@ -522,6 +522,7 @@ export default function CharacterSheet() {
              {[
                 { id: 'stats', label: 'Abilità', Icon: Scroll },
                 { id: 'spells', label: 'Incantesimi', Icon: Sparkles },
+                { id: 'mastery', label: 'Maestrie', Icon: Sword },
                 { id: 'feats', label: 'Talenti', Icon: Book },
                 { id: 'equipment', label: 'Equipaggiamento', Icon: Backpack },
               ].map(t => (
@@ -548,7 +549,12 @@ export default function CharacterSheet() {
                            {/* Mobile Content wrapper */}
                            <div className="min-h-[100px]">
                               {/* Inject the relevant content immediately below using the same logic as desktop tab */}
-                              {t.id === 'stats' && (
+                              {t.id === 'mastery' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <WeaponTracker isEditing={isEditing} />
+                          </div>
+                       )}
+                       {t.id === 'stats' && (
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                                    {math.skills.map(skill => (
                                      <div key={skill.name} className="flex items-center justify-between border-b border-border/50 py-3 group hover:bg-accent/5 px-2 rounded-sm transition-colors">
@@ -659,7 +665,7 @@ export default function CharacterSheet() {
                               )}
                               {t.id === 'mastery' && (
                                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                   <WeaponTracker />
+                                   <WeaponTracker isEditing={isEditing} />
                                  </div>
                               )}
                               {t.id === 'equipment' && (
@@ -726,46 +732,6 @@ export default function CharacterSheet() {
                          </div>
                        </motion.div>
                      )}
-                      {activeTab === 'mastery' && (
-                    <motion.div 
-                      key="mastery"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-                    >
-                      <WeaponTracker />
-                    </motion.div>
-                  )}
-                  {activeTab === 'mastery' && (
-                    <motion.div 
-                      key="mastery"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-                    >
-                      <WeaponTracker />
-                    </motion.div>
-                  )}
-                  {activeTab === 'mastery' && (
-                    <motion.div 
-                      key="mastery"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-                    >
-                      <WeaponTracker />
-                    </motion.div>
-                  )}
-                  {activeTab === 'mastery' && (
-                    <motion.div 
-                      key="mastery"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-                    >
-                      <WeaponTracker />
-                    </motion.div>
-                  )}
                </AnimatePresence>
                  </div>
               ))}
@@ -909,71 +875,81 @@ export default function CharacterSheet() {
                  )}
 
                  {activeTab === 'equipment' && (
-                   <motion.div 
-                     key="equipment"
-                     initial={{ opacity: 0, y: 10 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     className="space-y-8"
-                   >
-                      <div className="grid grid-cols-4 gap-4">
-                         {Object.entries(currentCharacter.currency).map(([type, value]) => (
-                            <div key={type} className="bg-card-bg border border-border rounded p-4 text-center">
-                               <div className="text-[10px] font-black uppercase text-text-muted mb-1">{type}</div>
-                               <input 
-                                 type="number" 
-                                 value={value} 
-                                 onChange={(e) => handleUpdate({ currency: { ...currentCharacter.currency, [type]: parseInt(e.target.value) || 0 } })}
-                                 className="w-full bg-transparent text-center text-lg font-black text-text-primary focus:outline-none"
-                               />
-                            </div>
-                         ))}
-                      </div>
+                    <motion.div 
+                      key="equipment"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-8"
+                    >
+                       <div className="grid grid-cols-4 gap-4">
+                          {Object.entries(currentCharacter.currency).map(([type, value]) => (
+                             <div key={type} className="bg-card-bg border border-border rounded p-4 text-center">
+                                <div className="text-[10px] font-black uppercase text-text-muted mb-1">{type}</div>
+                                <input 
+                                  type="number" 
+                                  value={value} 
+                                  onChange={(e) => handleUpdate({ currency: { ...currentCharacter.currency, [type]: parseInt(e.target.value) || 0 } })}
+                                  className="w-full bg-transparent text-center text-lg font-black text-text-primary focus:outline-none"
+                                />
+                             </div>
+                          ))}
+                       </div>
 
-                      <div className="space-y-4">
-                         <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Inventario</h4>
-                         </div>
-                         <div className="grid grid-cols-1 gap-2">
-                            {currentCharacter.equipment.map((item, i) => (
-                               <div key={i} className="flex justify-between items-center bg-card-bg border border-border rounded px-4 py-2 text-xs font-medium">
-                                  {item}
-                                  <button onClick={() => {
-                                      handleUpdate({ equipment: currentCharacter.equipment.filter((_, idx) => idx !== i) });
-                                  }} className="text-text-muted hover:text-accent"><Plus className="w-3 h-3 rotate-45" /></button>
-                               </div>
-                            ))}
-                         </div>
-                         <div className="flex gap-2">
-                            <input 
-                              type="text" 
-                              value={newItemText} 
-                              onChange={e => setNewItemText(e.target.value)} 
-                              placeholder="Nuovo oggetto..." 
-                              className="flex-1 bg-card-bg border border-border text-xs px-4 py-2 rounded focus:outline-none focus:border-accent font-medium text-text-primary"
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && newItemText.trim()) {
-                                  handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                  setNewItemText('');
-                                }
-                              }}
-                            />
-                            <button 
-                              onClick={() => {
-                                if (newItemText.trim()) {
-                                  handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                  setNewItemText('');
-                                }
-                              }}
-                              disabled={!newItemText.trim()}
-                              className="bg-accent text-bg px-4 py-2 rounded disabled:opacity-50 transition-colors flex items-center justify-center"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                         </div>
-                      </div>
-                   </motion.div>
-                 )}
-              </AnimatePresence>
+                       <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                             <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Inventario</h4>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                             {currentCharacter.equipment.map((item, i) => (
+                                <div key={i} className="flex justify-between items-center bg-card-bg border border-border rounded px-4 py-2 text-xs font-medium">
+                                   {item}
+                                   <button onClick={() => {
+                                       handleUpdate({ equipment: currentCharacter.equipment.filter((_, idx) => idx !== i) });
+                                   }} className="text-text-muted hover:text-accent"><Plus className="w-3 h-3 rotate-45" /></button>
+                                </div>
+                             ))}
+                          </div>
+                          <div className="flex gap-2">
+                             <input 
+                               type="text" 
+                               value={newItemText} 
+                               onChange={e => setNewItemText(e.target.value)} 
+                               placeholder="Nuovo oggetto..." 
+                               className="flex-1 bg-card-bg border border-border text-xs px-4 py-2 rounded focus:outline-none focus:border-accent font-medium text-text-primary"
+                               onKeyDown={e => {
+                                 if (e.key === 'Enter' && newItemText.trim()) {
+                                   handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
+                                   setNewItemText('');
+                                 }
+                               }}
+                             />
+                             <button 
+                               onClick={() => {
+                                 if (newItemText.trim()) {
+                                   handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
+                                   setNewItemText('');
+                                 }
+                               }}
+                               disabled={!newItemText.trim()}
+                               className="bg-accent text-bg px-4 py-2 rounded disabled:opacity-50 transition-colors flex items-center justify-center"
+                             >
+                               <Plus className="w-4 h-4" />
+                             </button>
+                          </div>
+                       </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'mastery' && (
+                    <motion.div 
+                      key="mastery"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                       <WeaponTracker isEditing={isEditing} />
+                    </motion.div>
+                  )}
+               </AnimatePresence>
            </div>
         </div>
       </div>

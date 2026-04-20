@@ -9,32 +9,38 @@ import {
   ShieldCheck, 
   AlertCircle,
   HelpCircle,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { characterService } from '../services/characterService';
 
-export default function WeaponTracker() {
+export default function WeaponTracker({ isEditing = false }: { isEditing?: boolean }) {
   const { currentCharacter, dispatch } = useCharacter();
   const [selectedMastery, setSelectedMastery] = useState<string | null>(null);
+  const [activeDefTab, setActiveDefTab] = useState<'res' | 'imm' | 'vul'>('res');
+  const [newMasteryWeapon, setNewMasteryWeapon] = useState('');
 
   if (!currentCharacter) return null;
 
   // Resistances Logic
   const resistances = currentCharacter.resistances || [];
+  const immunities = currentCharacter.immunities || [];
+  const vulnerabilities = currentCharacter.vulnerabilities || [];
   const charWeaponMasteries = currentCharacter.weaponMasteries || {};
 
-  const toggleResistance = async (type: string) => {
-    const newResistances = resistances.includes(type)
-      ? resistances.filter(r => r !== type)
-      : [...resistances, type];
+  const toggleDefense = async (type: string, category: 'resistances' | 'immunities' | 'vulnerabilities') => {
+    const list = (currentCharacter as any)[category] || [];
+    const newList = list.includes(type)
+      ? list.filter((r: string) => r !== type)
+      : [...list, type];
 
-    dispatch({ type: 'UPDATE_CHARACTER', payload: { resistances: newResistances } });
+    dispatch({ type: 'UPDATE_CHARACTER', payload: { [category]: newList } });
     
     try {
-      await characterService.updateCharacter(currentCharacter.id, { resistances: newResistances });
+      await characterService.updateCharacter(currentCharacter.id, { [category]: newList });
     } catch (error) {
-      console.error("Failed to update resistances:", error);
+      console.error(`Failed to update ${category}:`, error);
     }
   };
 
@@ -69,14 +75,31 @@ export default function WeaponTracker() {
           <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Maestrie delle Armi</h3>
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(currentCharacter.equipment || []).map((item, idx) => {
+          {/* Display all mastered weapons (from character data or equipment) */}
+          {Array.from(new Set([...(currentCharacter.equipment || []), ...Object.keys(charWeaponMasteries)])).map((item, idx) => {
             const masteryName = charWeaponMasteries[item] || defaultWeaponMasteries[item] || "";
 
             return (
               <div key={idx} className="bg-card-bg border border-border rounded-lg p-4 flex flex-col gap-3 group hover:border-accent/40 transition-all">
                 <div className="flex justify-between items-start">
                   <span className="text-xs font-bold text-text-primary">{item}</span>
-                  <Sword className="w-4 h-4 text-border group-hover:text-accent/20 transition-colors" />
+                  <div className="flex items-center gap-1">
+                    {isEditing && charWeaponMasteries[item] && (
+                       <button 
+                         onClick={() => {
+                            const newMasteries = { ...charWeaponMasteries };
+                            delete newMasteries[item];
+                            dispatch({ type: 'UPDATE_CHARACTER', payload: { weaponMasteries: newMasteries } });
+                            characterService.updateCharacter(currentCharacter.id, { weaponMasteries: newMasteries });
+                         }}
+                         className="p-1 text-text-muted hover:text-red-500 transition-colors"
+                         title="Rimuovi Maestria"
+                       >
+                         <X className="w-3 h-3" />
+                       </button>
+                    )}
+                    <Sword className="w-4 h-4 text-border group-hover:text-accent/20 transition-colors" />
+                  </div>
                 </div>
                 
                 <div className="flex flex-col gap-2">
@@ -110,7 +133,40 @@ export default function WeaponTracker() {
               </div>
             );
           })}
-          {(!currentCharacter.equipment || currentCharacter.equipment.length === 0) && (
+          {isEditing && (
+            <div className="bg-card-bg border border-accent/20 border-dashed rounded-lg p-4 flex flex-col gap-3 group hover:border-accent/40 transition-all">
+              <div className="text-[10px] font-black uppercase text-accent tracking-widest">Aggiungi Arma Manuale</div>
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Nome arma (es. Mazza)..."
+                  value={newMasteryWeapon}
+                  onChange={(e) => setNewMasteryWeapon(e.target.value)}
+                  className="flex-1 bg-bg border border-border rounded px-2 py-1 text-[10px] font-black uppercase text-text-primary focus:border-accent outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newMasteryWeapon.trim()) {
+                      updateWeaponMastery(newMasteryWeapon.trim(), "Slow");
+                      setNewMasteryWeapon('');
+                    }
+                  }}
+                />
+                <button 
+                  onClick={() => {
+                    if (newMasteryWeapon.trim()) {
+                      updateWeaponMastery(newMasteryWeapon.trim(), "Slow");
+                      setNewMasteryWeapon('');
+                    }
+                  }}
+                  className="bg-accent text-bg p-1.5 rounded disabled:opacity-50"
+                  disabled={!newMasteryWeapon.trim()}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-[8px] text-text-muted italic">Aggiungi un'arma per assegnarle una maestria personalizzata.</p>
+            </div>
+          )}
+          {(!currentCharacter.equipment || currentCharacter.equipment.length === 0) && !isEditing && (
             <div className="col-span-full py-8 text-center text-text-muted italic text-sm">
               Nessuna arma equipaggiata con Maestria
             </div>
@@ -120,18 +176,37 @@ export default function WeaponTracker() {
 
       {/* Resistances, Immunities & Vulnerabilities Panel */}
       <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
-        <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-primary" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Resistenze e Difese</h3>
+        <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Difese Speciali</h3>
+          </div>
+          <div className="flex bg-bg rounded border border-border p-1">
+             <button 
+               onClick={() => setActiveDefTab('res')}
+               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'res' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+             >Resist</button>
+             <button 
+               onClick={() => setActiveDefTab('imm')}
+               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'imm' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+             >Immunità</button>
+             <button 
+               onClick={() => setActiveDefTab('vul')}
+               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'vul' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+             >Vulner</button>
+          </div>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {DAMAGE_TYPES.map((type) => {
-              const isActive = resistances.includes(type);
+              const currentList = activeDefTab === 'res' ? resistances : (activeDefTab === 'imm' ? immunities : vulnerabilities);
+              const category = activeDefTab === 'res' ? 'resistances' : (activeDefTab === 'imm' ? 'immunities' : 'vulnerabilities');
+              const isActive = currentList.includes(type);
+              
               return (
                 <button
                   key={type}
-                  onClick={() => toggleResistance(type)}
+                  onClick={() => toggleDefense(type, category)}
                   className={`
                     px-2 py-2.5 rounded border text-[9px] font-black uppercase tracking-tighter transition-all duration-200
                     ${isActive 
@@ -146,17 +221,17 @@ export default function WeaponTracker() {
           </div>
           
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-border pt-6">
-            <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border border-border">
+            <div className={`flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border transition-all ${activeDefTab === 'res' ? 'border-primary ring-1 ring-primary/30' : 'border-border'}`}>
               <span className="text-[10px] font-black uppercase text-primary tracking-widest">Resistenze</span>
               <span className="text-xl font-serif font-black text-text-primary">{resistances.length}</span>
             </div>
-            <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border border-border">
+            <div className={`flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border transition-all ${activeDefTab === 'imm' ? 'border-primary ring-1 ring-primary/30' : 'border-border'}`}>
               <span className="text-[10px] font-black uppercase text-text-muted tracking-widest">Immunità</span>
-              <span className="text-xl font-serif font-black text-text-primary">0</span>
+              <span className="text-xl font-serif font-black text-text-primary">{immunities.length}</span>
             </div>
-            <div className="flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border border-border">
+            <div className={`flex flex-col gap-1 items-center p-3 rounded-lg bg-bg/50 border transition-all ${activeDefTab === 'vul' ? 'border-primary ring-1 ring-primary/30' : 'border-border'}`}>
               <span className="text-[10px] font-black uppercase text-red-500/70 tracking-widest">Vulnerabilità</span>
-              <span className="text-xl font-serif font-black text-text-primary">0</span>
+              <span className="text-xl font-serif font-black text-text-primary">{vulnerabilities.length}</span>
             </div>
           </div>
         </div>

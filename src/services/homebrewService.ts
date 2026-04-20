@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { OperationType } from './characterService';
 
 export type HomebrewType = 'spell' | 'weapon' | 'feat';
@@ -23,17 +23,36 @@ export interface HomebrewItem {
 }
 
 /**
+ * Enhanced error handler for homebrew operations
+ */
+function handleHomebrewError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      // @ts-ignore - access internal database name for debug
+      databaseId: db._databaseId?.database || '(unknown)'
+    },
+    operationType,
+    path
+  };
+  const jsonError = JSON.stringify(errInfo, null, 2);
+  console.error('Firestore Error Details: ', jsonError);
+  throw new Error(jsonError);
+}
+
+/**
  * Service to manage custom homebrew content created by users.
  */
 export const homebrewService = {
-  /**
-   * Save a new homebrew item to a subcollection in the user's document.
-   * Path example: /users/{userId}/homebrewSpells
-   */
   async saveHomebrewItem(userId: string, itemType: HomebrewType, itemData: any) {
     const subCollection = itemType === 'spell' ? 'homebrewSpells' : 
                          itemType === 'weapon' ? 'homebrewWeapons' : 
                          'homebrewFeats';
+    const path = `users/${userId}/${subCollection}`;
     
     try {
       const docRef = await addDoc(collection(db, 'users', userId, subCollection), {
@@ -43,37 +62,39 @@ export const homebrewService = {
       });
       return docRef.id;
     } catch (error) {
-      console.error(`Error saving homebrew ${itemType}:`, error);
-      throw error;
+      handleHomebrewError(error, OperationType.WRITE, path);
     }
   },
 
-  /**
-   * Fetch all homebrew content for a specific user.
-   */
   async getUserHomebrew(userId: string) {
-    try {
-      const collections = ['homebrewSpells', 'homebrewWeapons', 'homebrewFeats'];
-      const results: Record<string, any[]> = {
-        spells: [],
-        weapons: [],
-        feats: []
-      };
+    if (!userId) return { spells: [], weapons: [], feats: [] };
 
-      for (const colName of collections) {
-        const q = query(collection(db, 'users', userId, colName), orderBy('createdAt', 'desc'));
+    const results: Record<string, any[]> = {
+      spells: [],
+      weapons: [],
+      feats: []
+    };
+
+    const collectionsMap = {
+      'homebrewSpells': 'spells',
+      'homebrewWeapons': 'weapons',
+      'homebrewFeats': 'feats'
+    };
+
+    // Sequential fetch to isolate errors
+    for (const [colName, resultKey] of Object.entries(collectionsMap)) {
+      const path = `users/${userId}/${colName}`;
+      try {
+        const q = query(collection(db, 'users', userId, colName));
         const snapshot = await getDocs(q);
-        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        if (colName === 'homebrewSpells') results.spells = items;
-        else if (colName === 'homebrewWeapons') results.weapons = items;
-        else if (colName === 'homebrewFeats') results.feats = items;
+        results[resultKey] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (error) {
+        // Log the exact database we are trying to talk to
+        console.warn(`Fetch failed for ${path} on database ID: ${ (db as any)._databaseId?.database || '(default)' }`);
+        handleHomebrewError(error, OperationType.LIST, path);
       }
-
-      return results;
-    } catch (error) {
-      console.error("Error fetching user homebrew:", error);
-      throw error;
     }
+
+    return results;
   }
 };

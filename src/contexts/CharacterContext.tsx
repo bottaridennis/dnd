@@ -20,6 +20,8 @@ export interface CharacterData {
   skills: string[]; // These are for old format, we keep it for backward compat if needed
   proficientSkills: string[]; // Explicit skill selections
   resistances: string[];
+  immunities: string[];
+  vulnerabilities: string[];
   features: string[];
   spells: string[];
   feats: string[];
@@ -82,6 +84,8 @@ const initialCharacter: CharacterData = {
   skills: [],
   proficientSkills: [],
   resistances: [],
+  immunities: [],
+  vulnerabilities: [],
   features: [],
   spells: [],
   feats: [],
