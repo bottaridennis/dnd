@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useCharacter } from '../contexts/CharacterContext';
+import React, { useState, useEffect } from 'react';
+import { useCharacter, CharacterData } from '../contexts/CharacterContext';
 import { useCharacterMath } from '../hooks/useCharacterMath';
 import { characterService } from '../services/characterService';
 import { classesData, speciesData, backgroundsData } from '../data/rules2024';
@@ -11,11 +11,12 @@ import {
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X
+  Info, Search, Star, X, Edit3, Check
 } from 'lucide-react';
 import { formatModifier, abilityMap } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import CombatAndRests from './CombatAndRests';
+import ResourceTracker from './ResourceTracker';
 
 export default function CharacterSheet() {
   const { currentCharacter, dispatch } = useCharacter();
@@ -25,6 +26,28 @@ export default function CharacterSheet() {
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
+
+  // Editing State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<Partial<CharacterData>>({});
+
+  useEffect(() => {
+    if (currentCharacter && isEditing) {
+      setEditValues({
+        name: currentCharacter.name,
+        level: currentCharacter.level,
+        abilityScores: { ...currentCharacter.abilityScores },
+        classId: currentCharacter.classId,
+        speciesId: currentCharacter.speciesId,
+        backgroundId: currentCharacter.backgroundId,
+        hpCurrent: currentCharacter.hpCurrent,
+        hpTemp: currentCharacter.hpTemp,
+        acOverride: currentCharacter.acOverride,
+        speedOverride: currentCharacter.speedOverride,
+        proficiencyOverride: currentCharacter.proficiencyOverride,
+      });
+    }
+  }, [currentCharacter, isEditing]);
 
   if (!currentCharacter || !math) return null;
 
@@ -50,6 +73,11 @@ export default function CharacterSheet() {
     } catch (error) {
       console.error("Auto-save failed:", error);
     }
+  };
+
+  const handleGlobalSave = async () => {
+    await handleUpdate(editValues);
+    setIsEditing(false);
   };
 
   const renderFeatureModal = () => {
@@ -151,17 +179,62 @@ export default function CharacterSheet() {
        <div className="absolute -top-3 bg-panel-bg px-1.5 md:px-3 rounded text-[9px] md:text-[10px] font-black uppercase text-text-primary tracking-widest border border-border whitespace-nowrap">
          {abilityMap[ability] || ability}
        </div>
-       <div className="text-3xl md:text-4xl font-serif font-black text-text-primary my-1 md:my-2">
-         {mod >= 0 ? `+${mod}` : mod}
-       </div>
-       <div className="absolute -bottom-3 md:-bottom-4 w-10 md:w-14 h-6 md:h-8 bg-bg border-2 border-accent/40 rounded-full flex items-center justify-center text-xs md:text-sm font-bold text-text-primary shadow-sm">
-         {score}
-       </div>
+       {isEditing ? (
+         <div className="flex flex-col items-center gap-2 my-1">
+            <input 
+              type="number"
+              value={editValues.abilityScores?.[ability as keyof typeof editValues.abilityScores] || 0}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(30, parseInt(e.target.value) || 0));
+                setEditValues(prev => ({
+                  ...prev,
+                  abilityScores: {
+                    ...(prev.abilityScores as any),
+                    [ability]: val
+                  }
+                }));
+              }}
+              className="w-16 bg-card-bg border-b border-accent text-center text-xl font-bold focus:outline-none"
+            />
+            <span className="text-[10px] text-text-muted">Punteggio</span>
+         </div>
+       ) : (
+         <>
+           <div className="text-3xl md:text-4xl font-serif font-black text-text-primary my-1 md:my-2">
+             {mod >= 0 ? `+${mod}` : mod}
+           </div>
+           <div className="absolute -bottom-3 md:-bottom-4 w-10 md:w-14 h-6 md:h-8 bg-bg border-2 border-accent/40 rounded-full flex items-center justify-center text-xs md:text-sm font-bold text-text-primary shadow-sm">
+             {score}
+           </div>
+         </>
+       )}
     </div>
   );
 
   return (
     <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
+      {/* Global Edit Toggle */}
+      <div className="flex justify-end sticky top-20 z-40 px-4 md:px-0">
+        <button
+          onClick={() => isEditing ? handleGlobalSave() : setIsEditing(true)}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-105 active:scale-95 ${
+            isEditing 
+            ? 'bg-success text-bg ring-4 ring-success/20' 
+            : 'bg-primary text-white ring-4 ring-primary/20'
+          }`}
+        >
+          {isEditing ? (
+            <>
+              <Check className="w-4 h-4" /> Salva Modifiche
+            </>
+          ) : (
+            <>
+              <Edit3 className="w-4 h-4" /> Modifica Scheda
+            </>
+          )}
+        </button>
+      </div>
+
       {featureModal.isOpen && renderFeatureModal()}
       {/* Detail Modal Overlay */}
       <AnimatePresence>
@@ -224,14 +297,46 @@ export default function CharacterSheet() {
               <User className="w-8 h-8" />
            </div>
            <div className="flex-1">
-              <h1 className="text-2xl font-serif font-black tracking-tight line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={editValues.name || ''}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-transparent border-b border-accent text-2xl font-serif font-black focus:outline-none mb-1"
+                  placeholder="Nome Personaggio"
+                />
+              ) : (
+                <h1 className="text-2xl font-serif font-black tracking-tight line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
+              )}
               <div className="text-[10px] font-black uppercase text-accent tracking-widest mb-2">
-                {charSpecies?.name} {charClass?.name}
+                {isEditing ? (
+                  <div className="flex flex-col gap-1 mt-2">
+                    <select 
+                      value={editValues.speciesId || ''}
+                      onChange={(e) => setEditValues(prev => ({ ...prev, speciesId: e.target.value }))}
+                      className="bg-bg border border-border rounded px-2 py-1 text-[9px] text-text-primary"
+                    >
+                      {speciesData.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <select 
+                      value={editValues.classId || ''}
+                      onChange={(e) => setEditValues(prev => ({ ...prev, classId: e.target.value }))}
+                      className="bg-bg border border-border rounded px-2 py-1 text-[9px] text-text-primary"
+                    >
+                      {classesData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <>{charSpecies?.name} {charClass?.name}</>
+                )}
               </div>
               {currentCharacter.level >= 3 && currentCharacter.classId && subclassesData[currentCharacter.classId] && (
                 <select
-                  value={currentCharacter.subclassId || ''}
-                  onChange={(e) => handleUpdate({ subclassId: e.target.value })}
+                  value={isEditing ? (editValues.subclassId || '') : (currentCharacter.subclassId || '')}
+                  onChange={(e) => isEditing 
+                    ? setEditValues(prev => ({ ...prev, subclassId: e.target.value }))
+                    : handleUpdate({ subclassId: e.target.value })
+                  }
                   className="bg-bg border border-accent/30 rounded px-2 py-1 text-[10px] font-bold text-accent focus:border-accent outline-none w-full max-w-full"
                 >
                   <option value="">-- Seleziona Sottoclasse --</option>
@@ -269,7 +374,16 @@ export default function CharacterSheet() {
            <div className="bg-panel-bg border border-border rounded-lg p-4 flex items-center justify-around">
               <div className="text-center">
                  <Shield className="w-4 h-4 text-accent mx-auto mb-1" />
-                 <div className="text-xl font-black">{math.acBase}</div>
+                 {isEditing ? (
+                   <input 
+                     type="number"
+                     value={editValues.acOverride !== undefined ? editValues.acOverride : math.acBase}
+                     onChange={(e) => setEditValues(prev => ({ ...prev, acOverride: parseInt(e.target.value) || 0 }))}
+                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
+                   />
+                 ) : (
+                   <div className="text-xl font-black">{math.acBase}</div>
+                 )}
                  <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">AC</div>
               </div>
               <div className="text-center">
@@ -283,12 +397,30 @@ export default function CharacterSheet() {
            <div className="bg-panel-bg border border-border rounded-lg p-4 flex items-center justify-around">
               <div className="text-center">
                  <MapPin className="w-4 h-4 text-accent mx-auto mb-1" />
-                 <div className="text-xl font-black">{math.speed}m</div>
+                 {isEditing ? (
+                   <input 
+                     type="number"
+                     value={editValues.speedOverride !== undefined ? editValues.speedOverride : math.speed}
+                     onChange={(e) => setEditValues(prev => ({ ...prev, speedOverride: parseInt(e.target.value) || 0 }))}
+                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
+                   />
+                 ) : (
+                   <div className="text-xl font-black">{math.speed}m</div>
+                 )}
                  <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Velocità</div>
               </div>
               <div className="text-center">
                  <Hash className="w-4 h-4 text-accent mx-auto mb-1" />
-                 <div className="text-xl font-black">+{math.proficiencyBonus}</div>
+                 {isEditing ? (
+                   <input 
+                     type="number"
+                     value={editValues.proficiencyOverride !== undefined ? editValues.proficiencyOverride : math.proficiencyBonus}
+                     onChange={(e) => setEditValues(prev => ({ ...prev, proficiencyOverride: parseInt(e.target.value) || 0 }))}
+                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
+                   />
+                 ) : (
+                   <div className="text-xl font-black">+{math.proficiencyBonus}</div>
+                 )}
                  <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Competenza</div>
               </div>
            </div>
@@ -296,19 +428,32 @@ export default function CharacterSheet() {
            {/* Level & XP */}
            <div className="bg-panel-bg border border-border rounded-lg p-4 flex flex-col justify-center">
               <div className="flex items-center justify-between mb-1">
-                 <span className="text-[10px] font-black uppercase text-accent">Livello {currentCharacter.level}</span>
+                 <span className="text-[10px] font-black uppercase text-accent">
+                   Livello {isEditing ? editValues.level : currentCharacter.level}
+                 </span>
                  <TrendingUp className="w-3 h-3 text-accent" />
               </div>
-              <div className="flex gap-2">
-                 <button 
-                   onClick={() => handleUpdate({ level: Math.max(1, currentCharacter.level - 1) })}
-                   className="flex-1 py-1 rounded border border-border text-[9px] font-black hover:bg-accent/10"
-                 >LEVEL DOWN</button>
-                 <button 
-                   onClick={() => handleUpdate({ level: currentCharacter.level + 1 })}
-                   className="flex-1 py-1 rounded bg-accent text-bg text-[9px] font-black shadow-sm"
-                 >LEVEL UP</button>
-              </div>
+              {isEditing ? (
+                <input 
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={editValues.level || 1}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
+                  className="w-full bg-card-bg border border-border rounded py-1 text-center font-bold text-sm"
+                />
+              ) : (
+                <div className="flex gap-2">
+                   <button 
+                     onClick={() => handleUpdate({ level: Math.max(1, currentCharacter.level - 1) })}
+                     className="flex-1 py-1 rounded border border-border text-[9px] font-black hover:bg-accent/10"
+                   >LEVEL DOWN</button>
+                   <button 
+                     onClick={() => handleUpdate({ level: currentCharacter.level + 1 })}
+                     className="flex-1 py-1 rounded bg-accent text-bg text-[9px] font-black shadow-sm"
+                   >LEVEL UP</button>
+                </div>
+              )}
            </div>
         </div>
       </header>
@@ -336,6 +481,9 @@ export default function CharacterSheet() {
 
         {/* Dynamic Content Area */}
         <div className="lg:col-span-9 space-y-6">
+
+           {/* Magic Resources Tracker (2024 Rules) */}
+           <ResourceTracker />
 
            {/* Rests & Combat Interactive Panel Sandbox */}
            <CombatAndRests 

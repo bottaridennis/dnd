@@ -13,22 +13,11 @@ interface DashboardProps {
 
 export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProps) {
   const { user, logout } = useAuth();
-  const { dispatch } = useCharacter();
-  const [characters, setCharacters] = useState<CharacterData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { state, dispatch } = useCharacter();
+  const { characters, loading } = state;
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    
-    // Subscribe to characters in real-time
-    const unsubscribe = characterService.subscribeToCharacters(user.uid, (data) => {
-      setCharacters(data);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+  // We no longer need local subscription here as it's handled in CharacterContext
 
   const handleDeleteRequest = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

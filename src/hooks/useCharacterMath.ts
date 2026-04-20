@@ -11,7 +11,8 @@ export function useCharacterMath(character: CharacterData | null) {
     const charSpecies = speciesData.find(s => s.id === character.speciesId);
 
     // Calculate Proficiency Bonus based on Level
-    const proficiencyBonus = Math.floor((character.level - 1) / 4) + 2;
+    const baseProficiency = Math.floor((character.level - 1) / 4) + 2;
+    const proficiencyBonus = character.proficiencyOverride !== undefined ? character.proficiencyOverride : baseProficiency;
 
     // Helper to get final ability score including background boosts
     const getFinalScore = (ability: string) => {
@@ -49,14 +50,16 @@ export function useCharacterMath(character: CharacterData | null) {
     const avgHitDie = Math.floor(hitDie / 2) + 1;
     const hpMax = hitDie + mods.CON + (character.level - 1) * (avgHitDie + mods.CON);
 
-    // AC (Unarmored)
-    const acBase = 10 + mods.DEX;
+    // AC
+    const baseAc = 10 + mods.DEX;
+    const acBase = character.acOverride !== undefined ? character.acOverride : baseAc;
 
     // Initiative
     const initiative = mods.DEX;
 
     // Speed
-    const speed = charSpecies?.speed || 30;
+    const baseSpeed = charSpecies?.speed || 30;
+    const speed = character.speedOverride !== undefined ? character.speedOverride : baseSpeed;
 
     // Passive Perception
     // Assume Perception is Wisdom-based. In 2024 it's 10 + Perception check modifier

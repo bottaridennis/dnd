@@ -68,17 +68,31 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 const COLLECTION_NAME = 'characters';
 
+/**
+ * Clean data object by removing undefined values,
+ * which Firestore does not support.
+ */
+function cleanData(data: any) {
+  const cleaned = { ...data };
+  Object.keys(cleaned).forEach(key => {
+    if (cleaned[key] === undefined) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
+}
+
 export const characterService = {
   async saveCharacter(character: CharacterData) {
     if (!auth.currentUser) throw new Error('User must be logged in to save characters');
     const path = `${COLLECTION_NAME}/${character.id}`;
     try {
-      const data = {
+      const data = cleanData({
         ...character,
         userId: auth.currentUser.uid,
         updatedAt: Timestamp.now(),
         createdAt: character.createdAt || Timestamp.now()
-      };
+      });
       await setDoc(doc(db, COLLECTION_NAME, character.id), data);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
@@ -88,10 +102,10 @@ export const characterService = {
   async updateCharacter(characterId: string, updates: Partial<CharacterData>) {
     const path = `${COLLECTION_NAME}/${characterId}`;
     try {
-      const data = {
+      const data = cleanData({
         ...updates,
         updatedAt: Timestamp.now()
-      };
+      });
       await updateDoc(doc(db, COLLECTION_NAME, characterId), data);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);

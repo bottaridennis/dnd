@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { useCharacter, initialCharacter, CharacterData } from '../contexts/CharacterContext';
+import { useCharacter, initialCharacter, CharacterData, Ability } from '../contexts/CharacterContext';
 import { useAuth } from '../contexts/AuthContext';
 import { characterService } from '../services/characterService';
-import { classesData, speciesData, backgroundsData } from '../data/rules2024';
+import { classesData, speciesData, backgroundsData, ALL_SKILLS } from '../data/rules2024';
 import { FEATURES } from '../data/features';
-import { ChevronRight, ChevronLeft, Save, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Save, Loader2, Dices } from 'lucide-react';
 import AbilityScoresStep from './AbilityScoresStep';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
 import SummaryStep from './SummaryStep';
 import { getModifier } from '../lib/utils';
+import { useSpeciesAutomation } from '../hooks/useSpeciesAutomation';
 
 const STEPS = [
   'Classe',
@@ -29,6 +30,10 @@ interface WizardProps {
 export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const { currentCharacter, dispatch } = useCharacter();
   const { user } = useAuth();
+  
+  // Automate species benefits
+  useSpeciesAutomation();
+
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -49,6 +54,10 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       case 1: {
         if (!currentCharacter.speciesId || !currentCharacter.backgroundId) return false;
         const species = speciesData.find(s => s.id === currentCharacter.speciesId);
+        
+        // PHB 2024: Mandatory SubOption for certain species
+        if (species && (species as any).subOptions && !currentCharacter.speciesSubOption) return false;
+
         if (species && species.skillChoices) {
           const charClass = classesData.find(c => c.id === currentCharacter.classId);
           const target = (charClass?.skillChoices || 0) + species.skillChoices;
@@ -117,6 +126,67 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRandomize = () => {
+    const randomClass = classesData[Math.floor(Math.random() * classesData.length)];
+    const randomSpecies = speciesData[Math.floor(Math.random() * speciesData.length)];
+    const randomBackground = backgroundsData[Math.floor(Math.random() * backgroundsData.length)];
+    
+    // Sub-options
+    let subOptionId = '';
+    if ((randomSpecies as any).subOptions) {
+      const sub = (randomSpecies as any).subOptions[Math.floor(Math.random() * (randomSpecies as any).subOptions.length)];
+      subOptionId = sub.id;
+    }
+
+    // Ability Scores (Standard Array)
+    const baseScores = [15, 14, 13, 12, 10, 8].sort(() => Math.random() - 0.5);
+    const abilities: Ability[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+    const abilityScores = abilities.reduce((acc, abl, i) => {
+      acc[abl] = baseScores[i];
+      return acc;
+    }, {} as Record<Ability, number>);
+
+    // Boosts (Randomly pick 2 from background options)
+    const boosts = [...randomBackground.boosts].sort(() => Math.random() - 0.5).slice(0, 2);
+
+    // Skills
+    const bgSkills = randomBackground.skills;
+    const availableClassSkills = randomClass.skillOptions.filter(s => !bgSkills.includes(s));
+    const randomClassSkills = [...availableClassSkills].sort(() => Math.random() - 0.5).slice(0, randomClass.skillChoices);
+    
+    let allSkills = [...bgSkills, ...randomClassSkills];
+    
+    // Species skills
+    if (randomSpecies.skillChoices) {
+      const remainingSkills = ALL_SKILLS.filter(s => !allSkills.includes(s));
+      const speciesSkills = [...remainingSkills].sort(() => Math.random() - 0.5).slice(0, randomSpecies.skillChoices);
+      allSkills = [...allSkills, ...speciesSkills];
+    }
+
+    // Name
+    const names = ['Thaelin', 'Elora', 'Kael', 'Lyra', 'Brak', 'Sif', 'Morgaine', 'Dante', 'Zephyr', 'Vara', 'Jax', 'Lumi', 'Caelum', 'Onyx', 'Sage'];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+
+    dispatch({
+      type: 'UPDATE_CHARACTER',
+      payload: {
+        name: randomName,
+        classId: randomClass.id,
+        speciesId: randomSpecies.id,
+        speciesSubOption: subOptionId,
+        backgroundId: randomBackground.id,
+        abilityScores,
+        selectedBoosts: boosts as Ability[],
+        proficientSkills: allSkills,
+        alignment: ['Legale Buono', 'Neutrale Buono', 'Caotico Buono', 'Legale Neutrale', 'Neutrale', 'Caotico Neutrale'][Math.floor(Math.random() * 6)],
+        description: 'Un avventuriero generato casualmente in cerca di gloria.'
+      }
+    });
+
+    // We can jump to summary if we want, or just stay here
+    setCurrentStep(5); 
   };
 
   if (!currentCharacter) return null;
@@ -225,6 +295,56 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   </button>
                 ))}
               </div>
+
+              {/* Species Sub-Option Selection (PHB 2024 Lineages) */}
+              {(() => {
+                const currentSp = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
+                if (currentSp && currentSp.subOptions) {
+                  return (
+                    <div className="mt-8 p-8 bg-card-bg border border-accent/20 rounded-xl animate-in slide-in-from-top-4 duration-500">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-accent/10 rounded-lg">
+                          <ChevronRight className="w-5 h-5 text-accent" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-serif font-black text-text-primary uppercase tracking-tight">Scegli il tuo Lignaggio</h4>
+                          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Opzioni specifiche per la specie {currentSp.name}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {currentSp.subOptions.map((opt: any) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSubOption: opt.id } })}
+                            className={`p-5 rounded-lg border text-left transition-all duration-300 relative group overflow-hidden ${
+                              currentCharacter.speciesSubOption === opt.id 
+                                ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
+                                : 'border-border bg-panel-bg hover:border-text-muted hover:bg-bg'
+                            }`}
+                          >
+                            {currentCharacter.speciesSubOption === opt.id && (
+                              <div className="absolute top-0 right-0 p-1.5 bg-accent text-bg rounded-bl-lg">
+                                <ChevronRight className="w-3 h-3" />
+                              </div>
+                            )}
+                            <div className={`text-sm font-black mb-1.5 transition-colors ${currentCharacter.speciesSubOption === opt.id ? 'text-accent' : 'text-text-primary'}`}>
+                              {opt.name}
+                            </div>
+                            <div className="text-[9px] text-text-muted font-bold uppercase tracking-wider line-clamp-2">
+                              {opt.spells && `Trucchetti: ${opt.spells.join(', ')}`}
+                              {opt.resistance && `Resistenza: ${opt.resistance}`}
+                              {opt.damageType && `Elemento: ${opt.damageType}`}
+                              {opt.feature && `Privilegio: ${opt.feature}`}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               
               {/* Species Skill Selection if needed (Like Human or Elf) */}
               {(() => {
@@ -452,6 +572,13 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 className="flex-1 md:flex-none px-6 py-3 rounded border border-transparent text-sm font-semibold text-text-muted transition-all hover:text-amber-500"
               >
                 Annulla
+              </button>
+              <button
+                onClick={handleRandomize}
+                className="flex-1 md:flex-none px-4 py-3 rounded bg-bg border border-accent/20 text-accent text-[10px] font-black uppercase tracking-widest hover:bg-accent/5 hover:border-accent transition-all flex items-center justify-center gap-2"
+                title="Genera un personaggio casuale"
+              >
+                <Dices className="w-4 h-4" /> Casuale
               </button>
               <button
                 onClick={prevStep}

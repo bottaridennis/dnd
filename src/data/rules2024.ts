@@ -8,15 +8,81 @@ export const ALL_SKILLS = [
 
 export const speciesData = [
   { id: 'aasimar', name: 'Aasimar', size: 'Media o Piccola', speed: 9, traits: ['Resistenza Celestiale', 'Scurovisione', 'Mani Guaritrici', 'Rivelazione Celestiale (Livello 3)'] },
-  { id: 'dragonborn', name: 'Dragonide', size: 'Media', speed: 9, traits: ['Antenato Draconico', 'Arma a Soffio', 'Resistenza ai Danni', 'Scurovisione', 'Volo Draconico (Livello 5)'] },
+  { 
+    id: 'dragonborn', 
+    name: 'Dragonide', 
+    size: 'Media', 
+    speed: 9, 
+    traits: ['Antenato Draconico', 'Arma a Soffio', 'Resistenza ai Danni', 'Scurovisione', 'Volo Draconico (Livello 5)'],
+    subOptions: [
+      { id: 'black', name: 'Nero', damageType: 'Acido' },
+      { id: 'blue', name: 'Blu', damageType: 'Fulmine' },
+      { id: 'brass', name: 'Ottone', damageType: 'Fuoco' },
+      { id: 'bronze', name: 'Bronzo', damageType: 'Fulmine' },
+      { id: 'copper', name: 'Rame', damageType: 'Acido' },
+      { id: 'gold', name: 'Oro', damageType: 'Fuoco' },
+      { id: 'green', name: 'Verde', damageType: 'Veleno' },
+      { id: 'red', name: 'Rosso', damageType: 'Fuoco' },
+      { id: 'silver', name: 'Argento', damageType: 'Freddo' },
+      { id: 'white', name: 'Bianco', damageType: 'Freddo' }
+    ]
+  },
   { id: 'dwarf', name: 'Nano', size: 'Media', speed: 9, traits: ['Scurovisione', 'Resistenza Nanica', 'Robustezza Nanica', 'Esperto di Pietre'] },
-  { id: 'elf', name: 'Elfo', size: 'Media', speed: 9, traits: ['Scurovisione', 'Ascendenza Fatata', 'Sensi Acuti', 'Trance', 'Lignaggio Elfico'], skillChoices: 1, skillOptions: ['Intuizione', 'Percezione', 'Sopravvivenza'] },
-  { id: 'gnome', name: 'Gnomo', size: 'Piccola', speed: 9, traits: ['Scurovisione', 'Astuzia Gnomesca', 'Lignaggio Gnomesco'] },
-  { id: 'goliath', name: 'Goliath', size: 'Media', speed: 10.5, traits: ['Antenato Gigante', 'Forma Grande (Livello 5)', 'Corporatura Possente'] },
+  { 
+    id: 'elf', 
+    name: 'Elfo', 
+    size: 'Media', 
+    speed: 9, 
+    traits: ['Scurovisione', 'Ascendenza Fatata', 'Sensi Acuti', 'Trance', 'Lignaggio Elfico'], 
+    skillChoices: 1, 
+    skillOptions: ['Intuizione', 'Percezione', 'Sopravvivenza'],
+    subOptions: [
+      { id: 'drow', name: 'Drow', spells: ['Luci Danzanti'], traits: ['Scurovisione Superiore (36m)'] },
+      { id: 'high-elf', name: 'Elfo Alto', spells: ['Prestigiditazione'] },
+      { id: 'wood-elf', name: 'Elfo dei Boschi', spells: ['Artigianato Druidico'], speedBonus: 1.5 }
+    ]
+  },
+  { 
+    id: 'gnome', 
+    name: 'Gnomo', 
+    size: 'Piccola', 
+    speed: 9, 
+    traits: ['Scurovisione', 'Astuzia Gnomesca', 'Lignaggio Gnomesco'],
+    subOptions: [
+      { id: 'forest-gnome', name: 'Gnomo delle Foreste', spells: ['Illusione Minore', 'Parlare con gli Animali'] },
+      { id: 'rock-gnome', name: 'Gnomo delle Rocce', spells: ['Riparare', 'Prestigiditazione'] }
+    ]
+  },
+  { 
+    id: 'goliath', 
+    name: 'Goliath', 
+    size: 'Media', 
+    speed: 10.5, 
+    traits: ['Antenato Gigante', 'Forma Grande (Livello 5)', 'Corporatura Possente'],
+    subOptions: [
+      { id: 'cloud', name: 'Cloud Giant (Cloud\'s Jaunt)', feature: 'Cloud\'s Jaunt' },
+      { id: 'fire', name: 'Fire Giant (Fire\'s Burn)', feature: 'Fire\'s Burn' },
+      { id: 'frost', name: 'Frost Giant (Frost\'s Chill)', feature: 'Frost\'s Chill' },
+      { id: 'hill', name: 'Hill Giant (Hill\'s Tumble)', feature: 'Hill\'s Tumble' },
+      { id: 'stone', name: 'Stone Giant (Stone\'s Endurance)', feature: 'Stone\'s Endurance' },
+      { id: 'storm', name: 'Storm Giant (Storm\'s Thunder)', feature: 'Storm\'s Thunder' }
+    ]
+  },
   { id: 'halfling', name: 'Halfling', size: 'Piccola', speed: 7.5, traits: ['Coraggioso', 'Agilità Halfling', 'Fortunato', 'Furtività Naturale'] },
   { id: 'human', name: 'Umano', size: 'Media', speed: 9, traits: ['Ingegnoso', 'Versatilità nelle Abilità', 'Versatile'], skillChoices: 1, skillOptions: ALL_SKILLS },
   { id: 'orc', name: 'Orco', size: 'Media', speed: 9, traits: ['Scatto di Adrenalina', 'Scurovisione', 'Corporatura Possente', 'Resistenza Implacabile'] },
-  { id: 'tiefling', name: 'Tiefling', size: 'Media', speed: 9, traits: ['Scurovisione', 'Sguardo Oltremondano', 'Resistenza Infernale', 'Lignaggio Oltremondano'] }
+  { 
+    id: 'tiefling', 
+    name: 'Tiefling', 
+    size: 'Media', 
+    speed: 9, 
+    traits: ['Scurovisione', 'Sguardo Oltremondano', 'Resistenza Infernale', 'Lignaggio Oltremondano'],
+    subOptions: [
+      { id: 'abyssal', name: 'Abissale', resistance: 'Veleno', spells: ['Spruzzo Velenoso'] },
+      { id: 'chthonic', name: 'Ctonio', resistance: 'Necrotico', spells: ['Tocco Gelido'] },
+      { id: 'infernal', name: 'Infernale', resistance: 'Fuoco', spells: ['Dardo di Fuoco'] }
+    ]
+  }
 ];
 
 export const backgroundsData = [
