@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique Firebase Auth identifier" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Character": {
+      "title": "Character",
+      "description": "D&D 5.5e (2024) Character Data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Character unique ID" },
+        "userId": { "type": "string", "description": "ID of the owner user" },
+        "name": { "type": "string" },
+        "level": { "type": "integer" },
+        "classId": { "type": "string" },
+        "speciesId": { "type": "string" },
+        "backgroundId": { "type": "string" },
+        "alignment": { "type": "string" },
+        "abilityScores": { "type": "object", "description": "Base ability scores (STR, DEX, etc.)" },
+        "selectedBoosts": { "type": "array", "description": "Abilities boosted by background" },
+        "appearance": { "type": "string" },
+        "description": { "type": "string" },
+        "trinket": { "type": "string" },
+        "spells": { "type": "array" },
+        "feats": { "type": "array" },
+        "invocations": { "type": "array" },
+        "hpMax": { "type": "integer" },
+        "hpCurrent": { "type": "integer" },
+        "hpTemp": { "type": "integer" },
+        "equipment": { "type": "array" },
+        "currency": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "level", "classId", "speciesId", "backgroundId"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/characters/{characterId}": {
+      "schema": "Character",
+      "description": "Character record"
+    }
+  }
+}
