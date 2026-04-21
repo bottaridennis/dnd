@@ -12,13 +12,16 @@ import {
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X, Edit3, Check
+  Info, Search, Star, X, Edit3, Check, Dog
 } from 'lucide-react';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import CombatAndRests from './CombatAndRests';
 import ResourceTracker from './ResourceTracker';
 import WeaponTracker from './WeaponTracker';
+import InventoryManager from './InventoryManager';
+import ConditionTracker from './ConditionTracker';
+import SummonsManager from './SummonsManager';
 
 export default function CharacterSheet() {
   const { currentCharacter, dispatch } = useCharacter();
@@ -29,6 +32,7 @@ export default function CharacterSheet() {
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
+  const [isSummonsOpen, setIsSummonsOpen] = useState(false);
 
   // Editing State
   const [isEditing, setIsEditing] = useState(false);
@@ -215,7 +219,8 @@ export default function CharacterSheet() {
   );
 
   return (
-    <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
+    <>
+      <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
       {/* Global Edit Toggle */}
       <div className="flex justify-end sticky top-20 z-40 px-4 md:px-0">
         <button
@@ -351,7 +356,7 @@ export default function CharacterSheet() {
            </div>
         </div>
 
-        <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4">
            {/* HP Tracker */}
            <div className="bg-panel-bg border border-border rounded-lg p-4 flex flex-col justify-between">
               <div className="flex justify-between items-center mb-2">
@@ -458,6 +463,25 @@ export default function CharacterSheet() {
                 </div>
               )}
            </div>
+
+           {/* Summons Quick Access */}
+           <button 
+             onClick={() => setIsSummonsOpen(true)}
+             className={`bg-panel-bg border rounded-lg p-4 flex flex-col items-center justify-center transition-all group relative ${
+                (currentCharacter.activeSummons?.length || 0) > 0 
+                ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
+                : 'border-border hover:border-accent/40'
+             }`}
+           >
+              {(currentCharacter.activeSummons?.length || 0) > 0 && (
+                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#d4af37]" />
+              )}
+              <Dog className={`w-5 h-5 mb-1 group-hover:scale-110 transition-transform ${(currentCharacter.activeSummons?.length || 0) > 0 ? 'text-accent' : 'text-text-muted'}`} />
+              <div className="text-[10px] font-black uppercase text-text-primary tracking-widest leading-tight">Evocazioni</div>
+              <div className={`text-[8px] font-bold mt-0.5 uppercase ${(currentCharacter.activeSummons?.length || 0) > 0 ? 'text-accent' : 'text-text-muted'}`}>
+                {(currentCharacter.activeSummons?.length || 0) > 0 ? `${currentCharacter.activeSummons?.length} Attive` : 'Gestione'}
+              </div>
+           </button>
         </div>
       </header>
 
@@ -484,6 +508,7 @@ export default function CharacterSheet() {
 
         {/* Dynamic Content Area */}
         <div className="lg:col-span-9 space-y-6">
+           <ConditionTracker />
 
            {/* Magic Resources Tracker (2024 Rules) */}
            <ResourceTracker />
@@ -549,11 +574,6 @@ export default function CharacterSheet() {
                            {/* Mobile Content wrapper */}
                            <div className="min-h-[100px]">
                               {/* Inject the relevant content immediately below using the same logic as desktop tab */}
-                              {t.id === 'mastery' && (
-                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <WeaponTracker isEditing={isEditing} />
-                          </div>
-                       )}
                        {t.id === 'stats' && (
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                                    {math.skills.map(skill => (
@@ -669,64 +689,7 @@ export default function CharacterSheet() {
                                  </div>
                               )}
                               {t.id === 'equipment' && (
-                                 <div className="space-y-6">
-                                    <div className="grid grid-cols-4 gap-2">
-                                       {Object.entries(currentCharacter.currency).map(([type, value]) => (
-                                          <div key={type} className="bg-card-bg border border-border rounded p-2 text-center">
-                                             <div className="text-[9px] font-black uppercase text-text-muted mb-1">{type}</div>
-                                             <input 
-                                               type="number" 
-                                               value={value} 
-                                               onChange={(e) => handleUpdate({ currency: { ...currentCharacter.currency, [type]: parseInt(e.target.value) || 0 } })}
-                                               className="w-full bg-transparent text-center text-sm font-black text-text-primary focus:outline-none"
-                                             />
-                                          </div>
-                                       ))}
-                                    </div>
-              
-                                    <div className="space-y-3">
-                                       <div className="flex items-center justify-between">
-                                          <h4 className="text-[10px] font-black uppercase text-text-muted tracking-widest">Inventario</h4>
-                                       </div>
-                                       <div className="grid grid-cols-1 gap-1.5">
-                                          {currentCharacter.equipment.map((item, i) => (
-                                             <div key={i} className="flex justify-between items-center bg-card-bg border border-border rounded px-3 py-1.5 text-[11px] font-medium">
-                                                {item}
-                                                <button onClick={() => {
-                                                   handleUpdate({ equipment: currentCharacter.equipment.filter((_, idx) => idx !== i) });
-                                                }} className="text-text-muted hover:text-accent"><Plus className="w-2 h-2 rotate-45" /></button>
-                                             </div>
-                                          ))}
-                                       </div>
-                                       <div className="flex gap-2">
-                                          <input 
-                                            type="text" 
-                                            value={newItemText} 
-                                            onChange={e => setNewItemText(e.target.value)} 
-                                            placeholder="Nuovo oggetto..." 
-                                            className="flex-1 bg-card-bg border border-border text-[11px] px-3 py-1.5 rounded focus:outline-none focus:border-accent font-medium text-text-primary"
-                                            onKeyDown={e => {
-                                              if (e.key === 'Enter' && newItemText.trim()) {
-                                                handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                                setNewItemText('');
-                                              }
-                                            }}
-                                          />
-                                          <button 
-                                            onClick={() => {
-                                              if (newItemText.trim()) {
-                                                handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                                setNewItemText('');
-                                              }
-                                            }}
-                                            disabled={!newItemText.trim()}
-                                            className="bg-accent text-bg px-2 py-1 rounded disabled:opacity-50 transition-colors flex items-center justify-center"
-                                          >
-                                            <Plus className="w-3 h-3" />
-                                          </button>
-                                       </div>
-                                    </div>
-                                 </div>
+                                 <InventoryManager />
                               )}
                            </div>
                          </div>
@@ -874,70 +837,15 @@ export default function CharacterSheet() {
                    </motion.div>
                  )}
 
-                 {activeTab === 'equipment' && (
-                    <motion.div 
-                      key="equipment"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-8"
-                    >
-                       <div className="grid grid-cols-4 gap-4">
-                          {Object.entries(currentCharacter.currency).map(([type, value]) => (
-                             <div key={type} className="bg-card-bg border border-border rounded p-4 text-center">
-                                <div className="text-[10px] font-black uppercase text-text-muted mb-1">{type}</div>
-                                <input 
-                                  type="number" 
-                                  value={value} 
-                                  onChange={(e) => handleUpdate({ currency: { ...currentCharacter.currency, [type]: parseInt(e.target.value) || 0 } })}
-                                  className="w-full bg-transparent text-center text-lg font-black text-text-primary focus:outline-none"
-                                />
-                             </div>
-                          ))}
-                       </div>
-
-                       <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                             <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Inventario</h4>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2">
-                             {currentCharacter.equipment.map((item, i) => (
-                                <div key={i} className="flex justify-between items-center bg-card-bg border border-border rounded px-4 py-2 text-xs font-medium">
-                                   {item}
-                                   <button onClick={() => {
-                                       handleUpdate({ equipment: currentCharacter.equipment.filter((_, idx) => idx !== i) });
-                                   }} className="text-text-muted hover:text-accent"><Plus className="w-3 h-3 rotate-45" /></button>
-                                </div>
-                             ))}
-                          </div>
-                          <div className="flex gap-2">
-                             <input 
-                               type="text" 
-                               value={newItemText} 
-                               onChange={e => setNewItemText(e.target.value)} 
-                               placeholder="Nuovo oggetto..." 
-                               className="flex-1 bg-card-bg border border-border text-xs px-4 py-2 rounded focus:outline-none focus:border-accent font-medium text-text-primary"
-                               onKeyDown={e => {
-                                 if (e.key === 'Enter' && newItemText.trim()) {
-                                   handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                   setNewItemText('');
-                                 }
-                               }}
-                             />
-                             <button 
-                               onClick={() => {
-                                 if (newItemText.trim()) {
-                                   handleUpdate({ equipment: [...currentCharacter.equipment, newItemText.trim()] });
-                                   setNewItemText('');
-                                 }
-                               }}
-                               disabled={!newItemText.trim()}
-                               className="bg-accent text-bg px-4 py-2 rounded disabled:opacity-50 transition-colors flex items-center justify-center"
-                             >
-                               <Plus className="w-4 h-4" />
-                             </button>
-                          </div>
-                       </div>
-                    </motion.div>
+                  {activeTab === 'equipment' && (
+                     <motion.div 
+                       key="equipment"
+                       initial={{ opacity: 0, y: 10 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       className="space-y-8"
+                     >
+                        <InventoryManager />
+                     </motion.div>
                   )}
 
                   {activeTab === 'mastery' && (
@@ -954,5 +862,11 @@ export default function CharacterSheet() {
         </div>
       </div>
     </div>
+
+    <SummonsManager 
+      isOpen={isSummonsOpen} 
+      onClose={() => setIsSummonsOpen(false)} 
+    />
+    </>
   );
 }

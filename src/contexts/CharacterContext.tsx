@@ -1,8 +1,32 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { characterService } from '../services/characterService';
+import { ActiveSummon } from '../types/summons';
 
 export type Ability = 'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA';
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  weight: number;
+  quantity: number;
+  isAttuned: boolean;
+  isMagical: boolean;
+  isEquipped: boolean;
+  containerId?: string | null;
+  // Weapon specific
+  damage?: string;
+  damageType?: string;
+  properties?: string[];
+  mastery?: string;
+}
+
+export interface ContainerData {
+  id: string;
+  name: string;
+  type: 'Backpack' | 'Pouch' | 'Sack' | 'Other';
+  maxWeight?: number;
+}
 
 export interface CharacterData {
   id: string;
@@ -36,13 +60,20 @@ export interface CharacterData {
   hpTemp: number;
   acOverride?: number;
   speedOverride?: number;
+  darkvisionOverride?: number;
   proficiencyOverride?: number;
   currency: {
     cp: number;
     sp: number;
+    ep: number;
     gp: number;
     pp: number;
   };
+  inventoryItems?: InventoryItem[];
+  innateSpells?: string[];
+  conditions?: string[];
+  exhaustion?: number;
+  containers?: ContainerData[];
   // D&D 2024 Resource Tracking
   classes?: Record<string, { level: number, subclass?: string }>;
   resources?: {
@@ -51,6 +82,12 @@ export interface CharacterData {
     spentSorceryPoints: number;
     spentChannelDivinity: number;
   };
+  companion?: {
+    id: string;
+    currentHp: number;
+    isActive: boolean;
+  };
+  activeSummons?: ActiveSummon[];
   createdAt?: any;
   updatedAt?: any;
 }
@@ -104,9 +141,17 @@ const initialCharacter: CharacterData = {
   currency: {
     cp: 0,
     sp: 0,
+    ep: 0,
     gp: 0,
     pp: 0,
   },
+  inventoryItems: [],
+  innateSpells: [],
+  conditions: [],
+  exhaustion: 0,
+  containers: [
+    { id: 'backpack', name: 'Zaino', type: 'Backpack', maxWeight: 15 },
+  ],
   classes: {},
   resources: {
     spentSpellSlots: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
@@ -114,6 +159,7 @@ const initialCharacter: CharacterData = {
     spentSorceryPoints: 0,
     spentChannelDivinity: 0,
   },
+  activeSummons: [],
 };
 
 const initialState: UserState = {

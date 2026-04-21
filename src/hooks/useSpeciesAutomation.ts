@@ -23,10 +23,11 @@ export function useSpeciesAutomation() {
     // between background feats, class spells and species spells.
     // For this implementation, we will sync them based on the current species choice.
 
-    let newSpells = [...(currentCharacter.spells || [])];
+    let newSpells = [...(currentCharacter.innateSpells || [])];
     let newResistances = [...(currentCharacter.resistances || [])];
     let newFeatures = [...(currentCharacter.features || [])];
     let newSpeedOverride = undefined;
+    let newDarkvisionOverride = undefined;
 
     // 1. Basic Species Traits (Level 1)
     // We add them as features if they are not already there
@@ -34,11 +35,27 @@ export function useSpeciesAutomation() {
         if (!newFeatures.includes(trait)) newFeatures.push(trait);
     });
 
+    if (species.grantedSpells) {
+        species.grantedSpells.forEach((spell: string) => {
+            if (!newSpells.includes(spell)) newSpells.push(spell);
+        });
+    }
+
+    if (species.resistances) {
+        species.resistances.forEach((res: string) => {
+            if (!newResistances.includes(res)) newResistances.push(res);
+        });
+    }
+
+    if (species.darkvision) {
+        newDarkvisionOverride = species.darkvision;
+    }
+
     // 2. Sub-Option Derived Benefits
     const subOption = (species as any).subOptions?.find((opt: any) => opt.id === currentCharacter.speciesSubOption);
     
     if (subOption) {
-      // Automatic Spells
+      // Automatic Spells (Innate)
       if (subOption.spells) {
         subOption.spells.forEach((spell: string) => {
           if (!newSpells.includes(spell)) newSpells.push(spell);
@@ -63,27 +80,32 @@ export function useSpeciesAutomation() {
          if (!newFeatures.includes(subOption.feature)) newFeatures.push(subOption.feature);
       }
 
-      // Wood Elf Speed
-      if (subOption.speedBonus) {
-         newSpeedOverride = (species.speed || 9) + subOption.speedBonus;
+      // Special Overrides from Sub-Option
+      if (subOption.speed) {
+         newSpeedOverride = subOption.speed;
+      }
+      if (subOption.darkvision) {
+          newDarkvisionOverride = subOption.darkvision;
       }
     }
 
     // Check if we actually need to update
     const needsUpdate = 
-      JSON.stringify(newSpells) !== JSON.stringify(currentCharacter.spells) ||
+      JSON.stringify(newSpells) !== JSON.stringify(currentCharacter.innateSpells) ||
       JSON.stringify(newResistances) !== JSON.stringify(currentCharacter.resistances) ||
       JSON.stringify(newFeatures) !== JSON.stringify(currentCharacter.features) ||
-      newSpeedOverride !== currentCharacter.speedOverride;
+      newSpeedOverride !== currentCharacter.speedOverride ||
+      newDarkvisionOverride !== currentCharacter.darkvisionOverride;
 
     if (needsUpdate) {
       dispatch({ 
         type: 'UPDATE_CHARACTER', 
         payload: { 
-          spells: Array.from(new Set(newSpells)), // Deduplicate
+          innateSpells: Array.from(new Set(newSpells)), // Deduplicate
           resistances: Array.from(new Set(newResistances)),
           features: Array.from(new Set(newFeatures)),
-          speedOverride: newSpeedOverride
+          speedOverride: newSpeedOverride,
+          darkvisionOverride: newDarkvisionOverride
         } 
       });
     }

@@ -12,7 +12,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { CharacterData } from '../contexts/CharacterContext';
+import { CharacterData, InventoryItem } from '../contexts/CharacterContext';
 
 export enum OperationType {
   CREATE = 'create',
@@ -69,17 +69,22 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 const COLLECTION_NAME = 'characters';
 
 /**
- * Clean data object by removing undefined values,
+ * Clean data object by recursively removing undefined values,
  * which Firestore does not support.
  */
-function cleanData(data: any) {
-  const cleaned = { ...data };
-  Object.keys(cleaned).forEach(key => {
-    if (cleaned[key] === undefined) {
-      delete cleaned[key];
-    }
-  });
-  return cleaned;
+function cleanData(data: any): any {
+  if (Array.isArray(data)) {
+    return data.map(v => cleanData(v));
+  } else if (data !== null && typeof data === 'object' && !(data instanceof Timestamp)) {
+    const cleaned: any = {};
+    Object.keys(data).forEach(key => {
+      if (data[key] !== undefined) {
+        cleaned[key] = cleanData(data[key]);
+      }
+    });
+    return cleaned;
+  }
+  return data;
 }
 
 export const characterService = {
@@ -142,5 +147,50 @@ export const characterService = {
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
     });
+  },
+
+  async addStandardItemToInventory(characterId: string, item: any, containerId: string | null = null) {
+    const path = `${COLLECTION_NAME}/${characterId}`;
+    try {
+      const docRef = doc(db, COLLECTION_NAME, characterId);
+      const characterDoc = await getDoc(docRef);
+      if (!characterDoc.exists()) throw new Error('Character not found');
+
+      const data = characterDoc.data() as CharacterData;
+      const inventoryItems = data.inventoryItems || [];
+      
+      // Handle quantity in name (e.g. "Daga (2)")
+      let itemName = item.name;
+      let quantity = 1;
+      const quantityMatch = itemName.match(/\((\d+)\)$/);
+      if (quantityMatch) {
+        quantity = parseInt(quantityMatch[1]);
+        itemName = itemName.replace(/\s*\(\d+\)$/, '').trim();
+      }
+
+      const newItem: InventoryItem = {
+        id: crypto.randomUUID(),
+        name: itemName,
+        weight: item.weight || 0,
+        quantity: quantity,
+        isAttuned: false,
+        isMagical: false,
+        isEquipped: false,
+        containerId: containerId,
+        // Weapon details
+        damage: item.damage,
+        damageType: item.damageType,
+        properties: item.properties,
+        mastery: item.mastery
+      };
+
+      await updateDoc(docRef, {
+        inventoryItems: [...inventoryItems, newItem],
+        updatedAt: Timestamp.now()
+      });
+      return newItem;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
   }
 };

@@ -57,9 +57,19 @@ export function useCharacterMath(character: CharacterData | null) {
     // Initiative
     const initiative = mods.DEX;
 
+    // Exhaustion (2024)
+    const exhaustionLevel = character.exhaustion || 0;
+    const exhaustionSpeedPenalty = exhaustionLevel * 1.5;
+    const d20Penalty = exhaustionLevel * 2;
+
     // Speed
     const baseSpeed = charSpecies?.speed || 30;
-    const speed = character.speedOverride !== undefined ? character.speedOverride : baseSpeed;
+    const rawSpeed = character.speedOverride !== undefined ? character.speedOverride : baseSpeed;
+    const speed = Math.max(0, rawSpeed - exhaustionSpeedPenalty);
+
+    // Darkvision
+    const baseDarkvision = charSpecies?.darkvision || 0;
+    const darkvision = character.darkvisionOverride !== undefined ? character.darkvisionOverride : baseDarkvision;
 
     // Passive Perception
     // Assume Perception is Wisdom-based. In 2024 it's 10 + Perception check modifier
@@ -104,8 +114,11 @@ export function useCharacterMath(character: CharacterData | null) {
       acBase,
       initiative,
       speed,
+      darkvision,
       passivePerception,
       proficiencyBonus,
+      d20Penalty,
+      exhaustionLevel,
       skills
     };
   }, [character]);

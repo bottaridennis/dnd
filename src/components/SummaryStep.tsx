@@ -3,7 +3,7 @@ import React from 'react';
 import { useCharacter, Ability } from '../contexts/CharacterContext';
 import { classesData, speciesData, backgroundsData } from '../data/rules2024';
 import { getModifier, abilityMap } from '../lib/utils';
-import { Shield, Heart, Zap, Eye, User, Scroll } from 'lucide-react';
+import { Shield, Heart, Zap, Eye, User, Scroll, Briefcase } from 'lucide-react';
 
 export default function SummaryStep() {
   const { currentCharacter } = useCharacter();
@@ -113,7 +113,40 @@ export default function SummaryStep() {
                </div>
             </div>
          </div>
-      </div>
+
+         <div className="bg-panel-bg border border-border rounded-lg p-10 col-span-1 md:col-span-2">
+            <h3 className="text-sm font-black uppercase text-text-muted tracking-[0.3em] mb-10 border-b border-border pb-4 flex items-center gap-3">
+               <Briefcase className="w-4 h-4 text-accent" /> Inventario e Risorse
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+               <div className="space-y-4">
+                  <span className="text-[10px] font-mono font-black text-text-muted tracking-[0.2em] uppercase">Oggetti Selezionati</span>
+                  <div className="grid grid-cols-1 gap-2">
+                     {currentCharacter.inventoryItems && currentCharacter.inventoryItems.length > 0 ? (
+                       currentCharacter.inventoryItems.map((item, idx) => (
+                         <div key={idx} className="flex justify-between items-center p-3 bg-card-bg border border-border rounded">
+                            <span className="text-xs font-bold text-text-primary">{item.name}</span>
+                            <span className="text-[10px] text-text-muted">x{item.quantity}</span>
+                         </div>
+                       ))
+                     ) : (
+                       <div className="text-xs italic text-text-muted opacity-50 py-4">Nessun oggetto in inventario.</div>
+                     )}
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  <span className="text-[10px] font-mono font-black text-text-muted tracking-[0.2em] uppercase block">Ricchezza Iniziale</span>
+                  <div className="flex items-baseline gap-2">
+                     <span className="text-3xl font-serif font-black text-accent">{currentCharacter.currency?.gp || 0}</span>
+                     <span className="text-xs font-bold text-text-muted uppercase">Monete d'Oro (GP)</span>
+                   </div>
+                   <p className="text-[10px] text-text-muted leading-relaxed italic">
+                      L'oro totale include sia i benefici del background che le opzioni della classe scelta.
+                   </p>
+                </div>
+             </div>
+          </div>
+       </div>
     </div>
   );
 }

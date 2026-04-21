@@ -9,9 +9,11 @@ import { ChevronRight, ChevronLeft, Save, Loader2, Dices } from 'lucide-react';
 import AbilityScoresStep from './AbilityScoresStep';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
+import StartingEquipment from './StartingEquipment';
 import SummaryStep from './SummaryStep';
 import { getModifier } from '../lib/utils';
 import { useSpeciesAutomation } from '../hooks/useSpeciesAutomation';
+import { processStartingItem } from '../data/weaponsData';
 
 const STEPS = [
   'Classe',
@@ -19,6 +21,7 @@ const STEPS = [
   'Caratteristiche',
   'Dettagli',
   'Magie e Talenti',
+  'Equipaggiamento',
   'Riepilogo'
 ];
 
@@ -169,6 +172,31 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     const names = ['Thaelin', 'Elora', 'Kael', 'Lyra', 'Brak', 'Sif', 'Morgaine', 'Dante', 'Zephyr', 'Vara', 'Jax', 'Lumi', 'Caelum', 'Onyx', 'Sage'];
     const randomName = names[Math.floor(Math.random() * names.length)];
 
+    // Equipment & Gold
+    const classOption = randomClass.startingEquipment?.options[0];
+    const bgOption = randomBackground.startingEquipment?.options[0];
+    
+    const inventoryItems: any[] = [];
+    let gold = 0;
+
+    if (classOption) {
+      if (classOption.items) {
+        classOption.items.forEach(item => {
+          inventoryItems.push(processStartingItem(item));
+        });
+      }
+      gold += classOption.gold || 0;
+    }
+
+    if (bgOption) {
+      if (bgOption.items) {
+        bgOption.items.forEach(item => {
+          inventoryItems.push(processStartingItem(item));
+        });
+      }
+      gold += bgOption.gold || 0;
+    }
+
     dispatch({
       type: 'UPDATE_CHARACTER',
       payload: {
@@ -181,12 +209,14 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         selectedBoosts: boosts as Ability[],
         proficientSkills: allSkills,
         alignment: ['Legale Buono', 'Neutrale Buono', 'Caotico Buono', 'Legale Neutrale', 'Neutrale', 'Caotico Neutrale'][Math.floor(Math.random() * 6)],
-        description: 'Un avventuriero generato casualmente in cerca di gloria.'
+        description: 'Un avventuriero generato casualmente in cerca di gloria.',
+        inventoryItems,
+        currency: { cp: 0, sp: 0, ep: 0, gp: gold, pp: 0 }
       }
     });
 
     // We can jump to summary if we want, or just stay here
-    setCurrentStep(5); 
+    setCurrentStep(6); 
   };
 
   if (!currentCharacter) return null;
@@ -461,6 +491,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       case 4:
         return <SpellsFeatsStep />;
       case 5:
+        return <StartingEquipment onNext={() => setCurrentStep(6)} />;
+      case 6:
         return <SummaryStep />;
       default:
         return null;

@@ -176,27 +176,26 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
 
       {/* Resistances, Immunities & Vulnerabilities Panel */}
       <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
-        <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-primary" />
-            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Difese Speciali</h3>
-          </div>
-          <div className="flex bg-bg rounded border border-border p-1">
+        <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-primary" />
+          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Difese Speciali</h3>
+        </div>
+        <div className="p-6">
+          <div className="flex bg-bg rounded border border-border p-1 w-full max-w-sm mb-6 mx-auto sm:mx-0 overflow-x-auto no-scrollbar">
              <button 
                onClick={() => setActiveDefTab('res')}
-               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'res' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
-             >Resist</button>
+               className={`flex-1 px-3 py-1.5 rounded text-[9px] font-black uppercase transition-all whitespace-nowrap ${activeDefTab === 'res' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+             >Resistenza</button>
              <button 
                onClick={() => setActiveDefTab('imm')}
-               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'imm' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
+               className={`flex-1 px-3 py-1.5 rounded text-[9px] font-black uppercase transition-all whitespace-nowrap ${activeDefTab === 'imm' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
              >Immunità</button>
              <button 
                onClick={() => setActiveDefTab('vul')}
-               className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${activeDefTab === 'vul' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary'}`}
-             >Vulner</button>
+               className={`flex-1 px-3 py-1.5 rounded text-[9px] font-black uppercase transition-all whitespace-nowrap ${activeDefTab === 'vul' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
+             >Vulnerabilità</button>
           </div>
-        </div>
-        <div className="p-6">
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {DAMAGE_TYPES.map((type) => {
               const currentList = activeDefTab === 'res' ? resistances : (activeDefTab === 'imm' ? immunities : vulnerabilities);
