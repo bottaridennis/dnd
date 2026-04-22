@@ -9,6 +9,7 @@ import HomebrewCreator from './components/HomebrewCreator';
 import { Wand2, Menu, Moon, Sun, Shield, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
 import { db, auth } from './firebase';
 import { collection, getDocsFromServer, limit, query } from 'firebase/firestore';
+import { userService } from './services/userService';
 import { AnimatePresence, motion } from 'motion/react';
 
 function AppContent() {
@@ -16,9 +17,17 @@ function AppContent() {
   const [view, setView] = useState<'dashboard' | 'wizard' | 'sheet' | 'homebrew'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Test Firestore Connection
+  // Test Firestore Connection & Ensure User Profile
   useEffect(() => {
-    async function testConnection() {
+    async function init() {
+      if (user) {
+        try {
+          await userService.ensureUserProfile(user);
+        } catch (e) {
+          console.error("Failed to ensure user profile:", e);
+        }
+      }
+      
       try {
         await getDocsFromServer(query(collection(db, 'characters'), limit(1)));
       } catch (error) {
@@ -27,8 +36,8 @@ function AppContent() {
         }
       }
     }
-    testConnection();
-  }, []);
+    init();
+  }, [user]);
 
   if (loading) {
     return (

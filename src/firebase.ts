@@ -24,7 +24,7 @@ const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)';
 if (!firebaseConfig.apiKey && import.meta.env.MODE !== 'test') {
   console.warn(
     "Firebase API Key is missing. If you are in AI Studio, make sure to add " +
-    "VITE_FIREBASE_API_KEY to the Secrets panel, or ensure firebase-applet-config.json exists."
+    "VITE_FIREBASE_API_KEY to the Secrets panel."
   );
 }
 

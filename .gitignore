@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 jspm_packages/
 
 # Build artifacts
@@ -32,6 +33,9 @@ desktop.ini
 *.swo
 *.sublime-project
 *.sublime-workspace
+.project
+.classpath
+.settings/
 
 # Local environment variables
 .env
@@ -40,10 +44,16 @@ desktop.ini
 .env.test.local
 .env.production.local
 
-# Firebase Applet Config
+# Firebase Configuration
+# These files contain config that is often safe to expose but better managed via CI/CD secrets for public repos
 firebase-applet-config.json
+firebase-debug.log
 
-# Vite cache
+# Internal / AI Studio specific
+.gemini/
+.antigravity/
+
+# Vite
 .vite/
 
 # TypeScript
@@ -51,3 +61,5 @@ firebase-applet-config.json
 
 # Keep .env.example
 !.env.example
+firestore.rules
+.gitignore

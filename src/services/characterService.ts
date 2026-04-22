@@ -9,7 +9,8 @@ import {
   query, 
   where,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { CharacterData, InventoryItem } from '../contexts/CharacterContext';
@@ -70,12 +71,13 @@ const COLLECTION_NAME = 'characters';
 
 /**
  * Clean data object by recursively removing undefined values,
- * which Firestore does not support.
+ * which Firestore does not support. 
+ * We only recurse into plain objects to avoid breaking FieldValue (serverTimestamp) or Timestamp.
  */
 function cleanData(data: any): any {
   if (Array.isArray(data)) {
     return data.map(v => cleanData(v));
-  } else if (data !== null && typeof data === 'object' && !(data instanceof Timestamp)) {
+  } else if (data !== null && typeof data === 'object' && Object.getPrototypeOf(data) === Object.prototype) {
     const cleaned: any = {};
     Object.keys(data).forEach(key => {
       if (data[key] !== undefined) {
@@ -95,8 +97,8 @@ export const characterService = {
       const data = cleanData({
         ...character,
         userId: auth.currentUser.uid,
-        updatedAt: Timestamp.now(),
-        createdAt: character.createdAt || Timestamp.now()
+        updatedAt: serverTimestamp(),
+        createdAt: character.createdAt || serverTimestamp()
       });
       await setDoc(doc(db, COLLECTION_NAME, character.id), data);
     } catch (error) {
@@ -109,7 +111,7 @@ export const characterService = {
     try {
       const data = cleanData({
         ...updates,
-        updatedAt: Timestamp.now()
+        updatedAt: serverTimestamp()
       });
       await updateDoc(doc(db, COLLECTION_NAME, characterId), data);
     } catch (error) {

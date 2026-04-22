@@ -6,6 +6,7 @@ import {
   User 
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase.ts';
+import { userService } from '../services/userService';
 
 interface AuthContextType {
   user: User | null;
@@ -31,7 +32,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        await userService.ensureUserProfile(result.user);
+      }
     } catch (error: any) {
       if (error?.code === 'auth/unauthorized-domain') {
         const currentDomain = window.location.hostname;
