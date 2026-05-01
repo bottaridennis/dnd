@@ -17,10 +17,16 @@ export function useCharacterMath(character: CharacterData | null) {
     // Helper to get final ability score including background boosts
     const getFinalScore = (ability: string) => {
       let score = (character.abilityScores as any)[ability] || 8;
-      if (character.selectedBoosts.includes(ability as any)) {
-        // Simplified 2/1 logic for now
-        const index = character.selectedBoosts.indexOf(ability as any);
-        score += (index === 0 ? 2 : 1);
+      const boostIndex = character.selectedBoosts.indexOf(ability as any);
+      
+      if (boostIndex !== -1) {
+        if (character.selectedBoosts.length === 3) {
+          // 1/1/1 split
+          score += 1;
+        } else {
+          // 2/1 split
+          score += (boostIndex === 0 ? 2 : 1);
+        }
       }
       return score;
     };

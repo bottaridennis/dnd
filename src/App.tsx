@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CharacterProvider } from './contexts/CharacterContext';
+import { CharacterProvider, useCharacter } from './contexts/CharacterContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import CharacterWizard from './components/CharacterWizard';
 import Dashboard from './components/Dashboard';
@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { dispatch } = useCharacter();
   const [view, setView] = useState<'dashboard' | 'wizard' | 'sheet' | 'homebrew'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -50,9 +51,19 @@ function AppContent() {
 
   if (!user) return <Login />;
 
-  const navigateTo = (viewName: 'dashboard' | 'wizard' | 'sheet' | 'homebrew') => {
-    setView(viewName);
+  const handleNewCharacter = () => {
+    dispatch({ type: 'RESET_WIZARD' });
+    setView('wizard');
     setIsMobileMenuOpen(false);
+  };
+
+  const navigateTo = (viewName: 'dashboard' | 'wizard' | 'sheet' | 'homebrew') => {
+    if (viewName === 'wizard') {
+      handleNewCharacter();
+    } else {
+      setView(viewName);
+      setIsMobileMenuOpen(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -194,7 +205,7 @@ function AppContent() {
              <CharacterSheet />
            </div>
         )}
-        {view === 'dashboard' && <Dashboard onNewCharacter={() => setView('wizard')} onOpenSheet={() => setView('sheet')} />}
+        {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
     </div>
   );

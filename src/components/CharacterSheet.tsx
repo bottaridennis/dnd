@@ -301,22 +301,22 @@ export default function CharacterSheet() {
 
       {/* Header / Info Rail */}
       <header className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        <div className="lg:col-span-1 flex items-center gap-4 bg-panel-bg p-6 rounded-lg border border-border">
+        <div className="lg:col-span-1 flex flex-col sm:flex-row items-center sm:items-start gap-4 bg-panel-bg p-6 rounded-lg border border-border">
            <div className="relative group/portrait">
-              <div className="w-16 h-16 rounded-full bg-accent/20 flex shrink-0 items-center justify-center text-accent overflow-hidden border border-accent/30">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-accent/20 flex shrink-0 items-center justify-center text-accent overflow-hidden border border-accent/30 shadow-md">
                  {currentCharacter.portraitUrl ? (
                    <img src={currentCharacter.portraitUrl} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                  ) : (
-                   <User className="w-8 h-8" />
+                   <User className="w-12 h-12" />
                  )}
               </div>
               {isEditing && (
-                <div className="absolute inset-0 bg-bg/60 flex items-center justify-center rounded-full opacity-0 group-hover/portrait:opacity-100 transition-opacity pointer-events-none">
-                  <Camera className="w-5 h-5 text-accent" />
+                <div className="absolute inset-0 bg-bg/60 flex items-center justify-center rounded-xl opacity-0 group-hover/portrait:opacity-100 transition-opacity pointer-events-none">
+                  <Camera className="w-6 h-6 text-accent" />
                 </div>
               )}
            </div>
-           <div className="flex-1">
+           <div className="flex-1 w-full text-center sm:text-left mt-2 sm:mt-0">
               {isEditing ? (
                 <div className="space-y-2">
                   <input 

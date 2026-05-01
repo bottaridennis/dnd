@@ -16,10 +16,13 @@ export default function SummaryStep() {
 
   const getFinalScore = (ability: Ability) => {
     let score = currentCharacter.abilityScores[ability];
-    // This is a simplified version of the logic in AbilityScoresStep
-    if (currentCharacter.selectedBoosts.includes(ability)) {
-       const index = currentCharacter.selectedBoosts.indexOf(ability);
-       score += (index === 0 ? 2 : 1);
+    const boostIndex = currentCharacter.selectedBoosts.indexOf(ability);
+    if (boostIndex !== -1) {
+       if (currentCharacter.selectedBoosts.length === 3) {
+         score += 1;
+       } else {
+         score += (boostIndex === 0 ? 2 : 1);
+       }
     }
     return score;
   };

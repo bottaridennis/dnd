@@ -51,10 +51,10 @@ export default function AbilityScoresStep() {
 
   const getFinalScore = (ability: Ability) => {
     let score = tempScores[ability];
-    if (selectedBoosts.includes(ability)) {
+    const boostIndex = selectedBoosts.indexOf(ability);
+    if (boostIndex !== -1) {
       if (boostType === '2/1') {
-        const index = selectedBoosts.indexOf(ability);
-        score += (index === 0 ? 2 : 1);
+        score += (boostIndex === 0 ? 2 : 1);
       } else {
         score += 1;
       }
@@ -126,9 +126,12 @@ export default function AbilityScoresStep() {
             >
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-0.5">{abilityMap[ability]}</span>
-                <span className={`text-lg font-bold ${isBoosted ? 'text-accent' : 'text-text-primary'}`}>
-                  {ability === 'STR' ? 'Forza' : ability === 'DEX' ? 'Destrezza' : ability === 'CON' ? 'Costituzione' : ability === 'INT' ? 'Intelligenza' : ability === 'WIS' ? 'Saggezza' : 'Carisma'}
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-lg font-bold ${isBoosted ? 'text-accent' : 'text-text-primary'}`}>
+                    {ability === 'STR' ? 'Forza' : ability === 'DEX' ? 'Destrezza' : ability === 'CON' ? 'Costituzione' : ability === 'INT' ? 'Intelligenza' : ability === 'WIS' ? 'Saggezza' : 'Carisma'}
+                  </span>
+                  <span className="text-2xl font-black text-text-primary">{final}</span>
+                </div>
                 {isBoosted && <span className="text-[10px] text-success font-bold mt-1 tracking-tight">+ Background Bonus</span>}
               </div>
 

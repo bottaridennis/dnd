@@ -109,41 +109,45 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => handleSelect(char.id)}
-                className="group relative bg-panel-bg border border-border rounded-xl p-8 cursor-pointer hover:border-accent transition-all h-[240px] flex flex-col justify-between overflow-hidden"
+                className="group relative bg-panel-bg border border-border rounded-xl cursor-pointer hover:border-accent transition-all h-[360px] flex flex-col justify-between overflow-hidden"
               >
-                 <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all z-10">
-                    <button onClick={(e) => handleDeleteRequest(e, char.id)} className="text-text-muted hover:text-red-500 bg-card-bg/80 backdrop-blur-sm p-2 rounded-full border border-border">
+                 <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all z-20">
+                    <button onClick={(e) => handleDeleteRequest(e, char.id)} className="text-text-muted hover:text-red-500 bg-bg/80 backdrop-blur-sm p-2 rounded-full border border-border">
                        <Trash2 className="w-4 h-4" />
                     </button>
                  </div>
                  
-                 <div>
-                    <div className="flex justify-between items-start mb-1">
-                      <h2 className="text-2xl font-serif font-black text-text-primary group-hover:text-accent transition-colors truncate flex-1">{char.name || 'Senza Nome'}</h2>
-                      {char.portraitUrl ? (
-                        <div className="w-10 h-10 rounded-full border border-accent overflow-hidden shrink-0 ml-2">
-                           <img src={char.portraitUrl} alt={char.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0 ml-2">
-                           <User className="w-5 h-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-[10px] font-black uppercase text-text-muted tracking-widest mb-4">Livello {char.level} • {char.alignment || 'Senza Allineamento'}</div>
-                    
-                    <div className="flex gap-2 relative z-0">
-                       <span className="px-3 py-1 bg-bg border border-border rounded text-[10px] font-bold text-text-muted">{char.classId}</span>
-                       <span className="px-3 py-1 bg-bg border border-border rounded text-[10px] font-bold text-text-muted">{char.speciesId}</span>
-                    </div>
+                 <div className="h-48 w-full relative bg-bg overflow-hidden shrink-0 border-b border-border">
+                    {char.portraitUrl ? (
+                      <img src={char.portraitUrl} alt={char.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-accent/20 bg-accent/5">
+                         <User className="w-16 h-16 mb-2" />
+                      </div>
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-panel-bg to-transparent" />
                  </div>
 
-                 <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                 <div className="p-6 flex-1 flex flex-col justify-between relative mt-[-20px] z-10">
+                    <div>
+                      <div className="flex justify-between items-start mb-1">
+                        <h2 className="text-2xl font-serif font-black text-text-primary group-hover:text-accent transition-colors truncate flex-1 drop-shadow-md">{char.name || 'Senza Nome'}</h2>
+                      </div>
+                      <div className="text-[10px] font-black uppercase text-text-muted tracking-widest mb-4">Livello {char.level} • {char.alignment || 'Senza Allineamento'}</div>
+                      
+                      <div className="flex gap-2 relative z-0">
+                         <span className="px-3 py-1 bg-bg/90 backdrop-blur border border-border rounded text-[10px] font-bold text-text-muted shadow-sm">{char.classId}</span>
+                         <span className="px-3 py-1 bg-bg/90 backdrop-blur border border-border rounded text-[10px] font-bold text-text-muted shadow-sm">{char.speciesId}</span>
+                      </div>
+                    </div>
+
+                 <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-6">
                     <span className="text-[9px] font-black uppercase tracking-widest text-accent">Apri Scheda</span>
                     <ChevronRight className="w-4 h-4 text-accent transform group-hover:translate-x-1 transition-transform" />
                  </div>
+                 </div>
 
-                 <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-accent/5 rounded-full blur-2xl group-hover:bg-accent/10 transition-all" />
+                 <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-accent/5 rounded-full blur-2xl group-hover:bg-accent/10 transition-all z-0" />
               </motion.div>
             ))}
          </div>

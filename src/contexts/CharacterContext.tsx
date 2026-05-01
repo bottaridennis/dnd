@@ -178,12 +178,25 @@ const CharacterContext = createContext<{
 
 function characterReducer(state: UserState, action: CharacterAction): UserState {
   switch (action.type) {
-    case 'SET_CHARACTERS':
+    case 'SET_CHARACTERS': {
+      const dbCharacters = action.payload;
+      // Preserve the current transient character being created if it's not in DB yet
+      if (state.currentCharacterId && !dbCharacters.some(c => c.id === state.currentCharacterId)) {
+        const transientChar = state.characters.find(c => c.id === state.currentCharacterId);
+        if (transientChar) {
+           return {
+             ...state,
+             characters: [...dbCharacters, transientChar],
+             loading: false
+           };
+        }
+      }
       return {
         ...state,
-        characters: action.payload,
+        characters: dbCharacters,
         loading: false,
       };
+    }
     case 'ADD_CHARACTER':
       return {
         ...state,
@@ -209,8 +222,10 @@ function characterReducer(state: UserState, action: CharacterAction): UserState 
         currentCharacterId: action.payload,
       };
     case 'RESET_WIZARD':
-       // Logic for starting a new character could go here
-       return state;
+       return {
+         ...state,
+         currentCharacterId: null
+       };
     default:
       return state;
   }
