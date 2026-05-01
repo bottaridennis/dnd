@@ -12,7 +12,7 @@ import {
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X, Edit3, Check, Dog
+  Info, Search, Star, X, Edit3, Check, Dog, Camera
 } from 'lucide-react';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -52,6 +52,7 @@ export default function CharacterSheet() {
         acOverride: currentCharacter.acOverride,
         speedOverride: currentCharacter.speedOverride,
         proficiencyOverride: currentCharacter.proficiencyOverride,
+        portraitUrl: currentCharacter.portraitUrl,
       });
     }
   }, [currentCharacter, isEditing]);
@@ -301,18 +302,90 @@ export default function CharacterSheet() {
       {/* Header / Info Rail */}
       <header className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         <div className="lg:col-span-1 flex items-center gap-4 bg-panel-bg p-6 rounded-lg border border-border">
-           <div className="w-16 h-16 rounded-full bg-accent/20 flex shrink-0 items-center justify-center text-accent">
-              <User className="w-8 h-8" />
+           <div className="relative group/portrait">
+              <div className="w-16 h-16 rounded-full bg-accent/20 flex shrink-0 items-center justify-center text-accent overflow-hidden border border-accent/30">
+                 {currentCharacter.portraitUrl ? (
+                   <img src={currentCharacter.portraitUrl} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                 ) : (
+                   <User className="w-8 h-8" />
+                 )}
+              </div>
+              {isEditing && (
+                <div className="absolute inset-0 bg-bg/60 flex items-center justify-center rounded-full opacity-0 group-hover/portrait:opacity-100 transition-opacity pointer-events-none">
+                  <Camera className="w-5 h-5 text-accent" />
+                </div>
+              )}
            </div>
            <div className="flex-1">
               {isEditing ? (
-                <input 
-                  type="text" 
-                  value={editValues.name || ''}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-transparent border-b border-accent text-2xl font-serif font-black focus:outline-none mb-1"
-                  placeholder="Nome Personaggio"
-                />
+                <div className="space-y-2">
+                  <input 
+                    type="text" 
+                    value={editValues.name || ''}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-transparent border-b border-accent text-2xl font-serif font-black focus:outline-none"
+                    placeholder="Nome Personaggio"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-3 h-3 text-accent shrink-0" />
+                    <input 
+                      type="text" 
+                      value={editValues.portraitUrl || ''}
+                      onChange={(e) => setEditValues(prev => ({ ...prev, portraitUrl: e.target.value }))}
+                      className="w-full bg-transparent border-b border-border text-[9px] font-mono focus:border-accent outline-none"
+                      placeholder="URL Ritratto"
+                    />
+                  </div>
+                  <div className="relative group">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              const MAX_SIZE = 400;
+                              let width = img.width;
+                              let height = img.height;
+                              if (width > height) {
+                                if (width > MAX_SIZE) {
+                                  height *= MAX_SIZE / width;
+                                  width = MAX_SIZE;
+                                }
+                              } else {
+                                if (height > MAX_SIZE) {
+                                  width *= MAX_SIZE / height;
+                                  height = MAX_SIZE;
+                                }
+                              }
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+                              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                              setEditValues(prev => ({ ...prev, portraitUrl: dataUrl }));
+                            };
+                            img.src = reader.result as string;
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden" 
+                      id="sheet-portrait-upload"
+                    />
+                    <label 
+                      htmlFor="sheet-portrait-upload"
+                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded text-[9px] font-mono font-black uppercase text-accent hover:bg-accent/20 cursor-pointer"
+                    >
+                      <Camera className="w-3 h-3" />
+                      Carica Foto
+                    </label>
+                  </div>
+                </div>
               ) : (
                 <h1 className="text-2xl font-serif font-black tracking-tight line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
               )}

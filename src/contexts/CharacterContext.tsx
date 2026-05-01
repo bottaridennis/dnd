@@ -54,6 +54,7 @@ export interface CharacterData {
   weaponMasteries?: Record<string, string>;
   alignment: string;
   appearance: string;
+  portraitUrl?: string;
   description: string;
   trinket: string;
   hpCurrent: number;
@@ -131,6 +132,7 @@ const initialCharacter: CharacterData = {
   weaponMasteries: {},
   alignment: '',
   appearance: '',
+  portraitUrl: '',
   description: '',
   trinket: '',
   hpCurrent: 0,

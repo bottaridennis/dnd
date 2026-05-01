@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCharacter } from '../contexts/CharacterContext';
 import { characterService } from '../services/characterService';
 import { CharacterData } from '../contexts/CharacterContext';
-import { Plus, Power, Users, ChevronRight, Wand2, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Plus, Power, Users, ChevronRight, Wand2, Trash2, AlertTriangle, X, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface DashboardProps {
@@ -118,7 +118,18 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
                  </div>
                  
                  <div>
-                    <h2 className="text-2xl font-serif font-black text-text-primary mb-1 group-hover:text-accent transition-colors">{char.name || 'Senza Nome'}</h2>
+                    <div className="flex justify-between items-start mb-1">
+                      <h2 className="text-2xl font-serif font-black text-text-primary group-hover:text-accent transition-colors truncate flex-1">{char.name || 'Senza Nome'}</h2>
+                      {char.portraitUrl ? (
+                        <div className="w-10 h-10 rounded-full border border-accent overflow-hidden shrink-0 ml-2">
+                           <img src={char.portraitUrl} alt={char.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0 ml-2">
+                           <User className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
                     <div className="text-[10px] font-black uppercase text-text-muted tracking-widest mb-4">Livello {char.level} • {char.alignment || 'Senza Allineamento'}</div>
                     
                     <div className="flex gap-2 relative z-0">
