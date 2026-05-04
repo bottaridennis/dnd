@@ -22,6 +22,7 @@ import WeaponTracker from './WeaponTracker';
 import InventoryManager from './InventoryManager';
 import ConditionTracker from './ConditionTracker';
 import SummonsManager from './SummonsManager';
+import LevelUpModal from './LevelUpModal';
 
 export default function CharacterSheet() {
   const { currentCharacter, dispatch } = useCharacter();
@@ -33,6 +34,7 @@ export default function CharacterSheet() {
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
   const [isSummonsOpen, setIsSummonsOpen] = useState(false);
+  const [isLevelUpOpen, setIsLevelUpOpen] = useState(false);
 
   // Editing State
   const [isEditing, setIsEditing] = useState(false);
@@ -81,6 +83,30 @@ export default function CharacterSheet() {
     } catch (error) {
       console.error("Auto-save failed:", error);
     }
+  };
+
+  const handleLevelUpConfirm = (classId: string) => {
+    const currentClasses = currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level } };
+    const currentClassLevel = currentClasses[classId]?.level || 0;
+    
+    const newClasses = {
+      ...currentClasses,
+      [classId]: {
+        ...currentClasses[classId],
+        level: currentClassLevel + 1
+      }
+    };
+
+    handleUpdate({
+      level: currentCharacter.level + 1,
+      classes: newClasses
+    });
+    setIsLevelUpOpen(false);
+  };
+
+  const handleLevelDown = () => {
+    // For now we just decrement the global level. Managing multiple levels down can be done by editing it directly.
+    handleUpdate({ level: Math.max(1, currentCharacter.level - 1) });
   };
 
   const handleGlobalSave = async () => {
@@ -408,24 +434,43 @@ export default function CharacterSheet() {
                     </select>
                   </div>
                 ) : (
-                  <>{charSpecies?.name} {charClass?.name}</>
+                  <>
+                    {charSpecies?.name}{' '}
+                    {Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level } })
+                      .map(([clsId, data]) => `${classesData.find(c => c.id === clsId)?.name} ${data.level}`)
+                      .join(' / ')}
+                  </>
                 )}
               </div>
-              {currentCharacter.level >= 3 && currentCharacter.classId && subclassesData[currentCharacter.classId] && (
-                <select
-                  value={isEditing ? (editValues.subclassId || '') : (currentCharacter.subclassId || '')}
-                  onChange={(e) => isEditing 
-                    ? setEditValues(prev => ({ ...prev, subclassId: e.target.value }))
-                    : handleUpdate({ subclassId: e.target.value })
-                  }
-                  className="bg-bg border border-accent/30 rounded px-2 py-1 text-[10px] font-bold text-accent focus:border-accent outline-none w-full max-w-full"
-                >
-                  <option value="">-- Seleziona Sottoclasse --</option>
-                  {subclassesData[currentCharacter.classId].map(sub => (
-                    <option key={sub} value={sub}>{sub}</option>
-                  ))}
-                </select>
-              )}
+              
+              <div className="flex flex-col gap-1 w-full max-w-full">
+                {Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level, subclass: currentCharacter.subclassId } })
+                  .filter(([clsId, data]) => data.level >= 3 && subclassesData[clsId])
+                  .map(([clsId, data]) => (
+                    <select
+                      key={clsId}
+                      value={isEditing ? (editValues.classes?.[clsId]?.subclass || editValues.subclassId || '') : (data.subclass || currentCharacter.subclassId || '')}
+                      onChange={(e) => {
+                        if (isEditing) {
+                          setEditValues(prev => ({ ...prev, subclassId: e.target.value })); // maintain backward compat
+                        } else {
+                          const currentClasses = currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level, subclass: currentCharacter.subclassId } };
+                          handleUpdate({ 
+                            classes: { ...currentClasses, [clsId]: { ...currentClasses[clsId], subclass: e.target.value } },
+                            ...(clsId === currentCharacter.classId ? { subclassId: e.target.value } : {})
+                          });
+                        }
+                      }}
+                      className="bg-bg border border-accent/30 rounded px-2 py-1 text-[10px] font-bold text-accent focus:border-accent outline-none w-full"
+                    >
+                      <option value="">-- Sottoclasse {classesData.find(c => c.id === clsId)?.name} --</option>
+                      {subclassesData[clsId].map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  ))
+                }
+              </div>
            </div>
         </div>
 
@@ -526,11 +571,11 @@ export default function CharacterSheet() {
               ) : (
                 <div className="flex gap-2">
                    <button 
-                     onClick={() => handleUpdate({ level: Math.max(1, currentCharacter.level - 1) })}
+                     onClick={handleLevelDown}
                      className="flex-1 py-1 rounded border border-border text-[9px] font-black hover:bg-accent/10"
                    >LEVEL DOWN</button>
                    <button 
-                     onClick={() => handleUpdate({ level: currentCharacter.level + 1 })}
+                     onClick={() => setIsLevelUpOpen(true)}
                      className="flex-1 py-1 rounded bg-accent text-bg text-[9px] font-black shadow-sm"
                    >LEVEL UP</button>
                 </div>
@@ -939,6 +984,12 @@ export default function CharacterSheet() {
     <SummonsManager 
       isOpen={isSummonsOpen} 
       onClose={() => setIsSummonsOpen(false)} 
+    />
+    <LevelUpModal 
+      isOpen={isLevelUpOpen}
+      onClose={() => setIsLevelUpOpen(false)}
+      character={currentCharacter}
+      onLevelUp={handleLevelUpConfirm}
     />
     </>
   );
