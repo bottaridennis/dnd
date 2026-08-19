@@ -436,7 +436,7 @@ export default function CharacterSheet() {
                 ) : (
                   <>
                     {charSpecies?.name}{' '}
-                    {Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level } })
+                    {(Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level } }) as [string, { level: number; subclass?: string }][])
                       .map(([clsId, data]) => `${classesData.find(c => c.id === clsId)?.name} ${data.level}`)
                       .join(' / ')}
                   </>
@@ -444,7 +444,7 @@ export default function CharacterSheet() {
               </div>
               
               <div className="flex flex-col gap-1 w-full max-w-full">
-                {Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level, subclass: currentCharacter.subclassId } })
+                {(Object.entries(currentCharacter.classes || { [currentCharacter.classId]: { level: currentCharacter.level, subclass: currentCharacter.subclassId } }) as [string, { level: number; subclass?: string }][])
                   .filter(([clsId, data]) => data.level >= 3 && subclassesData[clsId])
                   .map(([clsId, data]) => (
                     <select
