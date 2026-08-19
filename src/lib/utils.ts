@@ -17,31 +17,17 @@ export const abilityMap: Record<string, string> = {
   CHA: 'CAR'
 };
 
-/**
- * Fixes text encoding issues like "Ã¨" -> "è".
- */
+/** Normalizza testo UTF-8 letto accidentalmente come Windows-1252/Latin-1. */
 export function fixTextEncoding(text: string): string {
   if (!text) return '';
-  try {
-    // This is a common way to fix UTF-8 strings that were incorrectly read as ISO-8859-1
-    return decodeURIComponent(escape(text));
-  } catch (e) {
-    // If it fails, try a manual mapping for the most common ones in Italian
-    const map: Record<string, string> = {
-      'Ã ': 'à', 'Ã¡': 'á',
-      'Ã¨': 'è', 'Ã©': 'é',
-      'Ã¬': 'ì', 'Ã­': 'í',
-      'Ã²': 'ò', 'Ã³': 'ó',
-      'Ã¹': 'ù', 'Ãº': 'ú',
-      'Ã€': 'À', 'Ãˆ': 'È',
-      'ÃŒ': 'Ì', 'Ã’': 'Ò',
-      'Ã™': 'Ù',
-      'Â°': '°', 'Âº': 'º'
-    };
-    let fixed = text;
-    Object.entries(map).forEach(([wrong, right]) => {
-      fixed = fixed.replace(new RegExp(wrong, 'g'), right);
-    });
-    return fixed;
-  }
+  const replacements: Array<[string, string]> = [
+    ['ÃƒÂ ', 'à'], ['ÃƒÂ¨', 'è'], ['ÃƒÂ©', 'é'], ['ÃƒÂ¬', 'ì'], ['ÃƒÂ²', 'ò'], ['ÃƒÂ¹', 'ù'],
+    ['Ã ', 'à'], ['Ã¡', 'á'], ['Ã¨', 'è'], ['Ã©', 'é'], ['Ã¬', 'ì'], ['Ã­', 'í'],
+    ['Ã²', 'ò'], ['Ã³', 'ó'], ['Ã¹', 'ù'], ['Ãº', 'ú'], ['Ã€', 'À'], ['Ãˆ', 'È'],
+    ['ÃŒ', 'Ì'], ['Ã’', 'Ò'], ['Ã™', 'Ù'], ['Â°', '°'], ['Âº', 'º'], ['Â·', '·'],
+    ['â€™', '’'], ['â€˜', '‘'], ['â€œ', '“'], ['â€', '”'], ['â€“', '–'], ['â€”', '—'],
+    ['â€¢', '•'], ['â€¦', '…'], ['Â', ''],
+  ];
+
+  return replacements.reduce((value, [wrong, right]) => value.split(wrong).join(right), text);
 }

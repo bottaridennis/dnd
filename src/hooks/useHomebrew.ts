@@ -4,6 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { homebrewService } from '../services/homebrewService';
 import { RAW_SPELLS } from '../data/spells';
 import { FEATURES } from '../data/features';
+import { fixTextEncoding } from '../lib/utils';
+
+function normalizeTextFields<T extends Record<string, any>>(item: T): T {
+  return Object.fromEntries(Object.entries(item).map(([key, value]) => {
+    if (typeof value === 'string') return [key, fixTextEncoding(value)];
+    if (Array.isArray(value)) return [key, value.map(entry => typeof entry === 'string' ? fixTextEncoding(entry) : entry)];
+    return [key, value];
+  })) as T;
+}
 
 /**
  * Hook to fetch homebrew data and merge it with base system data.
@@ -39,8 +48,9 @@ export function useHomebrew() {
 
   // Merge static base data with user's homebrew items
   const allSpells = useMemo(() => {
-    const base = RAW_SPELLS.map(s => ({ ...s, name: s.displayName || s.name }));
-    return [...base, ...homebrewData.spells];
+    const base = RAW_SPELLS.map(s => normalizeTextFields({ ...s, name: s.displayName || s.name }));
+    const custom = homebrewData.spells.map(spell => normalizeTextFields(spell));
+    return [...base, ...custom];
   }, [homebrewData.spells]);
 
   const allWeapons = useMemo(() => {
