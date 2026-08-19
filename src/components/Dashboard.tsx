@@ -1,9 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useMemo, useState } from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { characterService } from '../services/characterService';
-import { CharacterData } from '../contexts/CharacterContext';
-import { Plus, Power, Users, ChevronRight, Wand2, Trash2, AlertTriangle, X, User } from 'lucide-react';
+import { Plus, ChevronRight, Wand2, Trash2, AlertTriangle, X, User, Search, Sparkles, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface DashboardProps {
@@ -12,10 +10,25 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProps) {
-  const { user, logout } = useAuth();
   const { state, dispatch } = useCharacter();
   const { characters, loading } = state;
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'recent' | 'level' | 'name'>('recent');
+
+  const visibleCharacters = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase('it');
+    const filtered = characters.filter(char =>
+      [char.name, char.classId, char.speciesId].some(value => value?.toLocaleLowerCase('it').includes(needle))
+    );
+    return [...filtered].sort((a, b) => {
+      if (sort === 'level') return (b.level || 0) - (a.level || 0);
+      if (sort === 'name') return (a.name || '').localeCompare(b.name || '', 'it');
+      return 0;
+    });
+  }, [characters, query, sort]);
+
+  const totalLevels = characters.reduce((sum, char) => sum + (char.level || 0), 0);
 
   // We no longer need local subscription here as it's handled in CharacterContext
 
@@ -44,7 +57,7 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
   };
 
   return (
-    <div className="min-h-screen bg-bg p-8 md:p-16 flex flex-col items-center">
+    <div className="min-h-screen bg-bg px-5 py-8 md:px-10 md:py-12 flex flex-col items-center">
       
       <AnimatePresence>
         {deleteConfirmId && (
@@ -87,32 +100,60 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
          )}
       </AnimatePresence>
 
-      <main className="w-full max-w-6xl">
+      <main className="w-full max-w-7xl">
+         <section className="mb-9 grid lg:grid-cols-[1fr_auto] gap-6 items-end">
+           <div>
+             <p className="eyebrow mb-3">Sala degli eroi</p>
+             <h1 className="font-serif text-4xl md:text-6xl text-text-primary tracking-[-0.04em]">La tua compagnia</h1>
+             <p className="text-text-muted mt-3 max-w-xl">Ritrova i tuoi avventurieri, consulta le loro schede o forgia una nuova storia.</p>
+           </div>
+           <div className="grid grid-cols-2 gap-3">
+             <div className="surface-card px-5 py-4 min-w-32"><Sparkles className="w-4 h-4 text-accent mb-2"/><strong className="text-2xl text-text-primary block">{characters.length}</strong><span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Eroi</span></div>
+             <div className="surface-card px-5 py-4 min-w-32"><Trophy className="w-4 h-4 text-accent mb-2"/><strong className="text-2xl text-text-primary block">{totalLevels}</strong><span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Livelli</span></div>
+           </div>
+         </section>
+
+         <div className="surface-card p-3 mb-7 flex flex-col sm:flex-row gap-3">
+           <label className="flex-1 flex items-center gap-3 px-3 rounded-lg bg-bg border border-border focus-within:border-accent">
+             <Search className="w-4 h-4 text-text-muted" />
+             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cerca per nome, classe o specie…" className="w-full bg-transparent py-3 text-sm text-text-primary outline-none" aria-label="Cerca personaggi" />
+           </label>
+           <select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="bg-bg border border-border rounded-lg px-4 py-3 text-sm text-text-primary" aria-label="Ordina personaggi">
+             <option value="recent">Più recenti</option>
+             <option value="level">Livello più alto</option>
+             <option value="name">Nome A–Z</option>
+           </select>
+           <button onClick={onNewCharacter} className="primary-action px-5 py-3 flex items-center justify-center gap-2"><Plus className="w-4 h-4"/> Nuovo eroe</button>
+         </div>
+
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Create New Card */}
             <motion.button 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={onNewCharacter}
-              className="group border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 text-text-muted hover:border-accent hover:text-accent transition-all h-[240px]"
+               className="group border-2 border-dashed border-border rounded-2xl p-10 flex flex-col items-center justify-center gap-4 text-text-muted hover:border-accent hover:text-accent transition-all h-[360px] bg-card-bg/30"
             >
                <div className="w-16 h-16 rounded-full border-2 border-dashed border-current flex items-center justify-center">
                   <Plus className="w-8 h-8" />
                </div>
-               <span className="text-sm font-black uppercase tracking-[0.2em]">Crea Personaggio</span>
+               <span className="text-sm font-black uppercase tracking-[0.2em]">Crea un nuovo eroe</span>
             </motion.button>
 
             {/* Character Cards */}
-            {characters.map((char) => (
+            {visibleCharacters.map((char) => (
               <motion.div 
                 key={char.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => handleSelect(char.id)}
-                className="group relative bg-panel-bg border border-border rounded-xl cursor-pointer hover:border-accent transition-all h-[360px] flex flex-col justify-between overflow-hidden"
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelect(char.id); }}
+                className="group relative bg-panel-bg border border-border rounded-2xl cursor-pointer hover:border-accent hover:-translate-y-1 hover:shadow-2xl transition-all h-[360px] flex flex-col justify-between overflow-hidden"
               >
                  <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all z-20">
-                    <button onClick={(e) => handleDeleteRequest(e, char.id)} className="text-text-muted hover:text-red-500 bg-bg/80 backdrop-blur-sm p-2 rounded-full border border-border">
+                    <button onClick={(e) => handleDeleteRequest(e, char.id)} aria-label={`Elimina ${char.name}`} className="text-text-muted hover:text-red-500 bg-bg/80 backdrop-blur-sm p-2 rounded-full border border-border">
                        <Trash2 className="w-4 h-4" />
                     </button>
                  </div>
@@ -151,6 +192,10 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
               </motion.div>
             ))}
          </div>
+
+         {!loading && query && visibleCharacters.length === 0 && (
+           <div className="text-center py-16 text-text-muted"><Search className="w-8 h-8 mx-auto mb-3 opacity-50"/><p>Nessun eroe corrisponde alla ricerca.</p></div>
+         )}
 
          {loading && characters.length === 0 && (
            <div className="flex flex-col items-center justify-center py-20 animate-pulse">

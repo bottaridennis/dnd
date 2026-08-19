@@ -74,8 +74,8 @@ function AppContent() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Sticky Top Header resembling D&D Beyond WotC Style */}
-      <header className="sticky top-0 z-50 bg-[#121212] border-b-2 border-primary shadow-md">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-50 app-header">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-4">
              <button 
                onClick={() => setIsMobileMenuOpen(true)}
@@ -84,15 +84,16 @@ function AppContent() {
                <Menu className="w-6 h-6" />
              </button>
              <div 
-               className="flex items-center gap-2 cursor-pointer group"
+               className="flex items-center gap-3 cursor-pointer group"
                onClick={() => setView('dashboard')}
              >
-               <div className="bg-primary p-1.5 rounded flex items-center justify-center transform group-hover:scale-105 transition-transform">
-                 <Shield className="w-5 h-5 text-white" />
+               <div className="brand-mark">
+                 <Shield className="w-5 h-5" />
                </div>
-               <span className="text-lg md:text-xl font-serif font-black text-white uppercase tracking-wider">
-                 D&D <span className="text-primary font-sans font-bold text-xs md:text-sm ml-1 tracking-tight">MANAGEMENT</span>
-               </span>
+               <div className="leading-none">
+                 <span className="block text-lg md:text-xl font-serif font-black text-white tracking-tight">Forge of Heroes</span>
+                 <span className="text-[9px] text-accent uppercase font-black tracking-[0.24em]">Companion 2024</span>
+               </div>
              </div>
              
              <nav className="hidden lg:flex items-center gap-1 ml-4 border-l border-white/10 pl-4">
@@ -100,13 +101,13 @@ function AppContent() {
                   onClick={() => setView('dashboard')} 
                   className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'dashboard' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
                 >
-                  Dashboard
+                  Compagnia
                 </button>
                 <button 
                   onClick={() => setView('homebrew')} 
                   className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'homebrew' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
                 >
-                  Homebrew
+                  Forgia Homebrew
                 </button>
              </nav>
           </div>
@@ -115,9 +116,9 @@ function AppContent() {
              {view === 'sheet' && (
                <button 
                  onClick={() => setView('dashboard')}
-                 className="hidden md:block px-4 py-1.5 border border-primary/50 text-white rounded hover:bg-primary/20 text-xs font-bold uppercase tracking-wider transition-colors"
+                 className="hidden md:block secondary-action"
                >
-                 Torna alla Dashboard
+                  Torna alla compagnia
                </button>
              )}
              <ThemeToggle />
@@ -146,7 +147,7 @@ function AppContent() {
               className="absolute left-0 top-0 bottom-0 w-3/4 max-w-sm bg-[#1a1a1a] border-r-2 border-primary shadow-2xl flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-              <div className="h-16 flex items-center justify-between px-6 border-b border-border">
+               <div className="h-[72px] flex items-center justify-between px-6 border-b border-border">
                 <span className="text-lg font-serif font-black text-white uppercase tracking-wider">Menu</span>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-white">
                   <X className="w-6 h-6" />
@@ -163,10 +164,10 @@ function AppContent() {
                 </div>
 
                 <button onClick={() => navigateTo('dashboard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
-                  <Users className="w-5 h-5 text-accent" /> Dashboard
+                  <Users className="w-5 h-5 text-accent" /> La mia compagnia
                 </button>
                 <button onClick={() => navigateTo('homebrew')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
-                  <Hammer className="w-5 h-5 text-accent" /> Creatore Homebrew
+                  <Hammer className="w-5 h-5 text-accent" /> Forgia Homebrew
                 </button>
                 <button onClick={() => navigateTo('wizard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
                   <PlusCircle className="w-5 h-5 text-accent" /> Nuovo Personaggio
@@ -199,7 +200,7 @@ function AppContent() {
                  onClick={() => setView('dashboard')}
                  className="w-full py-2 bg-panel-bg border border-border text-text-primary rounded text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 transition-transform"
                >
-                 Torna alla Dashboard
+                 Torna alla compagnia
                </button>
              </div>
              <CharacterSheet />
@@ -212,7 +213,10 @@ function AppContent() {
 }
 
 function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('forge-theme');
+    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
 
   useEffect(() => {
     if (isDark) {
@@ -220,13 +224,15 @@ function ThemeToggle() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem('forge-theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
   return (
     <button 
       onClick={() => setIsDark(!isDark)}
       className="p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
-      title="Toggle Dark/Light Theme"
+      title={isDark ? 'Usa tema chiaro' : 'Usa tema scuro'}
+      aria-label={isDark ? 'Usa tema chiaro' : 'Usa tema scuro'}
     >
       {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-gray-200" />}
     </button>
