@@ -15,6 +15,7 @@ import {
   Info, Search, Star, X, Edit3, Check, Dog, Camera
 } from 'lucide-react';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
+import { canCharacterUseSpell, getAvailableSpellLevels, SCHOOL_LABELS } from '../lib/spellEligibility';
 import { motion, AnimatePresence } from 'motion/react';
 import CombatAndRests from './CombatAndRests';
 import ResourceTracker from './ResourceTracker';
@@ -33,6 +34,7 @@ export default function CharacterSheet() {
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
+  const [featureLevelFilter, setFeatureLevelFilter] = useState<'all' | number>('all');
   const [isSummonsOpen, setIsSummonsOpen] = useState(false);
   const [isLevelUpOpen, setIsLevelUpOpen] = useState(false);
 
@@ -115,15 +117,16 @@ export default function CharacterSheet() {
   };
 
   const renderFeatureModal = () => {
-    let base = [];
+    let base: any[] = [];
     if (featureModal.tab === 'spells') base = homebrew.spells;
     if (featureModal.tab === 'talenti') base = homebrew.feats;
     if (featureModal.tab === 'invocazioni') base = INVOCATIONS;
 
-    const filteredData = base.filter((item: any) => 
-      item.name.toLowerCase().includes(featureSearch.toLowerCase()) || 
-      (item.displayName && item.displayName.toLowerCase().includes(featureSearch.toLowerCase()))
-    );
+    const filteredData = base
+      .filter((item: any) => item.name.toLowerCase().includes(featureSearch.toLowerCase()) || (item.displayName && item.displayName.toLowerCase().includes(featureSearch.toLowerCase())))
+      .filter((item: any) => featureModal.tab !== 'spells' || canCharacterUseSpell(item, currentCharacter) || currentCharacter.spells.includes(item.name))
+      .filter((item: any) => featureModal.tab !== 'spells' || featureLevelFilter === 'all' || item.level === featureLevelFilter)
+      .sort((a: any, b: any) => featureModal.tab === 'spells' ? (a.level ?? 0) - (b.level ?? 0) || (a.displayName || a.name).localeCompare(b.displayName || b.name, 'it') : (a.displayName || a.name).localeCompare(b.displayName || b.name, 'it'));
 
     return (
       <div className="fixed inset-0 z-50 bg-bg/95 backdrop-blur flex flex-col animate-in fade-in zoom-in-95 duration-200">
@@ -137,8 +140,9 @@ export default function CharacterSheet() {
                 <X className="w-5 h-5" />
              </button>
          </div>
-         <div className="p-4 border-b border-border bg-panel-bg shrink-0">
-            <div className="relative w-full max-w-2xl mx-auto">
+          <div className="p-4 border-b border-border bg-panel-bg shrink-0">
+             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-3xl mx-auto">
+             <div className="relative flex-1">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                <input 
                  type="text" 
@@ -147,7 +151,14 @@ export default function CharacterSheet() {
                  onChange={(e) => setFeatureSearch(e.target.value)}
                  className="w-full pl-10 pr-4 py-3 bg-card-bg border border-border rounded text-sm text-text-primary focus:outline-none focus:border-accent/40 transition-colors"
                />
-            </div>
+             </div>
+             {featureModal.tab === 'spells' && (
+               <select value={featureLevelFilter} onChange={e => setFeatureLevelFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="bg-card-bg border border-border rounded px-4 py-3 text-xs text-text-primary">
+                 <option value="all">Tutti i livelli</option>
+                 {getAvailableSpellLevels(currentCharacter).map(level => <option key={level} value={level}>{level === 0 ? 'Trucchetti' : `Livello ${level}`}</option>)}
+               </select>
+             )}
+             </div>
          </div>
          <div className="flex-1 overflow-y-auto p-4 md:p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
@@ -177,7 +188,7 @@ export default function CharacterSheet() {
                            <h4 className={`font-serif font-bold text-lg ${isSelected ? 'text-accent' : 'text-text-primary'}`}>{item.displayName || item.name}</h4>
                            {item.level !== undefined && (
                              <span className="text-[10px] uppercase font-mono font-black text-text-muted tracking-tighter">
-                               {item.level === 0 ? 'Trucchetto' : `Livello ${item.level}`} • {item.school}
+                                {item.level === 0 ? 'Trucchetto' : `Livello ${item.level}`} • {SCHOOL_LABELS[item.school] || item.school}
                              </span>
                            )}
                            {item.prerequisite && <div className="text-[10px] text-accent/60 italic mt-1 font-medium">{item.prerequisite}</div>}
