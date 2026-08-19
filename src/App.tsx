@@ -6,7 +6,7 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
-import { Wand2, Menu, Moon, Sun, Shield, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
+import { Wand2, Menu, Moon, Sun, Feather, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
 import { db, auth } from './firebase';
 import { collection, getDocsFromServer, limit, query } from 'firebase/firestore';
 import { userService } from './services/userService';
@@ -43,8 +43,8 @@ function AppContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col items-center justify-center gap-4">
-        <Wand2 className="w-12 h-12 text-primary animate-spin" />
-        <span className="text-[10px] font-black uppercase text-text-muted tracking-widest text-primary">Incanalando la magia...</span>
+        <Wand2 className="w-9 h-9 text-accent animate-spin" />
+        <span className="eyebrow">Aprendo l’archivio…</span>
       </div>
     );
   }
@@ -79,7 +79,8 @@ function AppContent() {
           <div className="flex items-center gap-4">
              <button 
                onClick={() => setIsMobileMenuOpen(true)}
-               className="text-gray-300 hover:text-white transition-colors lg:hidden"
+               className="text-text-muted hover:text-accent transition-colors lg:hidden"
+               aria-label="Apri menu"
              >
                <Menu className="w-6 h-6" />
              </button>
@@ -88,24 +89,24 @@ function AppContent() {
                onClick={() => setView('dashboard')}
              >
                <div className="brand-mark">
-                 <Shield className="w-5 h-5" />
+                 <Feather className="w-5 h-5" />
                </div>
                <div className="leading-none">
-                 <span className="block text-lg md:text-xl font-serif font-black text-white tracking-tight">Forge of Heroes</span>
-                 <span className="text-[9px] text-accent uppercase font-black tracking-[0.24em]">Companion 2024</span>
+                 <span className="block text-xl font-serif font-medium text-text-primary tracking-tight">Forge</span>
+                 <span className="text-[8px] text-accent uppercase font-black tracking-[0.24em]">Hero archive · 2024</span>
                </div>
              </div>
              
-             <nav className="hidden lg:flex items-center gap-1 ml-4 border-l border-white/10 pl-4">
+             <nav className="hidden lg:flex items-center gap-7 ml-8 border-l border-border pl-8">
                 <button 
                   onClick={() => setView('dashboard')} 
-                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'dashboard' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                  className={`py-2 text-[9px] font-extrabold uppercase tracking-[.18em] border-b transition-colors ${view === 'dashboard' ? 'text-accent border-accent' : 'text-text-muted border-transparent hover:text-text-primary'}`}
                 >
                   Compagnia
                 </button>
                 <button 
                   onClick={() => setView('homebrew')} 
-                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-colors ${view === 'homebrew' ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                  className={`py-2 text-[9px] font-extrabold uppercase tracking-[.18em] border-b transition-colors ${view === 'homebrew' ? 'text-accent border-accent' : 'text-text-muted border-transparent hover:text-text-primary'}`}
                 >
                   Forgia Homebrew
                 </button>
@@ -122,7 +123,7 @@ function AppContent() {
                </button>
              )}
              <ThemeToggle />
-             <div className="w-8 h-8 rounded-full border-2 border-accent bg-panel-bg flex items-center justify-center text-accent overflow-hidden shadow-sm hidden md:flex">
+             <div className="w-8 h-8 rounded-full border border-border bg-panel-bg flex items-center justify-center text-accent overflow-hidden hidden md:flex">
                 <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=random`} alt="User" referrerPolicy="no-referrer" />
              </div>
           </div>
@@ -144,32 +145,32 @@ function AppContent() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-3/4 max-w-sm bg-[#1a1a1a] border-r-2 border-primary shadow-2xl flex flex-col"
+              className="absolute left-0 top-0 bottom-0 w-3/4 max-w-sm bg-card-bg border-r border-border shadow-2xl flex flex-col"
               onClick={e => e.stopPropagation()}
             >
                <div className="h-[72px] flex items-center justify-between px-6 border-b border-border">
-                <span className="text-lg font-serif font-black text-white uppercase tracking-wider">Menu</span>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-400 hover:text-white">
+                <span className="font-serif text-3xl text-text-primary">Indice</span>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="text-text-muted hover:text-accent">
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
               <div className="flex flex-col p-4 gap-2 flex-1">
-                <div className="flex items-center gap-3 p-4 mb-4 bg-black/20 rounded-lg">
+                <div className="flex items-center gap-3 p-4 mb-4 border-b border-border">
                   <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=random`} alt="User" className="w-10 h-10 rounded-full border border-accent" />
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white">{user.displayName || 'Utente'}</span>
-                    <span className="text-xs text-gray-400">{user.email}</span>
+                    <span className="text-sm font-bold text-text-primary">{user.displayName || 'Utente'}</span>
+                    <span className="text-xs text-text-muted">{user.email}</span>
                   </div>
                 </div>
 
-                <button onClick={() => navigateTo('dashboard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
+                <button onClick={() => navigateTo('dashboard')} className="flex items-center gap-3 p-4 text-left font-bold text-text-muted hover:text-accent hover:bg-panel-bg transition-colors">
                   <Users className="w-5 h-5 text-accent" /> La mia compagnia
                 </button>
-                <button onClick={() => navigateTo('homebrew')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
+                <button onClick={() => navigateTo('homebrew')} className="flex items-center gap-3 p-4 text-left font-bold text-text-muted hover:text-accent hover:bg-panel-bg transition-colors">
                   <Hammer className="w-5 h-5 text-accent" /> Forgia Homebrew
                 </button>
-                <button onClick={() => navigateTo('wizard')} className="flex items-center gap-3 p-4 rounded text-left font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-colors">
+                <button onClick={() => navigateTo('wizard')} className="flex items-center gap-3 p-4 text-left font-bold text-text-muted hover:text-accent hover:bg-panel-bg transition-colors">
                   <PlusCircle className="w-5 h-5 text-accent" /> Nuovo Personaggio
                 </button>
               </div>
@@ -230,11 +231,11 @@ function ThemeToggle() {
   return (
     <button 
       onClick={() => setIsDark(!isDark)}
-      className="p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
+      className="p-2 text-text-muted hover:text-accent transition-colors rounded-full hover:bg-panel-bg"
       title={isDark ? 'Usa tema chiaro' : 'Usa tema scuro'}
       aria-label={isDark ? 'Usa tema chiaro' : 'Usa tema scuro'}
     >
-      {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-gray-200" />}
+      {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </button>
   );
 }

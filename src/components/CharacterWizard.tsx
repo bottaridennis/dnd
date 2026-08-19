@@ -503,17 +503,17 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   return (
     <div className="flex flex-col absolute inset-0 overflow-hidden bg-bg font-sans">
       {/* Header */}
-      <header className="hidden md:flex h-[60px] bg-panel-bg border-b border-border items-center px-6 justify-between shrink-0">
+      <header className="hidden md:flex h-[68px] bg-card-bg border-b border-border items-center px-8 justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="font-serif text-xl font-bold text-accent tracking-tighter">FORGE OF HEROES <span className="text-[10px] opacity-60 font-sans tracking-normal ml-1">PHB 2024</span></div>
+          <div><div className="font-serif text-2xl text-text-primary tracking-tight">Atelier dell’eroe</div><div className="eyebrow !text-[7px]">Sette capitoli · PHB 2024</div></div>
         </div>
         
         <div className="flex gap-2">
           {STEPS.map((_, idx) => (
             <div 
               key={idx}
-              className={`w-8 h-1 rounded-sm transition-all duration-300 ${
-                idx === currentStep ? 'bg-accent shadow-[0_0_8px_rgba(212,175,55,0.4)]' : idx < currentStep ? 'bg-success' : 'bg-border'
+              className={`w-7 h-[3px] transition-all duration-300 ${
+                idx === currentStep ? 'bg-accent' : idx < currentStep ? 'bg-primary' : 'bg-border'
               }`}
             />
           ))}
@@ -544,7 +544,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
 
         {/* Sidebar Desktop */}
         <aside className="hidden md:flex w-[220px] bg-panel-bg border-r border-border py-8 flex-col shrink-0">
-          <nav className="flex flex-col gap-1">
+          <div className="px-6 mb-7"><p className="eyebrow !text-[8px]">Indice</p><p className="font-serif text-3xl mt-1">Creazione</p></div><nav className="flex flex-col gap-1">
             {STEPS.map((step, idx) => (
               <button
                 key={step}
@@ -555,7 +555,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 disabled={idx > currentStep + 1 || (idx === currentStep + 1 && !canProceed())}
                 className={`flex items-center gap-3 px-6 py-3 text-[13px] font-medium transition-all group ${
                   idx === currentStep 
-                    ? 'bg-accent/10 border-r-4 border-accent text-accent' 
+                    ? 'bg-card-bg border-r-4 border-accent text-accent'
                     : idx < currentStep
                       ? 'text-text-muted hover:text-text-primary hover:bg-white/5 cursor-pointer'
                       : 'text-text-muted/30 cursor-not-allowed'
@@ -577,7 +577,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           <main className="flex-1 overflow-y-auto p-6 md:p-12 scroll-smooth">
             <div className="max-w-4xl mx-auto">
               <div className="mb-8 md:mb-12">
-                <h2 className="hidden md:block text-4xl font-serif font-bold text-text-primary mb-2">
+                <p className="hidden md:block eyebrow mb-3">Capitolo {currentStep + 1} di {STEPS.length}</p><h2 className="hidden md:block text-6xl font-serif font-normal text-text-primary mb-3 tracking-[-.04em]">
                   {STEPS[currentStep]}
                 </h2>
                 <p className="text-xs md:text-sm text-text-muted">
@@ -597,7 +597,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           </main>
 
           {/* Pinned Navigation Buttons */}
-          <div className="shrink-0 p-4 md:px-12 md:py-6 bg-panel-bg border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+          <div className="shrink-0 p-4 md:px-12 md:py-5 bg-card-bg border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0 z-10">
             <div className="flex w-full md:w-auto gap-4 order-2 md:order-1">
               <button
                 onClick={onCancel}
