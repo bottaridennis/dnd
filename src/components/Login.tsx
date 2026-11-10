@@ -1,36 +1,77 @@
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowUpRight, BookOpen, Cloud, Swords, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Crown, Dices, Hexagon, ScrollText, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
-const NOTES = [{ label:'Schede vive', Icon:BookOpen },{ label:'Sempre con te', Icon:Cloud },{ label:'Regole 2024', Icon:ShieldCheck }];
+const FEATURES = [
+  { Icon: ScrollText, title: 'Schede complete', text: 'Creazione guidata con le regole 2024, calcoli automatici di CA, PF, tiri salvezza e incantesimi.' },
+  { Icon: Dices, title: 'Pronte al tavolo', text: 'Tiri di dado integrati, slot, risorse di classe, Concentrazione e riposi in un clic.' },
+  { Icon: Crown, title: 'Strumenti del Master', text: 'Campagne con codice d’invito, gruppo in tempo reale e tracker dell’iniziativa.' },
+];
 
 export default function Login() {
   const { loginWithGoogle } = useAuth();
   return (
-    <main className="login-stage min-h-screen p-5 md:p-9 flex items-center">
-      <motion.section initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }} className="surface-card ornate-corners relative z-10 w-full max-w-7xl mx-auto min-h-[82vh] grid lg:grid-cols-[1.35fr_.65fr]">
-        <div className="p-7 md:p-12 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3"><div className="brand-mark"><Swords className="w-5 h-5"/></div><div><strong className="brand-title text-xl">Forge</strong><p className="eyebrow !text-[8px]">Cronache degli Eroi</p></div></div>
-            <span className="font-mono text-text-muted tracking-widest">Anno Domini MMXXIV</span>
-          </div>
-          <div className="py-16 md:py-24 max-w-3xl">
-            <p className="eyebrow mb-6">Il grimorio degli avventurieri</p>
-            <h1 className="font-display text-5xl md:text-7xl lg:text-[6rem] leading-[.95] text-text-primary">Ogni eroe<br/><span className="text-accent">merita una ballata.</span></h1>
-            <div className="ornament-rule my-9 max-w-xl"/>
-            <p className="drop-cap max-w-xl text-lg text-text-muted leading-relaxed">Qui si forgiano i personaggi, si annotano le gesta e si custodiscono i tesori, perché ogni compagnia giunga alla tavola pronta per l’avventura.</p>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-x-8">{NOTES.map(({ label,Icon }) => <div className="feature-chip" key={label}><Icon className="w-4 h-4 text-accent"/><span>{label}</span></div>)}</div>
+    <div className="min-h-screen bg-bg flex flex-col">
+      <section className="hero-band flex-1 flex items-center">
+        <div className="w-full max-w-7xl mx-auto px-6 md:px-10 py-16 grid lg:grid-cols-[1.2fr_.8fr] gap-12 items-center">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex items-center gap-3 mb-12">
+              <span className="brand-mark"><Hexagon className="w-5 h-5" /></span>
+              <span className="leading-none">
+                <span className="block text-2xl brand-title">Forge</span>
+                <span className="text-[10px] text-white/60 uppercase font-bold tracking-[0.2em]">Character Companion · 2024</span>
+              </span>
+            </div>
+            <p className="eyebrow mb-4">Il tuo companion per la quinta edizione</p>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black uppercase leading-[.88] tracking-tight">
+              Forgia il tuo<br /><span className="text-[#ef3340]">eroe.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg text-white/75">Crea personaggi secondo le regole 2024, portali al tavolo con tutto ciò che serve per giocare e lascia che il Master segua il gruppo in tempo reale.</p>
+            <div className="mt-10 flex flex-wrap items-center gap-4">
+              <button onClick={loginWithGoogle} className="primary-action px-8 py-4 text-sm flex items-center gap-3 group">
+                Entra con Google <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+              <span className="text-xs text-white/60 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Gratuito · i dati restano nel tuo account</span>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .1 }} className="hidden lg:block">
+            <div className="relative bg-black/40 border border-white/10 backdrop-blur p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs uppercase font-bold tracking-widest text-white/60">Anteprima scheda</span>
+                <Sparkles className="w-4 h-4 text-[#ef3340]" />
+              </div>
+              <div className="text-3xl font-black uppercase">Lyra Ventoargento</div>
+              <div className="text-sm text-white/60">Elfo · Mago 5 · Sapiente</div>
+              <div className="grid grid-cols-6 gap-2 mt-5">
+                {[['FOR', '-1'], ['DES', '+2'], ['COS', '+1'], ['INT', '+4'], ['SAG', '+1'], ['CAR', '+0']].map(([k, v]) => (
+                  <div key={k} className="bg-white/5 border border-white/10 border-t-2 border-t-[#ef3340] text-center py-2">
+                    <div className="text-[10px] font-bold text-white/60">{k}</div>
+                    <div className="text-xl font-black">{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                {[['CA', '15'], ['PF', '32'], ['CD', '15']].map(([k, v]) => (
+                  <div key={k} className="bg-white/5 border border-white/10 py-3"><div className="text-2xl font-black">{v}</div><div className="text-[10px] uppercase tracking-widest text-white/60">{k}</div></div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
         </div>
-        <aside className="p-7 md:p-12 flex flex-col justify-between min-h-[520px]">
-          <div className="flex justify-end"><span className="folio-number">I</span></div>
-          <div>
-            <div className="editorial-rule mb-8"/><p className="eyebrow mb-3">Varca la soglia</p><h2 className="font-serif text-4xl leading-tight">Riprendi il tuo viaggio.</h2>
-            <p className="text-base text-text-muted mt-4 mb-8 leading-relaxed">Accedi con Google per ritrovare personaggi, inventario e progressi su ogni dispositivo.</p>
-            <button onClick={loginWithGoogle} className="primary-action w-full px-6 py-4 flex items-center justify-between group"><span>Entra con Google</span><ArrowUpRight className="w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"/></button>
-          </div>
-        </aside>
-      </motion.section>
-    </main>
+      </section>
+
+      <section className="bg-bg">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 py-12 grid md:grid-cols-3 gap-6">
+          {FEATURES.map(({ Icon, title, text }) => (
+            <div key={title} className="surface-card p-6">
+              <Icon className="w-6 h-6 text-accent mb-4" />
+              <h2 className="text-lg uppercase">{title}</h2>
+              <p className="text-sm text-text-muted mt-2">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }

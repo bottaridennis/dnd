@@ -1,16 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Cinzel+Decorative:wght@400;700;900&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,400;0,500;0,700;0,800;0,900;1,700&family=Roboto:wght@400;500;700;900&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap');
 @import "tailwindcss";
 
 /*
- * Tema "Manoscritto miniato" — fantasy medievale.
- * Chiaro: pergamena, inchiostro ferrogallico, rubrica vermiglia e foglia d'oro.
- * Scuro: cuoio e pietra a lume di candela, oro brunito e ceralacca.
+ * Design system "Forge" — ispirato al linguaggio visivo dei prodotti digitali ufficiali di D&D:
+ * superfici scure e cinematografiche, rosso di brand, titoli in maiuscolo condensato,
+ * card nette con bordi sottili e un unico serif per i testi di colore.
  */
 @theme {
-  --font-sans: "EB Garamond", Garamond, "Times New Roman", serif;
-  --font-serif: "Cinzel", "Trajan Pro", Georgia, serif;
-  --font-mono: "EB Garamond", Garamond, Georgia, serif;
-  --font-display: "Cinzel Decorative", "Cinzel", Georgia, serif;
+  --font-sans: "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-display: "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-mono: "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-flavor: "Spectral", Georgia, serif;
 
   --color-bg: var(--color-bg); --color-card-bg: var(--color-card-bg); --color-panel-bg: var(--color-panel-bg);
   --color-accent: var(--color-accent); --color-accent-hover: var(--color-accent-hover);
@@ -19,156 +20,132 @@
   --color-gold: var(--color-gold);
   --color-success: var(--color-success); --color-danger: var(--color-danger);
 
-  /* Angoli "squadrati a scalpello": niente arrotondamenti morbidi da app moderna */
-  --radius-xs: 1px; --radius-sm: 2px; --radius-md: 3px; --radius-lg: 4px; --radius-xl: 5px; --radius-2xl: 6px; --radius-3xl: 8px;
+  --radius-xs: 2px; --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 8px; --radius-2xl: 10px; --radius-3xl: 12px;
 }
 
 @layer base {
+  /* Tema chiaro: superfici bianche, inchiostro grafite, rosso di brand */
   :root {
-    --color-bg:#e6d6b4; --color-card-bg:#f3e7cb; --color-panel-bg:#ecdcb9;
-    --color-accent:#8e2418; --color-accent-hover:#6f1a10;
-    --color-primary:#3b2412; --color-primary-hover:#24150a;
-    --color-text-primary:#2a1a0e; --color-text-muted:#6b5338; --color-border:#b99a64;
-    --color-gold:#a47a2c; --color-success:#46653b; --color-danger:#9b2316;
-    --parchment-shade: rgba(110,72,28,.16);
-    --frame-inner: rgba(164,122,44,.55);
+    --color-bg:#eceef1; --color-card-bg:#ffffff; --color-panel-bg:#f7f7f9;
+    --color-accent:#c8102e; --color-accent-hover:#a10d25;
+    --color-primary:#c8102e; --color-primary-hover:#a10d25;
+    --color-text-primary:#18181b; --color-text-muted:#5d5d66; --color-border:#d9dbe1;
+    --color-gold:#b9bcc6; --color-success:#2f8a4f; --color-danger:#c8102e;
+    --header-bg:#111114; --header-text:#f4f4f5;
+    --hero-from:#1a0b0e; --hero-to:#3d0a12;
+    --shadow-card: 0 1px 2px rgba(17,17,20,.06), 0 8px 24px -12px rgba(17,17,20,.18);
     color-scheme: light;
   }
+  /* Tema scuro: carbone e rosso */
   .dark {
-    --color-bg:#120d09; --color-card-bg:#1e1610; --color-panel-bg:#271c13;
-    --color-accent:#d8a54a; --color-accent-hover:#ecc06a;
-    --color-primary:#b5432f; --color-primary-hover:#cc553e;
-    --color-text-primary:#eedfbd; --color-text-muted:#ad9670; --color-border:#5a4228;
-    --color-gold:#c9963c; --color-success:#8fae6a; --color-danger:#e0624d;
-    --parchment-shade: rgba(0,0,0,.45);
-    --frame-inner: rgba(201,150,60,.35);
+    --color-bg:#0d0d10; --color-card-bg:#17171c; --color-panel-bg:#1d1d23;
+    --color-accent:#ef3340; --color-accent-hover:#ff5560;
+    --color-primary:#d4142f; --color-primary-hover:#ef3340;
+    --color-text-primary:#f2f2f4; --color-text-muted:#a1a1ab; --color-border:#2c2c35;
+    --color-gold:#3d3d48; --color-success:#4cc27a; --color-danger:#ff5560;
+    --header-bg:#08080a; --header-text:#f4f4f5;
+    --hero-from:#0d0d10; --hero-to:#3a0710;
+    --shadow-card: 0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px -14px rgba(0,0,0,.8);
     color-scheme: dark;
   }
 
   * { box-sizing:border-box; scrollbar-width:thin; scrollbar-color:var(--color-gold) transparent; }
   html, body { background:var(--color-bg); }
-  body {
-    margin:0;
-    color:var(--color-text-primary);
-    font-family:var(--font-sans);
-    font-size:17px;
-    font-variant-numeric: lining-nums;
-    /* Pergamena: macchie e bruniture ai bordi */
-    background-image:
-      radial-gradient(ellipse at 15% 10%, rgba(255,250,230,.35), transparent 45%),
-      radial-gradient(ellipse at 85% 85%, var(--parchment-shade), transparent 55%),
-      radial-gradient(ellipse at center, transparent 55%, var(--parchment-shade) 100%);
-    background-attachment: fixed;
-  }
-  .dark body {
-    background-image:
-      radial-gradient(ellipse at 50% -10%, rgba(232,160,70,.14), transparent 55%),
-      radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.6) 100%);
-  }
-  /* Grana della carta / della pietra */
-  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.5; z-index:0; mix-blend-mode:multiply; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .22 0 0 0 0 .08 0 0 0 .35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  .dark body::before { mix-blend-mode:screen; opacity:.18; }
-
-  h1, h2, h3, h4 { font-family:var(--font-serif); letter-spacing:.02em; }
+  body { margin:0; color:var(--color-text-primary); font-family:var(--font-sans); font-size:15px; -webkit-font-smoothing:antialiased; }
+  h1, h2, h3, h4 { font-family:var(--font-serif); font-weight:800; letter-spacing:.01em; }
   button, input, select, textarea { font:inherit; }
   input, select, textarea { color:inherit; }
   select option { background:var(--color-card-bg); color:var(--color-text-primary); }
-  button, a { outline-offset:4px; }
-  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--color-gold); }
-  ::selection { background:color-mix(in srgb,var(--color-accent) 28%,transparent); }
+  button, a { outline-offset:3px; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--color-accent); }
+  ::selection { background:color-mix(in srgb,var(--color-accent) 35%,transparent); }
   ::-webkit-scrollbar { width:10px; height:10px; }
-  ::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--color-gold) 70%,transparent); border:3px solid transparent; background-clip:padding-box; border-radius:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--color-gold); border:3px solid transparent; background-clip:padding-box; border-radius:6px; }
 
-  /* Le piccole etichette maiuscole diventano capitali lapidarie */
-  .uppercase { font-family:var(--font-serif); }
-  /* Le etichette "mono" diventano maiuscoletto con cifre allineate */
-  .font-mono { font-variant:small-caps lining-nums tabular-nums; letter-spacing:.04em; }
+  /* Etichette maiuscole: condensato, come nelle interfacce ufficiali */
+  .uppercase { font-family:var(--font-serif); letter-spacing:.06em; }
   input.uppercase, textarea.uppercase { font-family:var(--font-sans); }
+  .font-mono { font-variant-numeric:tabular-nums; }
 }
 
 @layer components {
-  /* Testata: fascia di cuoio con filetto d'oro */
+  /* Barra di navigazione: sempre scura, con filo rosso */
   .app-header {
-    background:
-      linear-gradient(180deg, color-mix(in srgb,var(--color-panel-bg) 96%,transparent), color-mix(in srgb,var(--color-bg) 92%,transparent));
-    border-bottom:1px solid var(--color-gold);
-    box-shadow:0 1px 0 var(--color-card-bg), 0 3px 0 -1px var(--frame-inner), 0 10px 30px -18px rgba(0,0,0,.6);
-    backdrop-filter:blur(10px);
+    background:var(--header-bg); color:var(--header-text);
+    border-bottom:3px solid var(--color-primary);
+    box-shadow:0 10px 30px -18px rgba(0,0,0,.9);
+    --color-text-primary:var(--header-text); --color-text-muted:#a1a1ab; --color-border:#2c2c35; --color-panel-bg:#1d1d23; --color-card-bg:#17171c; --color-accent:#ef3340;
   }
-  .dark .app-header { background:linear-gradient(180deg,#2a1d12,#1a120c); }
+  .nav-link { position:relative; height:100%; display:flex; align-items:center; padding:0 .25rem; font-family:var(--font-serif); font-weight:700; font-size:.82rem; letter-spacing:.08em; text-transform:uppercase; color:#c9c9d1; transition:color .15s; }
+  .nav-link:hover { color:#fff; }
+  .nav-link[aria-current="page"] { color:#fff; }
+  .nav-link[aria-current="page"]::after { content:""; position:absolute; left:0; right:0; bottom:-3px; height:3px; background:#ef3340; }
 
-  /* Sigillo di ceralacca */
+  /* Marchio: gemma esagonale rossa */
   .brand-mark {
-    width:46px; height:46px; display:flex; align-items:center; justify-content:center;
-    color:#f6dfa8; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #c2402c, #8a1d12 60%, #5e110a);
-    box-shadow:inset 0 0 0 3px rgba(0,0,0,.15), inset 0 0 0 5px rgba(255,210,150,.18), 0 3px 8px rgba(60,10,5,.45);
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center; color:#fff;
+    background:linear-gradient(145deg,#ef3340,#9b0c20); clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
   }
-  .brand-title { font-family:var(--font-display); font-weight:700; letter-spacing:.04em; }
+  .brand-title { font-family:var(--font-display); font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
 
-  .eyebrow { color:var(--color-accent); font-family:var(--font-serif); font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.24em; }
+  .eyebrow { color:var(--color-accent); font-family:var(--font-serif); font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.16em; }
 
-  /* Pagina miniata con doppio filetto */
-  .surface-card {
-    background:var(--color-card-bg);
-    border:1px solid var(--color-gold);
-    border-radius:2px;
-    box-shadow:inset 0 0 0 4px var(--color-card-bg), inset 0 0 0 5px var(--frame-inner), 0 12px 30px -16px rgba(40,20,5,.55);
-  }
+  /* Card standard */
+  .surface-card { background:var(--color-card-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); }
+  .bg-panel-bg.border, .bg-panel-bg.border-2 { box-shadow:var(--shadow-card); }
 
-  /* Pannelli e schede: doppio filetto d'oro come le cornici dei manoscritti */
-  .bg-panel-bg.border, .bg-panel-bg.border-2 {
-    border-color:var(--color-gold);
-    box-shadow:inset 0 0 0 3px var(--color-panel-bg), inset 0 0 0 4px var(--frame-inner);
-    background-image:radial-gradient(ellipse at center, transparent 60%, var(--parchment-shade) 140%);
-  }
-  .bg-card-bg { background-image:linear-gradient(160deg, rgba(255,255,255,.05), transparent 40%); }
-
-  /* Pulsante principale: ceralacca con bordo dorato */
+  /* Pulsanti */
   .primary-action {
-    border-radius:2px;
-    background:linear-gradient(180deg,#a83222,#7d1b10);
-    color:#f8e6c0;
-    border:1px solid var(--color-gold);
-    box-shadow:inset 0 0 0 2px rgba(255,215,150,.15), 0 4px 10px -4px rgba(60,10,5,.6);
-    font-family:var(--font-serif); font-size:.72rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; transition:.2s ease;
+    border-radius:var(--radius-sm); background:var(--color-primary); color:#fff; border:1px solid transparent;
+    font-family:var(--font-serif); font-size:.8rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    box-shadow:0 6px 16px -8px color-mix(in srgb,var(--color-primary) 80%,transparent); transition:.15s ease;
   }
-  .primary-action:hover { filter:brightness(1.08); transform:translateY(-1px); }
+  .primary-action:hover { background:var(--color-primary-hover); transform:translateY(-1px); }
   .secondary-action {
-    padding:.62rem 1rem; border:1px solid var(--color-gold); border-radius:2px; color:var(--color-text-primary);
-    background:color-mix(in srgb,var(--color-card-bg) 70%,transparent);
-    font-family:var(--font-serif); font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em; transition:.2s;
+    padding:.55rem .95rem; border:1px solid var(--color-border); border-radius:var(--radius-sm); color:var(--color-text-primary);
+    background:var(--color-card-bg); font-family:var(--font-serif); font-size:.76rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; transition:.15s;
   }
   .secondary-action:hover { border-color:var(--color-accent); color:var(--color-accent); }
 
-  .field-shell { display:flex; align-items:center; gap:.75rem; background:transparent; border-bottom:1px solid var(--color-gold); transition:.2s; }
-  .field-shell:focus-within { border-color:var(--color-accent); }
-  .feature-chip { display:flex; gap:.65rem; align-items:center; padding:.8rem 0; border-top:1px solid var(--color-border); color:var(--color-text-muted); font-family:var(--font-serif); font-size:.72rem; font-weight:700; letter-spacing:.08em; }
+  .field-shell { display:flex; align-items:center; gap:.75rem; padding:0 .9rem; background:var(--color-card-bg); border:1px solid var(--color-border); border-radius:var(--radius-sm); transition:.15s; }
+  .field-shell:focus-within { border-color:var(--color-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 18%,transparent); }
+  .feature-chip { display:flex; gap:.65rem; align-items:center; padding:.8rem 0; border-top:1px solid rgba(255,255,255,.12); color:#c9c9d1; font-family:var(--font-serif); font-size:.8rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
 
+  /* Hero cinematografico (login, compagnia, campagne) */
+  .hero-band {
+    position:relative; overflow:hidden; color:#fff;
+    background:
+      radial-gradient(ellipse at 85% 20%, rgba(239,51,64,.35), transparent 50%),
+      radial-gradient(ellipse at 10% 110%, rgba(239,51,64,.18), transparent 45%),
+      linear-gradient(135deg, var(--hero-from), var(--hero-to));
+    --color-text-primary:#fff; --color-text-muted:#c9c9d1;
+  }
+  .hero-band::after {
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.07;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' fill='none' stroke='%23fff' stroke-width='1'%3E%3Cpolygon points='60,6 108,33 108,87 60,114 12,87 12,33'/%3E%3Cpolygon points='60,6 95,72 25,72'/%3E%3Cpolyline points='12,33 25,72 60,114 95,72 108,33'/%3E%3C/svg%3E");
+    background-size:120px;
+  }
+  .hero-band > * { position:relative; z-index:1; }
+  .hero-band .eyebrow { color:#ff6b75; }
   .login-stage { position:relative; overflow:hidden; }
-  .login-stage::after {
-    content:""; position:absolute; right:-8vw; bottom:-10vw; width:46vw; height:46vw; pointer-events:none; opacity:.09;
-    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23000' stroke-width='1.2'%3E%3Cpolygon points='50,4 92,27 92,73 50,96 8,73 8,27'/%3E%3Cpolygon points='50,4 80,62 20,62'/%3E%3Cpolyline points='8,27 20,62 50,96 80,62 92,27'/%3E%3Cline x1='50' y1='4' x2='50' y2='22'/%3E%3Cline x1='20' y1='62' x2='8' y2='73'/%3E%3Cline x1='80' y1='62' x2='92' y2='73'/%3E%3Cpolygon points='50,22 70,58 30,58'/%3E%3Ctext x='50' y='52' font-size='13' text-anchor='middle' fill='%23000' stroke='none' font-family='serif'%3E20%3C/text%3E%3C/svg%3E") center/contain no-repeat;
-  }
-  .dark .login-stage::after { filter:invert(1); opacity:.07; }
-  .folio-number { font-family:var(--font-display); font-size:clamp(5rem,12vw,10rem); line-height:.7; color:color-mix(in srgb,var(--color-gold) 30%,transparent); }
+  .folio-number { font-family:var(--font-display); font-weight:900; font-size:clamp(5rem,12vw,10rem); line-height:.7; color:rgba(255,255,255,.08); }
 
-  /* Filetto ornamentale con losanga centrale */
-  .editorial-rule, .ornament-rule { width:100%; height:1px; background:linear-gradient(90deg,transparent,var(--color-gold) 15%,var(--color-gold) 85%,transparent); position:relative; }
-  .editorial-rule::after, .ornament-rule::after { content:"❖"; position:absolute; left:50%; top:50%; transform:translate(-50%,-52%); padding:0 .6rem; font-size:.8rem; line-height:1; color:var(--color-gold); background:var(--color-card-bg); }
-
-  /* Capolettera miniato */
-  .drop-cap::first-letter { float:left; font-family:var(--font-display); font-size:3.4em; line-height:.8; padding:.08em .1em 0 0; color:var(--color-accent); }
-
-  /* Angoli decorativi da applicare alle cornici */
+  .editorial-rule, .ornament-rule { width:100%; height:1px; background:var(--color-border); position:relative; }
+  .editorial-rule::after { content:""; position:absolute; left:0; top:-1px; width:48px; height:3px; background:var(--color-accent); }
+  .drop-cap::first-letter { float:left; font-family:var(--font-display); font-weight:900; font-size:3.2em; line-height:.85; padding:.04em .12em 0 0; color:var(--color-accent); }
+  .flavor { font-family:var(--font-flavor); font-style:italic; }
   .ornate-corners { position:relative; }
-  .ornate-corners::before, .ornate-corners::after {
-    content:""; position:absolute; width:22px; height:22px; pointer-events:none; border-color:var(--color-gold); border-style:solid;
-  }
-  .ornate-corners::before { top:6px; left:6px; border-width:2px 0 0 2px; }
-  .ornate-corners::after { bottom:6px; right:6px; border-width:0 2px 2px 0; }
 
-  /* Scudo araldico per i punteggi di caratteristica */
+  /* Sezioni della scheda: box con intestazione */
+  .sheet-section { background:var(--color-card-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); }
+  .sheet-section-title { display:flex; align-items:center; gap:.5rem; padding:.65rem 1rem; border-bottom:1px solid var(--color-border); font-family:var(--font-serif); font-weight:800; font-size:.78rem; letter-spacing:.1em; text-transform:uppercase; color:var(--color-text-muted); }
+  .sheet-section-title::before { content:""; width:3px; height:14px; background:var(--color-accent); }
+
+  /* Riquadro caratteristica: modificatore grande, punteggio nel badge */
+  .ability-tile { position:relative; text-align:center; background:var(--color-card-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); padding:.6rem .4rem 1.5rem; }
+  .ability-tile::before { content:""; position:absolute; inset:0 0 auto 0; height:3px; background:var(--color-accent); border-radius:var(--radius-lg) var(--radius-lg) 0 0; }
+
+  .stat-chip { background:var(--color-card-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-card); }
   .heraldic-shield { clip-path:polygon(0 0,100% 0,100% 62%,50% 100%,0 62%); }
 }
 
@@ -176,12 +153,11 @@
 @media print {
   @page { size: A4; margin: 10mm; }
   :root, .dark { --color-bg:#fff; --color-card-bg:#fff; --color-panel-bg:#fff; --color-text-primary:#000; --color-text-muted:#333; color-scheme:light; }
-  html, body { background:#fff !important; background-image:none !important; color:#000; font-size:11px; }
-  body::before { display:none; }
+  html, body { background:#fff !important; color:#000; font-size:11px; }
   .print-sheet { font-family:var(--font-sans); }
   .print-box { border:1.5px solid #000; padding:4px 2px; }
   .print-label { font-family:var(--font-serif); font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
-  .print-h { font-family:var(--font-serif); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; border-bottom:1px solid #000; margin-bottom:4px; }
+  .print-h { font-family:var(--font-serif); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; border-bottom:1.5px solid #c8102e; margin-bottom:4px; }
 }
 
 @layer utilities { .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar { scrollbar-width:none; } }

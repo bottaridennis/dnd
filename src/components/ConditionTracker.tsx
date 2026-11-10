@@ -68,7 +68,7 @@ export default function ConditionTracker() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
         {/* Tracker Esaurimento */}
         <div className="space-y-4">
            <div className="text-[10px] font-black uppercase text-text-muted tracking-widest flex justify-between items-center">
@@ -99,7 +99,7 @@ export default function ConditionTracker() {
         </div>
 
         {/* Lista Condizioni */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
           {CONDITIONS.map((cond) => {
             const isActive = activeConditions.includes(cond.id);
             const Icon = cond.icon;

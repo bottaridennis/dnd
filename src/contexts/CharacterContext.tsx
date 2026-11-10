@@ -113,6 +113,10 @@ export interface CharacterData {
   activeSummons?: ActiveSummon[];
   /** Usi spesi delle risorse di classe (Ira, Recuperare Energie, Punti Focus…) */
   classResourcesSpent?: Record<string, number>;
+  /** Campagna a cui il personaggio partecipa (il Master può leggerne la scheda) */
+  campaignId?: string;
+  campaignDmId?: string;
+  campaignName?: string;
   /** Incantesimo su cui il personaggio sta mantenendo la Concentrazione */
   concentratingOn?: string;
   createdAt?: any;
