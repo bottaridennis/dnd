@@ -78,7 +78,8 @@ function AppContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-50 app-header print:hidden">
+      {/* Barra fissa (non sticky): su iOS la barra sticky, dopo uno scorrimento, lasciava la pagina sfalsata e la cima non più raggiungibile */}
+      <header className="fixed top-0 inset-x-0 z-50 app-header print:hidden">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 h-full">
             <button onClick={() => setIsMobileMenuOpen(true)} className="text-white/70 hover:text-white lg:hidden" aria-label="Apri menu">
@@ -153,6 +154,7 @@ function AppContent() {
         )}
       </AnimatePresence>
 
+      <div className="h-[67px] shrink-0 print:hidden" aria-hidden="true" />
       <main className="flex-1 w-full relative">
         {view === 'wizard' && <CharacterWizard onComplete={() => setView('dashboard')} onCancel={() => setView('dashboard')} />}
         {view === 'homebrew' && <HomebrewCreator />}
