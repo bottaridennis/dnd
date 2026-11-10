@@ -20,11 +20,9 @@ if (window.matchMedia?.('(pointer: coarse)').matches) {
     if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return; // si sta ancora scrivendo
     document.querySelectorAll<HTMLElement>('.hero-band, .login-stage, #root, #root > div').forEach(el => { if (el.scrollTop) el.scrollTop = 0; });
     if (document.body.scrollTop) document.body.scrollTop = 0;
-    window.scrollTo(window.scrollX, window.scrollY);
   }, 120);
   document.addEventListener('focusout', realign);
   document.addEventListener('change', e => { if ((e.target as HTMLElement)?.tagName === 'SELECT') realign(); });
-  window.visualViewport?.addEventListener('resize', realign);
 }
 
 createRoot(document.getElementById('root')!).render(
