@@ -64,7 +64,7 @@ export default function CampaignJoin() {
                 <div className="font-bold">{myTurn ? 'È il tuo turno!' : `Turno di ${current?.name ?? '—'}`}</div>
                 <ol className="mt-1 text-xs text-text-muted">
                   {initiative.entries.map((e, i) => (
-                    <li key={e.id} className={i === initiative.turn ? 'text-accent font-bold' : ''}>{e.initiative ?? '—'} · {e.name}</li>
+                    <li key={e.id} className={`${i === initiative.turn ? 'text-accent font-bold' : ''} ${e.defeated ? 'line-through opacity-60' : ''}`}>{e.initiative ?? '—'} · {e.name}</li>
                   ))}
                 </ol>
               </div>

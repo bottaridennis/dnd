@@ -18,7 +18,7 @@ const CONDITION_LABELS: Record<string, string> = {
 
 const classLine = (c: CharacterData) => Object.entries(getClassLevels(c)).map(([id, d]) => `${classesData.find(x => x.id === id)?.name || id} ${d.level}`).join(' / ');
 
-export default function CampaignManager() {
+export default function CampaignManager({ onOpenEncounters }: { onOpenEncounters?: (campaignId: string) => void } = {}) {
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export default function CampaignManager() {
     }
   };
 
-  if (selected) return <CampaignDetail campaign={selected} onBack={() => setSelectedId(null)} />;
+  if (selected) return <CampaignDetail campaign={selected} onBack={() => setSelectedId(null)} onOpenEncounters={onOpenEncounters} />;
 
   return (
     <div>
@@ -93,7 +93,7 @@ export default function CampaignManager() {
   );
 }
 
-function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () => void }) {
+function CampaignDetail({ campaign, onBack, onOpenEncounters }: { campaign: Campaign; onBack: () => void; onOpenEncounters?: (campaignId: string) => void }) {
   const [party, setParty] = useState<CharacterData[]>([]);
   const [partyError, setPartyError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -166,7 +166,7 @@ function CampaignDetail({ campaign, onBack }: { campaign: Campaign; onBack: () =
           </div>
         </section>
 
-        <InitiativeTracker campaign={campaign} party={party} stats={stats} />
+        <CombatStatus campaign={campaign} onOpen={() => onOpenEncounters?.(campaign.id)} />
       </main>
     </div>
   );
@@ -220,132 +220,28 @@ const PartyCard: React.FC<{ character: CharacterData; stats: CharacterStats }> =
   );
 };
 
-function InitiativeTracker({ campaign, party, stats }: { campaign: Campaign; party: CharacterData[]; stats: Record<string, CharacterStats> }) {
-  const state: InitiativeState = { ...EMPTY_INITIATIVE, ...(campaign.initiative || {}) };
-  const [npc, setNpc] = useState({ name: '', bonus: '0', hp: '', ac: '', count: '1' });
-  const [hpDelta, setHpDelta] = useState<Record<string, string>>({});
-
-  const save = (next: Partial<InitiativeState>) => campaignService.updateCampaign(campaign.id, { initiative: { ...state, ...next } }).catch(console.error);
-  const sorted = (entries: InitiativeEntry[]) => [...entries].sort((a, b) => (b.initiative ?? -99) - (a.initiative ?? -99) || (b.initiativeBonus ?? 0) - (a.initiativeBonus ?? 0) || a.name.localeCompare(b.name, 'it'));
-
-  const addParty = () => {
-    const existing = new Set(state.entries.filter(e => e.characterId).map(e => e.characterId));
-    const added = party.filter(c => !existing.has(c.id)).map<InitiativeEntry>(c => ({
-      id: crypto.randomUUID(), name: c.name, kind: 'pc', characterId: c.id, initiative: null, initiativeBonus: stats[c.id]?.initiative ?? 0,
-    }));
-    save({ entries: sorted([...state.entries, ...added]) });
-  };
-
-  const rollMissing = (onlyNpc = false) => {
-    save({ entries: sorted(state.entries.map(e => (e.initiative === null && (!onlyNpc || e.kind === 'npc') ? { ...e, initiative: rollDie(20) + (e.initiativeBonus || 0) } : e))) });
-  };
-
-  const addNpc = () => {
-    const count = Math.max(1, Math.min(20, parseInt(npc.count, 10) || 1));
-    const bonus = parseInt(npc.bonus, 10) || 0;
-    const hp = parseInt(npc.hp, 10);
-    const ac = parseInt(npc.ac, 10);
-    const base = npc.name.trim() || 'Creatura';
-    const added = Array.from({ length: count }, (_, i) => ({
-      id: crypto.randomUUID(), kind: 'npc' as const, name: count > 1 ? `${base} ${i + 1}` : base, initiative: rollDie(20) + bonus, initiativeBonus: bonus,
-      ...(Number.isFinite(hp) ? { hp, maxHp: hp } : {}), ...(Number.isFinite(ac) ? { ac } : {}),
-    }));
-    save({ entries: sorted([...state.entries, ...added]) });
-    setNpc({ name: '', bonus: '0', hp: '', ac: '', count: '1' });
-  };
-
-  const updateEntry = (id: string, patch: Partial<InitiativeEntry>) => save({ entries: state.entries.map(e => (e.id === id ? { ...e, ...patch } : e)) });
-  const removeEntry = (id: string) => {
-    const idx = state.entries.findIndex(e => e.id === id);
-    const entries = state.entries.filter(e => e.id !== id);
-    save({ entries, turn: Math.min(idx < state.turn ? state.turn - 1 : state.turn, Math.max(0, entries.length - 1)) });
-  };
-
-  const start = () => save({ active: true, round: 1, turn: 0, entries: sorted(state.entries) });
-  const next = () => {
-    if (!state.entries.length) return;
-    const turn = state.turn + 1;
-    save(turn >= state.entries.length ? { turn: 0, round: state.round + 1 } : { turn });
-  };
-  const prev = () => {
-    if (!state.entries.length) return;
-    if (state.turn > 0) save({ turn: state.turn - 1 });
-    else if (state.round > 1) save({ turn: state.entries.length - 1, round: state.round - 1 });
-  };
-  const reset = () => { if (window.confirm('Terminare il combattimento e svuotare l’ordine d’iniziativa?')) save(EMPTY_INITIATIVE); };
-
+/** Stato del combattimento e scorciatoia verso la pagina Incontri. */
+function CombatStatus({ campaign, onOpen }: { campaign: Campaign; onOpen: () => void }) {
+  const state = campaign.initiative;
+  const current = state?.active ? state.entries[state.turn] : undefined;
+  const encounters = campaign.encounters || [];
   return (
     <aside className="sheet-section self-start lg:sticky lg:top-24">
-      <div className="sheet-section-title">
-        <span className="flex items-center gap-2"><Swords className="w-4 h-4 text-accent" /> Iniziativa</span>
-        {state.active && <span className="ml-auto text-accent">Round {state.round}</span>}
-      </div>
-
-      <div className="p-4 space-y-3 border-b border-border">
-        <div className="flex flex-wrap gap-2">
-          <button onClick={addParty} className="secondary-action flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Aggiungi gruppo</button>
-          <button onClick={() => rollMissing()} className="secondary-action flex items-center gap-1.5"><Dices className="w-3.5 h-3.5" /> Tira mancanti</button>
-        </div>
-        <div className="grid grid-cols-[1fr_56px_56px_56px_48px] gap-1.5 text-xs">
-          <input value={npc.name} onChange={e => setNpc({ ...npc, name: e.target.value })} placeholder="Creatura (es. Goblin)" className="bg-panel-bg border border-border px-2 py-2" aria-label="Nome creatura" />
-          <input value={npc.bonus} onChange={e => setNpc({ ...npc, bonus: e.target.value })} placeholder="Init" title="Bonus d'iniziativa" className="bg-panel-bg border border-border px-2 py-2 text-center" aria-label="Bonus iniziativa" />
-          <input value={npc.hp} onChange={e => setNpc({ ...npc, hp: e.target.value })} placeholder="PF" className="bg-panel-bg border border-border px-2 py-2 text-center" aria-label="Punti ferita" />
-          <input value={npc.ac} onChange={e => setNpc({ ...npc, ac: e.target.value })} placeholder="CA" className="bg-panel-bg border border-border px-2 py-2 text-center" aria-label="Classe armatura" />
-          <input value={npc.count} onChange={e => setNpc({ ...npc, count: e.target.value })} placeholder="×" title="Quante creature" className="bg-panel-bg border border-border px-2 py-2 text-center" aria-label="Numero di creature" />
-        </div>
-        <button onClick={addNpc} className="w-full primary-action py-2 flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Aggiungi creatura (tira l’iniziativa)</button>
-      </div>
-
-      <ol className="divide-y divide-border max-h-[55vh] overflow-y-auto">
-        {state.entries.length === 0 && <li className="p-6 text-center text-sm text-text-muted">Aggiungi il gruppo e le creature per iniziare.</li>}
-        {state.entries.map((e, idx) => {
-          const isTurn = state.active && idx === state.turn;
-          const pc = e.characterId ? party.find(c => c.id === e.characterId) : undefined;
-          const pcStats = pc ? stats[pc.id] : undefined;
-          const hp = pc ? Math.min(pc.hpCurrent, pcStats?.hpMax ?? pc.hpCurrent) : e.hp;
-          const maxHp = pc ? pcStats?.hpMax : e.maxHp;
-          const ac = pc ? pcStats?.acBase : e.ac;
-          return (
-            <li key={e.id} className={`flex items-center gap-2 px-3 py-2.5 ${isTurn ? 'bg-accent/10 border-l-4 border-accent' : 'border-l-4 border-transparent'}`}>
-              <input
-                value={e.initiative ?? ''}
-                onChange={ev => updateEntry(e.id, { initiative: ev.target.value === '' ? null : parseInt(ev.target.value, 10) || 0 })}
-                onBlur={() => save({ entries: sorted(state.entries) })}
-                placeholder="—"
-                className="w-11 text-center font-display font-black text-lg bg-panel-bg border border-border py-1"
-                aria-label={`Iniziativa di ${e.name}`}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="font-bold truncate flex items-center gap-1.5">{e.kind === 'pc' ? <Shield className="w-3.5 h-3.5 text-accent shrink-0" /> : <Skull className="w-3.5 h-3.5 text-text-muted shrink-0" />}{e.name}</div>
-                <div className="text-[11px] text-text-muted">
-                  {hp !== undefined && maxHp !== undefined ? <span className={hp === 0 ? 'text-danger font-bold' : ''}>PF {hp}/{maxHp}</span> : 'PF —'}
-                  {ac !== undefined && <> · CA {ac}</>}
-                  {pc?.conditions?.length ? <> · {pc.conditions.map(c => CONDITION_LABELS[c] || c).join(', ')}</> : null}
-                </div>
-              </div>
-              {e.kind === 'npc' && e.hp !== undefined && (
-                <div className="flex items-center gap-1">
-                  <input value={hpDelta[e.id] ?? ''} onChange={ev => setHpDelta({ ...hpDelta, [e.id]: ev.target.value })} placeholder="±" className="w-10 text-center bg-panel-bg border border-border py-1 text-xs" aria-label={`Variazione PF di ${e.name}`} />
-                  <button onClick={() => { const d = parseInt(hpDelta[e.id] || '0', 10) || 0; updateEntry(e.id, { hp: Math.max(0, Math.min(e.maxHp ?? 9999, (e.hp ?? 0) - d)) }); setHpDelta({ ...hpDelta, [e.id]: '' }); }} className="px-1.5 py-1 text-[10px] font-bold uppercase border border-border hover:border-danger hover:text-danger" title="Applica danno">Dan</button>
-                  <button onClick={() => { const d = parseInt(hpDelta[e.id] || '0', 10) || 0; updateEntry(e.id, { hp: Math.max(0, Math.min(e.maxHp ?? 9999, (e.hp ?? 0) + d)) }); setHpDelta({ ...hpDelta, [e.id]: '' }); }} className="px-1.5 py-1 text-[10px] font-bold uppercase border border-border hover:border-success hover:text-success" title="Applica cura">Cur</button>
-                </div>
-              )}
-              <button onClick={() => removeEntry(e.id)} className="p-1 text-text-muted hover:text-danger" aria-label={`Rimuovi ${e.name}`}><Trash2 className="w-4 h-4" /></button>
-            </li>
-          );
-        })}
-      </ol>
-
-      <div className="p-4 border-t border-border flex items-center gap-2">
-        {!state.active ? (
-          <button onClick={start} disabled={!state.entries.length} className="flex-1 primary-action py-2.5 disabled:opacity-40">Inizia il combattimento</button>
+      <div className="sheet-section-title"><Swords className="w-4 h-4" /> Incontri e turni</div>
+      <div className="p-4 space-y-3 text-sm">
+        {state?.active ? (
+          <div className="border border-accent bg-accent/10 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-accent">{state.encounterName || 'Combattimento'} · round {state.round}</div>
+            <div className="font-bold">Turno di {current?.name ?? '—'}</div>
+            <div className="text-xs text-text-muted">{state.entries.filter(e => !e.defeated).length} combattenti attivi</div>
+          </div>
+        ) : state?.entries?.length ? (
+          <p className="text-text-muted">Combattimento in preparazione ({state.entries.length} combattenti).</p>
         ) : (
-          <>
-            <button onClick={prev} className="secondary-action !px-3" aria-label="Turno precedente"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={next} className="flex-1 primary-action py-2.5 flex items-center justify-center gap-2">Turno successivo <ChevronRight className="w-4 h-4" /></button>
-          </>
+          <p className="text-text-muted">Nessun combattimento in corso.</p>
         )}
-        <button onClick={reset} className="secondary-action !px-3" aria-label="Termina combattimento" title="Termina combattimento"><RotateCcw className="w-4 h-4" /></button>
+        <p className="text-xs text-text-muted">{encounters.length} incontr{encounters.length === 1 ? 'o' : 'i'} preparat{encounters.length === 1 ? 'o' : 'i'}.</p>
+        <button onClick={onOpen} className="primary-action w-full py-2.5 flex items-center justify-center gap-2"><Swords className="w-4 h-4" /> {state?.entries?.length ? 'Apri il tracker' : 'Prepara un incontro'}</button>
       </div>
     </aside>
   );

@@ -1,5 +1,5 @@
 /** Motore dei dadi: formule tipo "2d6+3", tiri d20 con vantaggio/svantaggio e critici. */
-import { rollDie } from './rests';
+import { rollDie } from './random';
 
 export type RollMode = 'normal' | 'advantage' | 'disadvantage';
 
