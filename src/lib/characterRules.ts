@@ -8,6 +8,7 @@ import type { Ability, CharacterData, InventoryItem } from '../contexts/Characte
 import { backgroundsData, classesData, speciesData, ALL_SKILLS } from '../data/rules2024';
 import { findArmor, findWeapon, type ArmorData } from '../data/weaponsData';
 import { getModifier } from './utils';
+import { getFixedClassTools, getFixedLanguages } from '../data/languages';
 
 export const ABILITIES: Ability[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
 
@@ -568,3 +569,30 @@ export function computeCharacterStats(character: CharacterData) {
 }
 
 export type CharacterStats = ReturnType<typeof computeCharacterStats>;
+
+// ------------------------------------------------------------------
+// Competenze: armature, armi, strumenti e lingue
+// ------------------------------------------------------------------
+
+export function getProficiencySummary(character: CharacterLike) {
+  const classLevels = getClassLevels(character);
+  const startingClass = classesData.find(c => c.id === character.classId);
+  const armor = new Set<string>(startingClass?.armor || []);
+  const weapons = new Set<string>(startingClass?.weapons || []);
+  // Multiclasse (PHB 2024): dalle classi successive si ottengono solo alcune competenze
+  Object.keys(classLevels).filter(id => id !== character.classId).forEach(id => {
+    if (['barbarian', 'fighter', 'paladin', 'ranger'].includes(id)) { armor.add('Leggera'); armor.add('Media'); armor.add('Scudi'); weapons.add('Marziali'); }
+    if (['bard', 'rogue', 'warlock'].includes(id)) armor.add('Leggera');
+    if (['cleric', 'druid'].includes(id)) { armor.add('Leggera'); armor.add('Media'); armor.add('Scudi'); }
+    weapons.add('Semplici');
+  });
+  if (hasFeat(character, 'Armatura Leggera (Addestramento)')) armor.add('Leggera');
+  if (hasFeat(character, 'Armatura Media (Addestramento)')) armor.add('Media');
+  if (hasFeat(character, 'Armatura Pesante (Addestramento)')) armor.add('Pesante');
+  if (hasFeat(character, 'Addestramento alle Armi Marziali')) weapons.add('Marziali');
+
+  const bgTools = (backgroundsData.find(b => b.id === character.backgroundId)?.tools || []).filter(t => !t.includes('(uno)'));
+  const tools = Array.from(new Set([...bgTools, ...getFixedClassTools(classLevels), ...(character.toolProficiencies || [])]));
+  const languages = Array.from(new Set([...getFixedLanguages(classLevels), ...(character.languages || [])]));
+  return { armor: Array.from(armor), weapons: Array.from(weapons), tools, languages };
+}

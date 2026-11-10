@@ -55,6 +55,10 @@ export interface CharacterData {
   abilityMethod?: 'standard' | 'pointbuy' | 'manual';
   /** Incrementi successivi (Aumento dei Punteggi di Caratteristica, talenti) */
   abilityBonuses?: Partial<Record<Ability, number>>;
+  /** Lingue scelte (il Comune e quelle di classe vengono aggiunte automaticamente) */
+  languages?: string[];
+  /** Strumenti scelti (oltre a quelli fissi di background e classe) */
+  toolProficiencies?: string[];
   /** Talento d'Origine aggiuntivo (tratto Versatile dell'Umano) */
   bonusOriginFeat?: string;
   resistances: string[];
@@ -107,6 +111,14 @@ export interface CharacterData {
     isActive: boolean;
   };
   activeSummons?: ActiveSummon[];
+  /** Usi spesi delle risorse di classe (Ira, Recuperare Energie, Punti Focus…) */
+  classResourcesSpent?: Record<string, number>;
+  /** Campagna a cui il personaggio partecipa (il Master può leggerne la scheda) */
+  campaignId?: string;
+  campaignDmId?: string;
+  campaignName?: string;
+  /** Incantesimo su cui il personaggio sta mantenendo la Concentrazione */
+  concentratingOn?: string;
   createdAt?: any;
   updatedAt?: any;
 }

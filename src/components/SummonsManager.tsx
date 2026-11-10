@@ -1,410 +1,197 @@
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Plus, X, Heart, Shield, Zap, Sparkles, LogOut, 
-  ChevronDown, Wand2, Info, Sword, Ghost, Github, 
-  CircleUserRound, Settings2
-} from 'lucide-react';
+import { Plus, X, Heart, Shield, Footprints, Sparkles, Minus, Wand2, PawPrint } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useSummons } from '../hooks/useSummons';
 import { useCharacter } from '../contexts/CharacterContext';
 import { useCharacterMath } from '../hooks/useCharacterMath';
 import { SUMMONS_DATA } from '../data/summons';
 import { ActiveSummon } from '../types/summons';
-import * as LucideIcons from 'lucide-react';
+import { getModifier } from '../lib/utils';
+import { signed } from '../lib/dice';
+import { OptionCard, Tag, EmptyState } from './ui';
 
 interface SummonsManagerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const CATEGORY_LABEL: Record<string, string> = { Basic: 'Famiglio', Pact: 'Famiglio del Patto', Scaling: 'Incantesimo di evocazione', Homebrew: 'Personalizzata' };
+
+/** Evocazioni, famigli e compagni: pannello laterale con blocchi statistiche in stile bestiario. */
 export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps) {
   const { activeSummons, summonCreature, summonHomebrew, dismissSummon, updateSummonHp } = useSummons();
   const { currentCharacter } = useCharacter();
   const math = useCharacterMath(currentCharacter);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(SUMMONS_DATA[0].id);
   const [spellLevel, setSpellLevel] = useState(4);
   const [isHomebrewMode, setIsHomebrewMode] = useState(false);
-  
-  // Homebrew State
   const [hbName, setHbName] = useState('');
   const [hbHp, setHbHp] = useState(1);
   const [hbAc, setHbAc] = useState(10);
-  const [hbSpeed, setHbSpeed] = useState('9m');
+  const [hbSpeed, setHbSpeed] = useState('9 m');
+
+  if (!isOpen) return null;
 
   const selectedTemplate = SUMMONS_DATA.find(s => s.id === selectedTemplateId);
+  const minLevel = selectedTemplate?.minLevel || 0;
+  const effectiveLevel = Math.max(minLevel, spellLevel);
   const requiresLevel = selectedTemplate?.category === 'Scaling' && !isHomebrewMode;
+  const spellAttack = Math.max(0, ...(math?.spellcasting || []).map(s => s.attackBonus)) || (math ? math.proficiencyBonus : 2);
 
   const handleSummon = async () => {
-    // Bonus di attacco con incantesimi del personaggio (miglior classe incantatrice)
-    const playerStats = { spellAttackModifier: Math.max(0, ...(math?.spellcasting || []).map(s => s.attackBonus)) || (math ? math.proficiencyBonus : 2) };
-    const template = SUMMONS_DATA.find(t => t.id === selectedTemplateId);
-    const effectiveLevel = Math.max(template?.minLevel || 0, spellLevel);
-    
     if (isHomebrewMode) {
-        if (!hbName) return;
-        await summonHomebrew({
-            name: hbName,
-            maxHp: hbHp,
-            ac: hbAc,
-            speed: hbSpeed
-        });
+      if (!hbName.trim()) return;
+      await summonHomebrew({ name: hbName.trim(), maxHp: hbHp, ac: hbAc, speed: hbSpeed });
     } else {
-        await summonCreature(selectedTemplateId, effectiveLevel, playerStats);
+      await summonCreature(selectedTemplateId, effectiveLevel, { spellAttackModifier: spellAttack });
     }
-    setIsAddOpen(false);
+    setAdding(false);
     setIsHomebrewMode(false);
     setHbName('');
   };
 
-  if (!isOpen) return null;
+  const groups = (['Basic', 'Pact', 'Scaling'] as const).map(cat => ({ cat, items: SUMMONS_DATA.filter(s => s.category === cat) }));
+  const inputClass = 'w-full bg-panel-bg border border-border rounded-[var(--radius-sm)] px-3 py-2 outline-none focus:border-accent';
 
   return (
-    <div className="fixed inset-0 z-[70] bg-bg/95 flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-panel-bg border border-accent/40 w-full max-w-6xl h-full max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-      >
-        {/* Header */}
-        <header className="p-6 border-b border-border flex justify-between items-center bg-accent/5 shrink-0">
-           <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-accent text-bg flex items-center justify-center">
-                 <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                 <h2 className="text-2xl font-serif font-black text-text-primary tracking-tight">Gestore Evocazioni</h2>
-                 <p className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">D&D 5.5e Summoning Manager</p>
-              </div>
-           </div>
-           <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setIsAddOpen(true)}
-                className="hidden md:flex items-center gap-2 bg-accent text-bg px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
-              >
-                <Plus className="w-4 h-4" /> Nuova Evocazione
-              </button>
-              <button onClick={onClose} className="p-3 bg-card-bg border border-border rounded-xl text-text-muted hover:text-white transition-colors">
-                 <X className="w-6 h-6" />
-              </button>
-           </div>
-        </header>
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm" onClick={onClose}>
+        <motion.aside
+          initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+          className="absolute right-0 top-0 bottom-0 w-full max-w-3xl bg-bg border-l-4 border-l-[#d4142f] flex flex-col shadow-2xl"
+          onClick={e => e.stopPropagation()}
+          role="dialog" aria-modal="true" aria-labelledby="summons-title"
+        >
+          <header className="hero-band px-6 py-5 flex items-center justify-between gap-4 shrink-0">
+            <div>
+              <p className="eyebrow mb-1">Famigli, compagni ed evocazioni</p>
+              <h2 id="summons-title" className="text-3xl font-black uppercase leading-none">Evocazioni</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {!adding && <button onClick={() => setAdding(true)} className="primary-action px-4 py-2.5 flex items-center gap-2"><Plus className="w-4 h-4" /> Evoca</button>}
+              <button onClick={onClose} className="p-2.5 border border-white/20 text-white/80 hover:text-white" aria-label="Chiudi"><X className="w-5 h-5" /></button>
+            </div>
+          </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-10">
-           {activeSummons.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-border rounded-[2.5rem] bg-black/10 py-20 px-6 text-center">
-                 <div className="w-24 h-24 rounded-full bg-accent/5 flex items-center justify-center mb-8">
-                    <Github className="w-12 h-12 text-accent/30" />
-                 </div>
-                 <h3 className="text-3xl font-serif font-black text-text-primary mb-4 italic">Il tuo cerchio è vuoto</h3>
-                 <p className="text-text-muted max-w-md mx-auto mb-8 font-medium">Non hai creature evocate al momento. Usa il pulsante "Nuova Evocazione" per iniziare a popolare il tuo esercito magico.</p>
-                 <button 
-                  onClick={() => setIsAddOpen(true)}
-                  className="bg-accent text-bg px-10 py-4 rounded-2xl font-black uppercase tracking-[0.3em] hover:scale-110 active:scale-95 transition-all shadow-xl shadow-accent/20"
-                >
-                  Inizia Evocazione
-                </button>
-              </div>
-           ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                 <AnimatePresence>
-                    {activeSummons.map(summon => (
-                      <SummonCard 
-                        key={summon.instanceId} 
-                        summon={summon} 
-                        onDismiss={() => dismissSummon(summon.instanceId)}
-                        onHpChange={(hp) => updateSummonHp(summon.instanceId, hp)}
-                      />
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {adding && (
+              <section className="sheet-section">
+                <div className="sheet-section-title"><Wand2 className="w-3.5 h-3.5" /> Nuova evocazione
+                  <button onClick={() => setAdding(false)} className="ml-auto text-text-muted hover:text-text-primary" aria-label="Annulla"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div className="flex border-b border-border">
+                    {[[false, 'Dal manuale'], [true, 'Personalizzata']].map(([hb, label]) => (
+                      <button key={String(hb)} onClick={() => setIsHomebrewMode(hb as boolean)} className={`relative px-4 py-2 text-sm font-black uppercase font-serif ${isHomebrewMode === hb ? 'text-accent' : 'text-text-muted'}`}>
+                        {label as string}{isHomebrewMode === hb && <span className="absolute inset-x-0 -bottom-px h-[3px] bg-accent" />}
+                      </button>
                     ))}
-                 </AnimatePresence>
-                 {/* Mobile Add Button Sticker */}
-                 <button 
-                   onClick={() => setIsAddOpen(true)}
-                   className="md:hidden flex flex-col items-center justify-center p-8 border-2 border-dashed border-accent/20 rounded-3xl bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
-                 >
-                    <Plus className="w-8 h-8 mb-2" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Aggiungi</span>
-                 </button>
-              </div>
-           )}
-        </div>
-
-        {/* Mobile footer add button */}
-        <div className="md:hidden p-4 border-t border-border bg-panel-bg shrink-0">
-           <button 
-            onClick={() => setIsAddOpen(true)}
-            className="w-full bg-accent text-bg py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2"
-           >
-             <Plus className="w-5 h-5" /> Nuova Evocazione
-           </button>
-        </div>
-      </motion.div>
-
-      {/* Add Summon Modal (Nested) */}
-      <AnimatePresence>
-        {isAddOpen && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-panel-bg border border-accent/40 w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-border flex justify-between items-center bg-black/20">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-accent/20 rounded-lg">
-                    <Wand2 className="text-accent w-5 h-5" />
                   </div>
-                  <h3 className="text-xl font-serif font-black">Evoca Creatura</h3>
-                </div>
-                <button onClick={() => setIsAddOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                  <X className="w-6 h-6 text-text-muted" />
-                </button>
-              </div>
 
-              <div className="p-8 space-y-6">
-                {/* Tabs für Normal vs Homebrew */}
-                <div className="flex gap-2 p-1 bg-black/30 rounded-xl border border-white/5 mb-4">
-                   <button 
-                    onClick={() => setIsHomebrewMode(false)}
-                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${!isHomebrewMode ? 'bg-accent text-bg shadow-sm' : 'text-text-muted'}`}
-                   >
-                     Regolamento
-                   </button>
-                   <button 
-                    onClick={() => setIsHomebrewMode(true)}
-                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${isHomebrewMode ? 'bg-accent text-bg shadow-sm' : 'text-text-muted'}`}
-                   >
-                     Homebrew
-                   </button>
-                </div>
-
-                {!isHomebrewMode ? (
-                  <>
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-accent tracking-widest block mb-2 px-1">Tipologia di Evocazione</label>
-                      <div className="relative">
-                        <select 
-                          value={selectedTemplateId}
-                          onChange={(e) => setSelectedTemplateId(e.target.value)}
-                          className="w-full bg-card-bg border border-border rounded-xl px-4 py-4 text-sm font-bold focus:border-accent outline-none appearance-none pr-10"
-                        >
-                          <optgroup label="Basic Summons">
-                            {SUMMONS_DATA.filter(s => s.category === 'Basic').map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
+                  {!isHomebrewMode ? (
+                    <>
+                      {groups.map(({ cat, items }) => (
+                        <div key={cat}>
+                          <div className="text-[11px] uppercase font-black tracking-wider text-text-muted font-serif mb-2">{CATEGORY_LABEL[cat]}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {items.map(t => (
+                              <OptionCard key={t.id} selected={selectedTemplateId === t.id} onClick={() => setSelectedTemplateId(t.id)} title={t.name} subtitle={t.type} className="!p-3"
+                                meta={t.category === 'Scaling' ? <Tag tone="accent">Dal {t.minLevel}° livello</Tag> : <><Tag>CA {t.ac}</Tag><Tag>PF {t.hp}</Tag></>} />
                             ))}
-                          </optgroup>
-                          <optgroup label="Pact of the Chain">
-                            {SUMMONS_DATA.filter(s => s.category === 'Pact').map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
+                          </div>
+                        </div>
+                      ))}
+                      {requiresLevel && (
+                        <div>
+                          <div className="text-[11px] uppercase font-black tracking-wider text-text-muted font-serif mb-2">Livello dello slot</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[3, 4, 5, 6, 7, 8, 9].filter(l => l >= minLevel).map(l => (
+                              <button key={l} onClick={() => setSpellLevel(l)} aria-pressed={effectiveLevel === l} className={`w-11 h-10 border font-display font-black rounded-[var(--radius-sm)] ${effectiveLevel === l ? 'bg-accent border-accent text-white' : 'border-border hover:border-accent'}`}>{l}°</button>
                             ))}
-                          </optgroup>
-                          <optgroup label="Scaling Spirits (Spells)">
-                            {SUMMONS_DATA.filter(s => s.category === 'Scaling').map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </optgroup>
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
-                      </div>
+                          </div>
+                          <p className="text-xs text-text-muted mt-2">CA, PF e danni crescono con il livello; il tiro per colpire usa il tuo bonus d’attacco con incantesimi ({signed(spellAttack)}).</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <label className="col-span-2 space-y-1"><span className="text-[11px] uppercase font-black text-text-muted font-serif">Nome</span><input value={hbName} onChange={e => setHbName(e.target.value)} placeholder="Es. Lupo spettrale" className={inputClass} /></label>
+                      <label className="space-y-1"><span className="text-[11px] uppercase font-black text-text-muted font-serif">PF</span><input type="number" min={1} value={hbHp} onChange={e => setHbHp(Math.max(1, parseInt(e.target.value) || 1))} className={inputClass} /></label>
+                      <label className="space-y-1"><span className="text-[11px] uppercase font-black text-text-muted font-serif">CA</span><input type="number" min={1} value={hbAc} onChange={e => setHbAc(Math.max(1, parseInt(e.target.value) || 1))} className={inputClass} /></label>
+                      <label className="col-span-2 sm:col-span-4 space-y-1"><span className="text-[11px] uppercase font-black text-text-muted font-serif">Velocità</span><input value={hbSpeed} onChange={e => setHbSpeed(e.target.value)} placeholder="9 m, volare 18 m" className={inputClass} /></label>
                     </div>
+                  )}
 
-                    {requiresLevel && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="space-y-3"
-                      >
-                        <label className="text-[10px] font-black uppercase text-accent tracking-widest block px-1">Livello Slot Incantesimo</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[3, 4, 5, 6, 7, 8, 9].filter(lvl => lvl >= (SUMMONS_DATA.find(t => t.id === selectedTemplateId)?.minLevel || 0)).map(lvl => (
-                            <button
-                              key={lvl}
-                              onClick={() => setSpellLevel(lvl)}
-                              className={`py-3 rounded-xl text-xs font-black transition-all border ${
-                                Math.max(SUMMONS_DATA.find(t => t.id === selectedTemplateId)?.minLevel || 0, spellLevel) === lvl ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/20' : 'bg-card-bg text-text-muted border-border hover:border-accent/40'
-                              }`}
-                            >
-                              LVL {lvl}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex items-start gap-2 p-3 bg-accent/5 border border-accent/10 rounded-xl mt-2">
-                           <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                           <p className="text-[9px] text-text-muted leading-relaxed uppercase font-black">Nota: Le statistiche scaleranno automaticamente in base al livello selezionato.</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-4">
-                     <div>
-                        <label className="text-[10px] font-black uppercase text-accent tracking-widest block mb-2">Nome Creatura</label>
-                        <input 
-                          type="text"
-                          value={hbName}
-                          onChange={(e) => setHbName(e.target.value)}
-                          placeholder="es. Drago Tascabile"
-                          className="w-full bg-card-bg border border-border rounded-xl px-4 py-3 text-sm font-bold focus:border-accent outline-none"
-                        />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="text-[10px] font-black uppercase text-accent tracking-widest block mb-2">PF Massimi</label>
-                           <input 
-                              type="number"
-                              value={hbHp}
-                              onChange={(e) => setHbHp(parseInt(e.target.value) || 1)}
-                              className="w-full bg-card-bg border border-border rounded-xl px-4 py-3 text-sm font-bold focus:border-accent outline-none"
-                           />
-                        </div>
-                        <div>
-                           <label className="text-[10px] font-black uppercase text-accent tracking-widest block mb-2">Classe Armatura</label>
-                           <input 
-                              type="number"
-                              value={hbAc}
-                              onChange={(e) => setHbAc(parseInt(e.target.value) || 10)}
-                              className="w-full bg-card-bg border border-border rounded-xl px-4 py-3 text-sm font-bold focus:border-accent outline-none"
-                           />
-                        </div>
-                     </div>
-                     <div>
-                        <label className="text-[10px] font-black uppercase text-accent tracking-widest block mb-2">Velocità</label>
-                        <input 
-                          type="text"
-                          value={hbSpeed}
-                          onChange={(e) => setHbSpeed(e.target.value)}
-                          placeholder="es. 9m, volo 18m"
-                          className="w-full bg-card-bg border border-border rounded-xl px-4 py-3 text-sm font-bold focus:border-accent outline-none"
-                        />
-                     </div>
-                  </div>
-                )}
-
-                <div className="pt-6">
-                  <button 
-                    onClick={handleSummon}
-                    className="w-full bg-accent text-bg py-5 rounded-[1.25rem] font-black uppercase tracking-[0.2em] shadow-xl shadow-accent/20 flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all text-sm"
-                  >
-                    <Sparkles className="w-5 h-5" /> Conferma Evocazione
+                  <button onClick={handleSummon} disabled={isHomebrewMode && !hbName.trim()} className="w-full primary-action py-3 flex items-center justify-center gap-2 disabled:opacity-40">
+                    <Sparkles className="w-4 h-4" /> Evoca {isHomebrewMode ? hbName || 'creatura' : selectedTemplate?.name}{requiresLevel ? ` (${effectiveLevel}° livello)` : ''}
                   </button>
                 </div>
+              </section>
+            )}
+
+            {activeSummons.length === 0 && !adding ? (
+              <EmptyState icon={PawPrint} title="Nessuna creatura evocata">Usa “Evoca” per aggiungere un famiglio, un compagno o lo spirito di un incantesimo.</EmptyState>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activeSummons.map(summon => (
+                  <StatBlock key={summon.instanceId} summon={summon} onDismiss={() => dismissSummon(summon.instanceId)} onHpChange={hp => updateSummonHp(summon.instanceId, hp)} />
+                ))}
               </div>
-            </motion.div>
+            )}
           </div>
-        )}
-      </AnimatePresence>
-    </div>
+        </motion.aside>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
-const SummonCard: React.FC<{ 
-  summon: ActiveSummon; 
-  onDismiss: () => void | Promise<void>;
-  onHpChange: (hp: number) => void | Promise<void>;
-}> = ({ summon, onDismiss, onHpChange }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  // Find icons safely
+const StatBlock: React.FC<{ summon: ActiveSummon; onDismiss: () => void; onHpChange: (hp: number) => void }> = ({ summon, onDismiss, onHpChange }) => {
+  const [amount, setAmount] = useState('');
   const Icon = (LucideIcons as any)[summon.iconName] || LucideIcons.Dog;
+  const pct = Math.max(0, Math.min(100, (summon.currentHp / summon.maxHp) * 100));
+  const value = Math.max(0, parseInt(amount, 10) || 0);
+  const abilities: [string, number][] = [['FOR', summon.str], ['DES', summon.dex], ['COS', summon.con], ['INT', summon.int], ['SAG', summon.wis], ['CAR', summon.cha]];
+  const rule = <div className="h-[3px] bg-gradient-to-r from-accent to-transparent my-2" />;
 
   return (
-    <motion.div 
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="bg-card-bg border border-border rounded-[2rem] overflow-hidden shadow-2xl group flex flex-col h-full"
-    >
-      <header className={`p-5 transition-colors flex items-center justify-between ${summon.category === 'Homebrew' ? 'bg-purple-500/10' : 'bg-accent/5'}`}>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-accent text-bg flex items-center justify-center shadow-lg shadow-accent/20">
-            <Icon className="w-6 h-6" />
-          </div>
-          <div>
-            <h4 className="text-base font-serif font-black text-text-primary leading-tight">{summon.name}</h4>
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black uppercase text-accent tracking-[0.2em]">
-                {summon.category === 'Scaling' ? `Spell Lvl ${summon.spellLevel}` : summon.category}
-              </span>
-              <span className="w-1 h-1 rounded-full bg-border" />
-              <span className="text-[8px] font-bold text-text-muted italic">{summon.speed}</span>
-            </div>
-          </div>
+    <motion.article layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`surface-card p-4 ${summon.currentHp === 0 ? 'opacity-60' : ''}`}>
+      <div className="flex items-start gap-3">
+        <span className="w-10 h-10 grid place-items-center bg-accent/10 text-accent rounded-[var(--radius-sm)] shrink-0"><Icon className="w-5 h-5" /></span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-xl uppercase leading-tight text-accent truncate">{summon.name}</h3>
+          <p className="text-xs italic text-text-muted flavor">{CATEGORY_LABEL[summon.category] || summon.category}{summon.category === 'Scaling' ? ` · ${summon.spellLevel}° livello` : ''}</p>
         </div>
-        <button 
-          onClick={onDismiss}
-          className="p-3 text-text-muted hover:text-white transition-colors bg-black/30 rounded-xl hover:bg-red-500 shadow-sm"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
-      </header>
-
-      <div className="p-6 space-y-6 flex-1 flex flex-col justify-between">
-        {/* Vital Stats */}
-        <div className="grid grid-cols-2 gap-4">
-           <div className="bg-panel-bg border border-border p-4 rounded-3xl flex flex-col items-center">
-              <div className="flex items-center gap-2 mb-2 text-[9px] font-black uppercase text-text-muted tracking-widest">
-                 <Heart className="w-3.5 h-3.5 text-red-500" /> Salute
-              </div>
-              <div className="flex items-center gap-5 scale-110">
-                 <button onClick={() => onHpChange(summon.currentHp - 1)} className="text-red-500 font-black text-2xl hover:scale-125 transition-transform">－</button>
-                 <div className="text-2xl font-serif font-black flex flex-col items-center">
-                   <span>{summon.currentHp}</span>
-                   <span className="text-[10px] text-text-muted font-sans font-bold -mt-1 uppercase tracking-tighter">PF MAX: {summon.maxHp}</span>
-                 </div>
-                 <button onClick={() => onHpChange(summon.currentHp + 1)} className="text-emerald-500 font-black text-2xl hover:scale-125 transition-transform">＋</button>
-              </div>
-           </div>
-           <div className="bg-panel-bg border border-border p-4 rounded-3xl flex flex-col items-center justify-center">
-              <div className="flex items-center gap-2 mb-2 text-[9px] font-black uppercase text-text-muted tracking-widest">
-                 <Shield className="w-3.5 h-3.5 text-accent" /> Armatura
-              </div>
-              <div className="text-3xl font-serif font-black">{summon.ac}</div>
-           </div>
-        </div>
-
-        {/* Ability Scores Mini */}
-        <div className="grid grid-cols-6 gap-1 bg-black/10 p-3 rounded-2xl border border-white/5">
-           {['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(ab => (
-              <div key={ab} className="text-center">
-                 <div className="text-[7px] font-black text-accent mb-0.5">{ab}</div>
-                 <div className="text-[10px] font-bold text-text-primary">{(summon as any)[ab.toLowerCase()]}</div>
-              </div>
-           ))}
-        </div>
-
-        {/* Actions Area */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2">
-            <span className="text-[8px] font-black uppercase text-accent tracking-[0.3em]">Azioni & Tratti</span>
-            <button onClick={() => setIsExpanded(!isExpanded)} className="text-[8px] font-bold text-text-muted uppercase hover:text-accent transition-colors">
-              {isExpanded ? 'Chiudi' : 'Espandi'}
-            </button>
-          </div>
-          
-          <div className={`space-y-2 transition-all overflow-hidden ${isExpanded ? 'max-h-96' : 'max-h-24'}`}>
-            {summon.actions.map(action => (
-              <div key={action.name} className="p-4 bg-accent/5 rounded-2xl border border-accent/10 hover:border-accent/40 transition-all cursor-default">
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-black uppercase text-text-primary tracking-tight">{action.name}</span>
-                  <Sword className="w-4 h-4 text-accent" />
-                </div>
-                <p className="text-[10px] text-text-muted leading-tight">{action.desc}</p>
-              </div>
-            ))}
-            {summon.traits.map(trait => (
-              <div key={trait.name} className="p-3 bg-black/20 rounded-xl border border-white/5 italic">
-                <span className="text-[9px] font-black uppercase text-text-muted/80 block mb-1">{trait.name}</span>
-                <p className="text-[9px] text-text-muted/60 leading-relaxed">{trait.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <button onClick={onDismiss} className="text-xs uppercase font-bold font-serif text-text-muted hover:text-danger" title="Congeda">Congeda</button>
       </div>
-    </motion.div>
+      {rule}
+      <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-accent" /><strong>CA</strong> {summon.ac}</div>
+        <div className="flex items-center gap-1.5"><Heart className="w-4 h-4 text-accent" /><strong>PF</strong> {summon.currentHp}/{summon.maxHp}</div>
+        <div className="flex items-center gap-1.5 truncate"><Footprints className="w-4 h-4 text-accent shrink-0" /><span className="truncate">{summon.speed}</span></div>
+      </div>
+      <div className="h-1.5 bg-panel-bg mt-2 overflow-hidden"><div className={`h-full ${pct > 50 ? 'bg-success' : pct > 25 ? 'bg-yellow-500' : 'bg-danger'}`} style={{ width: `${pct}%` }} /></div>
+      <div className="flex gap-1.5 mt-2">
+        <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Quantità" type="number" min={0} className="flex-1 min-w-0 bg-panel-bg border border-border px-2 py-1 text-sm" aria-label={`PF da modificare per ${summon.name}`} />
+        <button onClick={() => { onHpChange(summon.currentHp - value); setAmount(''); }} disabled={!value} className="px-2 border border-border hover:border-danger hover:text-danger disabled:opacity-30 flex items-center gap-1 text-xs font-bold uppercase font-serif"><Minus className="w-3 h-3" /> Danno</button>
+        <button onClick={() => { onHpChange(summon.currentHp + value); setAmount(''); }} disabled={!value} className="px-2 border border-border hover:border-success hover:text-success disabled:opacity-30 flex items-center gap-1 text-xs font-bold uppercase font-serif"><Plus className="w-3 h-3" /> Cura</button>
+      </div>
+      {rule}
+      <div className="grid grid-cols-6 text-center">
+        {abilities.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[10px] font-black text-text-muted font-serif">{k}</div>
+            <div className="text-sm font-bold">{v} <span className="text-text-muted">({signed(getModifier(v))})</span></div>
+          </div>
+        ))}
+      </div>
+      {(summon.traits.length > 0 || summon.actions.length > 0) && rule}
+      <div className="space-y-1.5 text-sm">
+        {summon.traits.map(t => <p key={t.name}><strong className="italic">{t.name}.</strong> {t.desc}</p>)}
+        {summon.actions.length > 0 && <div className="text-xs uppercase font-black text-accent font-serif border-b border-accent/40 pb-0.5 mt-2">Azioni</div>}
+        {summon.actions.map(a => <p key={a.name}><strong className="italic">{a.name}.</strong> {a.desc}</p>)}
+      </div>
+    </motion.article>
   );
-}
+};

@@ -7,15 +7,19 @@ import { classesData, speciesData, backgroundsData } from '../data/rules2024';
 import { subclassesData } from '../data/subclasses';
 import { INVOCATIONS } from '../data/invocations';
 import { getClassFeaturesUpTo } from '../data/classFeatures';
+import { getSubclassFeaturesUpTo, getSubclassSpells } from '../data/subclassFeatures';
+import { ALL_TOOLS, RARE_LANGUAGES, STANDARD_LANGUAGES } from '../data/languages';
 import { 
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords
+  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords, Printer, Download
 } from 'lucide-react';
+import PrintSheet from './PrintSheet';
+import CampaignJoin from './CampaignJoin';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
 import { canCharacterUseSpell, getAvailableSpellLevels, SCHOOL_LABELS } from '../lib/spellEligibility';
-import { ABILITY_NAMES, getClassLevels, getInvocationsKnown, getTotalLevel, type ClassLevelMap } from '../lib/characterRules';
+import { ABILITY_NAMES, getClassLevels, getInvocationsKnown, getProficiencySummary, getTotalLevel, type ClassLevelMap } from '../lib/characterRules';
 import { checkFeatPrerequisites, checkInvocationPrerequisites } from '../lib/featEligibility';
 import { applySpeciesChange } from '../lib/species';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,28 +30,33 @@ import InventoryManager from './InventoryManager';
 import ConditionTracker from './ConditionTracker';
 import SummonsManager from './SummonsManager';
 import LevelUpModal, { type LevelUpChoice } from './LevelUpModal';
+import SpellCastControls from './SpellCastControls';
+import { useDice } from '../contexts/DiceContext';
 
-type SheetTab = 'stats' | 'spells' | 'feats' | 'equipment' | 'mastery';
+type SheetTab = 'combat' | 'actions' | 'spells' | 'equipment' | 'feats';
 
 const TABS: { id: SheetTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'stats', label: 'Abilità', Icon: Scroll },
+  { id: 'combat', label: 'Combattimento', Icon: Heart },
+  { id: 'actions', label: 'Azioni', Icon: Swords },
   { id: 'spells', label: 'Incantesimi', Icon: Sparkles },
-  { id: 'mastery', label: 'Attacchi', Icon: Swords },
-  { id: 'feats', label: 'Talenti e Privilegi', Icon: Book },
-  { id: 'equipment', label: 'Equipaggiamento', Icon: Backpack },
+  { id: 'equipment', label: 'Inventario', Icon: Backpack },
+  { id: 'feats', label: 'Privilegi', Icon: Book },
 ];
 
-export default function CharacterSheet() {
+export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   const { currentCharacter, dispatch } = useCharacter();
   const math = useCharacterMath(currentCharacter);
   const homebrew = useHomebrew();
-  const [activeTab, setActiveTab] = useState<SheetTab | null>('stats');
+  const { rollCheck } = useDice();
+  const [activeTab, setActiveTab] = useState<SheetTab>('combat');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
   const [featureLevelFilter, setFeatureLevelFilter] = useState<'all' | number>('all');
   const [showIneligible, setShowIneligible] = useState(false);
+  const [newLanguage, setNewLanguage] = useState('');
+  const [newTool, setNewTool] = useState('');
   const [isSummonsOpen, setIsSummonsOpen] = useState(false);
   const [isLevelUpOpen, setIsLevelUpOpen] = useState(false);
 
@@ -140,6 +149,17 @@ export default function CharacterSheet() {
     else newClasses[target] = { ...newClasses[target], level: newClasses[target].level - 1 };
     const nextLevel = Object.values(newClasses).reduce((acc, c) => acc + c.level, 0);
     handleUpdate({ level: nextLevel, classes: newClasses });
+  };
+
+  const exportJson = () => {
+    const { userId, createdAt, updatedAt, ...data } = currentCharacter;
+    const blob = new Blob([JSON.stringify({ format: 'forge-character', version: 1, character: data }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(currentCharacter.name || 'personaggio').replace(/[^\p{L}\p{N}_-]+/gu, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleGlobalSave = async () => {
@@ -250,7 +270,7 @@ export default function CharacterSheet() {
                         <div>
                            <h4 className={`font-serif font-bold text-lg ${isSelected ? 'text-accent' : 'text-text-primary'}`}>{item.displayName || item.name}</h4>
                            {item.level !== undefined && (
-                             <span className="text-[10px] uppercase font-mono font-black text-text-muted tracking-tighter">
+                             <span className="text-[10px] uppercase font-mono font-black text-text-muted tracking-normal">
                                 {item.level === 0 ? 'Trucchetto' : `Livello ${item.level}`} • {SCHOOL_LABELS[item.school] || item.school}
                              </span>
                            )}
@@ -316,24 +336,32 @@ export default function CharacterSheet() {
   const maxCantrips = math.spellcasting.reduce((acc, c) => acc + c.cantrips, 0);
   const maxPrepared = math.spellcasting.reduce((acc, c) => acc + c.prepared, 0);
   const invocationsKnown = getInvocationsKnown(currentCharacter);
+  const subclassSpells = Array.from(new Set(Object.values(classLevels).flatMap(c => getSubclassSpells(c.subclass, c.level))));
+  const proficiencies = getProficiencySummary(currentCharacter);
+  const editList = (field: 'languages' | 'toolProficiencies', value: string, add: boolean) => {
+    const list = currentCharacter[field] || [];
+    const next = add ? Array.from(new Set([...list, value.trim()])).filter(Boolean) : list.filter(v => v !== value);
+    handleUpdate({ [field]: next });
+  };
   const speciesTraits = (charSpecies?.traits || []);
 
   const renderSkills = () => (
     <div className="space-y-4">
-      {isEditing && <p className="text-[10px] text-text-muted">Clicca un'abilità per passare da nessuna competenza → competenza → maestria (bonus raddoppiato).</p>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
+      <p className="text-[10px] text-text-muted">{isEditing ? "Clicca un'abilità per passare da nessuna competenza → competenza → maestria (bonus raddoppiato)." : "Clicca un'abilità per tirare la prova (vantaggio/svantaggio dal vassoio dei dadi)."}</p>
+      <div className="grid grid-cols-1 gap-y-0.5">
         {math.skills.map(skill => {
           const state = isEditing ? editingSkillState(skill.name) : skill;
           return (
             <button
               type="button"
               key={skill.name}
-              onClick={() => isEditing && cycleSkill(skill.name)}
-              className={`flex items-center justify-between border-b border-border/50 py-3 px-2 rounded-sm transition-colors text-left ${isEditing ? 'hover:bg-accent/10 cursor-pointer' : 'cursor-default hover:bg-accent/5'}`}
+              onClick={() => (isEditing ? cycleSkill(skill.name) : rollCheck(`Prova di ${skill.name}`, skill.mod))}
+              title={isEditing ? undefined : `Tira ${skill.name}`}
+              className="flex items-center justify-between gap-2 border-b border-border/50 py-2 px-2 rounded-sm transition-colors text-left hover:bg-accent/10 cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className={`w-2.5 h-2.5 rounded-full border ${state.isExpert ? 'bg-accent border-accent ring-2 ring-accent/40' : state.isProficient ? 'bg-accent border-accent shadow-[0_0_8px_rgba(212,175,55,0.4)]' : 'border-border'}`} />
-                <span className={`text-[11px] font-bold tracking-tight ${state.isProficient ? 'text-text-primary' : 'text-text-muted'}`}>{skill.name}</span>
+                <span className={`text-[13px] font-medium tracking-normal ${state.isProficient ? 'text-text-primary' : 'text-text-muted'}`}>{skill.name}</span>
                 <span className="text-[10px] text-text-muted/40 font-mono">({abilityMap[skill.ability] || skill.ability})</span>
                 {state.isExpert && <span className="text-[8px] font-black uppercase text-accent">Maestria</span>}
               </div>
@@ -362,6 +390,12 @@ export default function CharacterSheet() {
           ))}
         </div>
       )}
+      {currentCharacter.concentratingOn && (
+        <div className="flex items-center justify-between gap-3 p-3 border border-accent bg-accent/10">
+          <span className="text-sm"><strong className="font-serif">Concentrazione:</strong> {currentCharacter.concentratingOn}</span>
+          <button onClick={() => handleUpdate({ concentratingOn: '' })} className="secondary-action !py-1 !px-2">Termina</button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-lg font-serif font-bold text-accent">Incantesimi conosciuti e preparati</h4>
         <div className="flex items-center gap-4">
@@ -379,10 +413,11 @@ export default function CharacterSheet() {
         {knownSpellDetails.length > 0 ? [...knownSpellDetails]
           .sort((a, b) => (a.details?.level ?? 99) - (b.details?.level ?? 99) || (a.details?.name || a.name).localeCompare(b.details?.name || b.name, 'it'))
           .map(({ name, details }) => (
-          <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-center group">
-            <div className="flex flex-col">
+          <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-start group">
+            <div className="flex flex-col flex-1 min-w-0">
               <span className="font-bold text-sm">{details?.displayName || details?.name || name}</span>
-              {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-tighter">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
+              {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-normal">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
+              {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
             </div>
             <div className="flex items-center gap-3">
               {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent transition-all" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
@@ -393,6 +428,25 @@ export default function CharacterSheet() {
           </div>
         )) : <div className="col-span-full py-10 text-center text-text-muted italic text-sm">Nessun incantesimo.</div>}
       </div>
+      {subclassSpells.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-[10px] font-black uppercase text-text-muted tracking-widest border-b border-border pb-1">Sempre preparati (sottoclasse) · non contano nel limite</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {subclassSpells.map(name => {
+              const details = getSpellDetails(name);
+              return (
+                <div key={name} className="bg-card-bg border border-accent/40 rounded p-3 flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-xs">{details?.displayName || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                    {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
+                  </div>
+                  {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {(currentCharacter.innateSpells || []).length > 0 && (
         <div className="space-y-3">
           <h4 className="text-[10px] font-black uppercase text-text-muted tracking-widest border-b border-border pb-1">Incantesimi della specie</h4>
@@ -400,8 +454,11 @@ export default function CharacterSheet() {
             {(currentCharacter.innateSpells || []).map(name => {
               const details = getSpellDetails(name);
               return (
-                <div key={name} className="bg-card-bg border border-dashed border-accent/30 rounded p-3 flex justify-between items-center">
-                  <span className="font-bold text-xs">{details?.displayName || details?.name || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                <div key={name} className="bg-card-bg border border-dashed border-accent/30 rounded p-3 flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-xs">{details?.displayName || details?.name || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                    {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
+                  </div>
                   {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
                 </div>
               );
@@ -419,7 +476,7 @@ export default function CharacterSheet() {
         <div className="flex items-center gap-3">
           <div className={`w-1.5 h-1.5 rounded-full ${kind === 'invocation' ? 'bg-purple-500' : 'bg-accent'}`} />
           <div className="flex flex-col">
-            <span className="font-bold text-sm tracking-tight">{details?.name || name}</span>
+            <span className="font-bold text-sm tracking-normal">{details?.name || name}</span>
             {kind === 'invocation' && <span className="text-[9px] font-black uppercase text-text-muted tracking-widest">Supplica Occulta</span>}
           </div>
         </div>
@@ -485,8 +542,11 @@ export default function CharacterSheet() {
             <div key={classId} className="bg-card-bg border border-border rounded p-4">
               <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">{classesData.find(c => c.id === classId)?.name} {data.level}{data.subclass ? ` · ${data.subclass}` : ''}</div>
               <ul className="space-y-1 text-xs">
-                {getClassFeaturesUpTo(classId, data.level).map((f, idx) => (
+                {getClassFeaturesUpTo(classId, data.level).filter(f => f.name !== 'Privilegio di Sottoclasse' || !data.subclass).map((f, idx) => (
                   <li key={idx} className="flex gap-2"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name === 'Sottoclasse' ? `Sottoclasse${data.subclass ? `: ${data.subclass}` : ' (da scegliere)'}` : f.name}</span></li>
+                ))}
+                {getSubclassFeaturesUpTo(data.subclass, data.level).map((f, idx) => (
+                  <li key={`sub-${idx}`} className="flex gap-2 text-accent"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name}</span></li>
                 ))}
               </ul>
             </div>
@@ -507,567 +567,364 @@ export default function CharacterSheet() {
 
   const renderTabContent = (tab: SheetTab) => {
     switch (tab) {
-      case 'stats': return renderSkills();
+      case 'combat': return <><CombatAndRests /><ConditionTracker /></>;
+      case 'actions': return <><WeaponTracker isEditing={isEditing} /><ResourceTracker /></>;
       case 'spells': return renderSpells();
       case 'feats': return renderFeats();
-      case 'mastery': return <WeaponTracker isEditing={isEditing} />;
       case 'equipment': return <InventoryManager />;
       default: return null;
     }
   };
 
-  const renderStatBox = (ability: string, score: number, mod: number) => (
-    <div key={ability} className="relative bg-panel-bg border-2 md:border-4 border-accent/20 rounded-xl w-full pt-4 pb-5 md:pt-5 md:pb-6 flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-105">
-       <div className="absolute -top-3 bg-panel-bg px-1.5 md:px-3 rounded text-[9px] md:text-[10px] font-black uppercase text-text-primary tracking-widest border border-border whitespace-nowrap">
-         {abilityMap[ability] || ability}
-       </div>
-       {isEditing ? (
-         <div className="flex flex-col items-center gap-2 my-1">
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={editValues.abilityScores?.[ability as keyof NonNullable<typeof editValues.abilityScores>] ?? 0}
-              onChange={(e) => {
-                const val = Math.max(1, Math.min(30, parseInt(e.target.value) || 1));
-                setEditValues(prev => ({
-                  ...prev,
-                  abilityScores: { ...(prev.abilityScores as any), [ability]: val }
-                }));
-              }}
-              className="w-16 bg-card-bg border-b border-accent text-center text-xl font-bold focus:outline-none"
-            />
-            <span className="text-[9px] text-text-muted text-center leading-tight">Base · finale {score}</span>
-         </div>
-       ) : (
-         <>
-           <div className="text-3xl md:text-4xl font-serif font-black text-text-primary my-1 md:my-2">
-             {mod >= 0 ? `+${mod}` : mod}
-           </div>
-           <div className="absolute -bottom-3 md:-bottom-4 w-10 md:w-14 h-6 md:h-8 bg-bg border-2 border-accent/40 rounded-full flex items-center justify-center text-xs md:text-sm font-bold text-text-primary shadow-sm">
-             {score}
-           </div>
-         </>
-       )}
+  const handlePortraitFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 400;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setEditValues(prev => ({ ...prev, portraitUrl: canvas.toDataURL('image/jpeg', 0.75) }));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const renderAbilityTile = (ability: string, score: number, mod: number) => (
+    <div key={ability} className="ability-tile">
+      <div className="text-[10px] sm:text-[9px] lg:text-[10px] font-black uppercase tracking-normal text-text-muted truncate" title={ABILITY_NAMES[ability as keyof typeof ABILITY_NAMES]}>{ABILITY_NAMES[ability as keyof typeof ABILITY_NAMES]}</div>
+      {isEditing ? (
+        <div className="flex flex-col items-center gap-1 mt-1">
+          <input
+            type="number"
+            min={1}
+            max={30}
+            value={editValues.abilityScores?.[ability as keyof NonNullable<typeof editValues.abilityScores>] ?? 0}
+            onChange={(e) => {
+              const val = Math.max(1, Math.min(30, parseInt(e.target.value) || 1));
+              setEditValues(prev => ({ ...prev, abilityScores: { ...(prev.abilityScores as any), [ability]: val } }));
+            }}
+            className="w-16 bg-panel-bg border border-border text-center text-xl font-bold py-1"
+            aria-label={`Punteggio base di ${ABILITY_NAMES[ability as keyof typeof ABILITY_NAMES]}`}
+          />
+          <span className="text-[10px] text-text-muted">base · finale {score}</span>
+        </div>
+      ) : (
+        <button
+          onClick={() => rollCheck(`Prova di ${ABILITY_NAMES[ability as keyof typeof ABILITY_NAMES]}`, mod - math.d20Penalty)}
+          title="Tira una prova di caratteristica"
+          className="block w-full text-4xl font-display font-black my-1 hover:text-accent transition-colors"
+        >
+          {formatSigned(mod)}
+        </button>
+      )}
+      {!isEditing && (
+        <div className="absolute left-1/2 -translate-x-1/2 -bottom-3 min-w-11 px-2 h-7 grid place-items-center bg-bg border border-border rounded-full text-sm font-bold">{score}</div>
+      )}
     </div>
   );
 
+  const quickStat = (label: string, value: React.ReactNode, sub?: React.ReactNode, onClick?: () => void, title?: string) => (
+    <div className="stat-chip text-center px-2 py-2.5 flex flex-col justify-center min-w-0">
+      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted truncate">{label}</div>
+      {onClick ? (
+        <button onClick={onClick} title={title} className="text-3xl font-display font-black leading-tight hover:text-accent">{value}</button>
+      ) : (
+        <div className="text-3xl font-display font-black leading-tight" title={title}>{value}</div>
+      )}
+      {sub && <div className="text-[10px] text-text-muted leading-tight truncate">{sub}</div>}
+    </div>
+  );
+
+  const editInput = (value: number | undefined, placeholder: number, onChange: (v: number | undefined) => void, label: string, step = 1) => (
+    <input
+      type="number"
+      step={step}
+      value={value ?? ''}
+      placeholder={String(placeholder)}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : parseFloat(e.target.value) || 0)}
+      className="w-16 mx-auto bg-panel-bg border border-border text-center text-2xl font-display font-black"
+      aria-label={label}
+      title={`${label} personalizzato (vuoto = automatico)`}
+    />
+  );
+
+  const hpCurrent = Math.min(currentCharacter.hpCurrent, math.hpMax);
+  const hpPct = Math.max(0, Math.min(100, (hpCurrent / math.hpMax) * 100));
+  const species = speciesData.find(sp => sp.id === (isEditing ? editValues.speciesId : currentCharacter.speciesId)) as any;
+
   return (
     <>
-      <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
-      {/* Global Edit Toggle */}
-      <div className="flex justify-end sticky top-20 z-40 px-4 md:px-0">
-        <button
-          onClick={() => isEditing ? handleGlobalSave() : setIsEditing(true)}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-105 active:scale-95 ${
-            isEditing 
-            ? 'bg-success text-bg ring-4 ring-success/20' 
-            : 'bg-primary text-white ring-4 ring-primary/20'
-          }`}
-        >
-          {isEditing ? (
-            <>
-              <Check className="w-4 h-4" /> Salva Modifiche
-            </>
-          ) : (
-            <>
-              <Edit3 className="w-4 h-4" /> Modifica Scheda
-            </>
-          )}
-        </button>
-      </div>
+      <div className="pb-28 animate-in fade-in duration-300 print:hidden">
+        {featureModal.isOpen && renderFeatureModal()}
 
-      {featureModal.isOpen && renderFeatureModal()}
-      {/* Detail Modal Overlay */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-bg/80 backdrop-blur-sm flex items-center justify-center p-6"
-            onClick={() => setSelectedItem(null)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-panel-bg border border-accent w-full max-w-lg p-10 rounded-xl shadow-2xl space-y-6"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-start">
-                 <div>
-                    <h3 className="text-3xl font-serif font-black text-accent">{selectedItem.displayName || selectedItem.name}</h3>
+        <AnimatePresence>
+          {selectedItem && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedItem(null)}>
+              <motion.div
+                initial={{ scale: 0.96, y: 12 }} animate={{ scale: 1, y: 0 }}
+                role="dialog" aria-modal="true"
+                className="surface-card border-t-4 !border-t-accent w-full max-w-lg p-7 space-y-5"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <h3 className="text-2xl uppercase">{selectedItem.displayName || selectedItem.name}</h3>
                     {selectedItem.level !== undefined && (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-text-muted mt-1">
-                        Livello {selectedItem.level} • {selectedItem.school}
-                      </div>
+                      <div className="text-xs uppercase tracking-widest text-accent font-bold mt-1">{spellLevelLabel(selectedItem.level)} · {SCHOOL_LABELS[selectedItem.school] || selectedItem.school}</div>
                     )}
-                 </div>
-                 <button onClick={() => setSelectedItem(null)} className="text-text-muted hover:text-white">
-                    <Minus className="w-6 h-6 rotate-45" />
-                 </button>
-              </div>
-              
-              <div 
-                className="text-sm leading-relaxed text-text-muted max-h-[40vh] overflow-y-auto no-scrollbar"
-                dangerouslySetInnerHTML={{ __html: fixTextEncoding(selectedItem.description || '') }}
-              />
-
-              <div className="grid grid-cols-2 gap-4 text-[10px] font-black uppercase tracking-widest pt-6 border-t border-border">
-                 {selectedItem.range && (
-                   <div>
-                      <div className="text-accent mb-1">Gittata</div>
-                      <div className="text-text-primary">{selectedItem.range}</div>
-                   </div>
-                 )}
-                 {selectedItem.duration && (
-                   <div>
-                      <div className="text-accent mb-1">Durata</div>
-                      <div className="text-text-primary">{selectedItem.duration}</div>
-                   </div>
-                 )}
-              </div>
+                    {selectedItem.prerequisite && <div className="text-xs text-text-muted mt-1">{selectedItem.prerequisite}</div>}
+                  </div>
+                  <button onClick={() => setSelectedItem(null)} className="text-text-muted hover:text-text-primary" aria-label="Chiudi"><X className="w-5 h-5" /></button>
+                </div>
+                {(selectedItem.range || selectedItem.duration || selectedItem.castingTime) && (
+                  <div className="grid grid-cols-3 gap-3 text-xs border-y border-border py-3">
+                    {[['Tempo', selectedItem.castingTime], ['Gittata', selectedItem.range], ['Durata', selectedItem.duration]].map(([k, v]) => v ? (
+                      <div key={k as string}><div className="uppercase font-bold tracking-wider text-text-muted text-[10px]">{k}</div><div className="font-bold">{v}</div></div>
+                    ) : <div key={k as string} />)}
+                  </div>
+                )}
+                <div className="text-sm leading-relaxed max-h-[45vh] overflow-y-auto pr-1" dangerouslySetInnerHTML={{ __html: fixTextEncoding(selectedItem.description || '') }} />
+                {selectedItem.higherLevelSlot && <p className="text-sm"><strong className="uppercase text-xs tracking-wider text-accent">Livelli superiori.</strong> {selectedItem.higherLevelSlot}</p>}
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Header / Info Rail */}
-      <header className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        <div className="lg:col-span-1 flex flex-col sm:flex-row items-center sm:items-start gap-4 bg-panel-bg p-6 rounded-lg border border-border">
-           <div className="relative group/portrait">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-accent/20 flex shrink-0 items-center justify-center text-accent overflow-hidden border border-accent/30 shadow-md">
-                 {currentCharacter.portraitUrl ? (
-                   <img src={currentCharacter.portraitUrl} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                 ) : (
-                   <User className="w-12 h-12" />
-                 )}
-              </div>
-              {isEditing && (
-                <div className="absolute inset-0 bg-bg/60 flex items-center justify-center rounded-xl opacity-0 group-hover/portrait:opacity-100 transition-opacity pointer-events-none">
-                  <Camera className="w-6 h-6 text-accent" />
+        {/* Intestazione del personaggio */}
+        <section className="hero-band">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-5 min-w-0">
+              <div className="relative shrink-0">
+                <div className="w-24 h-24 md:w-28 md:h-28 bg-black/40 border-2 border-white/20 overflow-hidden grid place-items-center">
+                  {(isEditing ? editValues.portraitUrl : currentCharacter.portraitUrl)
+                    ? <img src={(isEditing ? editValues.portraitUrl : currentCharacter.portraitUrl) as string} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    : <User className="w-12 h-12 text-white/40" />}
                 </div>
-              )}
-           </div>
-           <div className="flex-1 w-full text-center sm:text-left mt-2 sm:mt-0">
-              {isEditing ? (
-                <div className="space-y-2">
-                  <input 
-                    type="text" 
-                    value={editValues.name || ''}
-                    onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full bg-transparent border-b border-accent text-2xl font-serif font-black focus:outline-none"
-                    placeholder="Nome Personaggio"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Camera className="w-3 h-3 text-accent shrink-0" />
-                    <input 
-                      type="text" 
-                      value={editValues.portraitUrl || ''}
-                      onChange={(e) => setEditValues(prev => ({ ...prev, portraitUrl: e.target.value }))}
-                      className="w-full bg-transparent border-b border-border text-[9px] font-mono focus:border-accent outline-none"
-                      placeholder="URL Ritratto"
-                    />
-                  </div>
-                  <div className="relative group">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const img = new Image();
-                            img.onload = () => {
-                              const canvas = document.createElement('canvas');
-                              const MAX_SIZE = 400;
-                              let width = img.width;
-                              let height = img.height;
-                              if (width > height) {
-                                if (width > MAX_SIZE) {
-                                  height *= MAX_SIZE / width;
-                                  width = MAX_SIZE;
-                                }
-                              } else {
-                                if (height > MAX_SIZE) {
-                                  width *= MAX_SIZE / height;
-                                  height = MAX_SIZE;
-                                }
-                              }
-                              canvas.width = width;
-                              canvas.height = height;
-                              const ctx = canvas.getContext('2d');
-                              ctx?.drawImage(img, 0, 0, width, height);
-                              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                              setEditValues(prev => ({ ...prev, portraitUrl: dataUrl }));
-                            };
-                            img.src = reader.result as string;
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="hidden" 
-                      id="sheet-portrait-upload"
-                    />
-                    <label 
-                      htmlFor="sheet-portrait-upload"
-                      className="inline-flex items-center gap-1.5 px-2 py-1 bg-accent/10 border border-accent/20 rounded text-[9px] font-mono font-black uppercase text-accent hover:bg-accent/20 cursor-pointer"
-                    >
-                      <Camera className="w-3 h-3" />
-                      Carica Foto
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <h1 className="text-2xl font-serif font-black tracking-tight line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
-              )}
-              <div className="text-[10px] font-black uppercase text-accent tracking-widest mb-2">
-                {isEditing ? (
-                  <div className="flex flex-col gap-1 mt-2">
-                    <select 
-                      value={editValues.speciesId || ''}
-                      onChange={(e) => setEditValues(prev => ({ ...prev, speciesId: e.target.value, speciesSubOption: '' }))}
-                      className="bg-bg border border-border rounded px-2 py-1 text-[9px] text-text-primary"
-                    >
-                      {speciesData.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    {(speciesData.find(sp => sp.id === editValues.speciesId) as any)?.subOptions && (
-                      <select
-                        value={editValues.speciesSubOption ?? (editValues.speciesId === currentCharacter.speciesId ? currentCharacter.speciesSubOption : '') ?? ''}
-                        onChange={(e) => setEditValues(prev => ({ ...prev, speciesSubOption: e.target.value }))}
-                        className="bg-bg border border-border rounded px-2 py-1 text-[9px] text-text-primary"
-                      >
-                        <option value="">-- Lignaggio --</option>
-                        {(speciesData.find(sp => sp.id === editValues.speciesId) as any).subOptions.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                      </select>
-                    )}
-                    {isMulticlass ? (
-                      <span className="text-[9px] text-text-muted normal-case tracking-normal">Multiclasse: usa Level Up / Level Down per cambiare i livelli.</span>
-                    ) : (
-                      <select 
-                        value={editValues.classId || ''}
-                        onChange={(e) => setEditValues(prev => ({ ...prev, classId: e.target.value }))}
-                        className="bg-bg border border-border rounded px-2 py-1 text-[9px] text-text-primary"
-                      >
-                        {classesData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {charSpecies?.name}{' '}
-                    {Object.entries(classLevels)
-                      .map(([clsId, data]) => `${classesData.find(c => c.id === clsId)?.name || clsId} ${data.level}`)
-                      .join(' / ')}
-                    {charBackground && <span className="block text-text-muted normal-case tracking-normal font-bold mt-0.5">{charBackground.name}</span>}
-                  </>
+                {isEditing && (
+                  <label className="absolute inset-0 grid place-items-center bg-black/60 text-white cursor-pointer opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity" title="Carica ritratto">
+                    <Camera className="w-6 h-6" />
+                    <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handlePortraitFile(f); }} />
+                  </label>
                 )}
               </div>
-              
-              <div className="flex flex-col gap-1 w-full max-w-full">
-                {Object.entries(classLevels)
-                  .filter(([clsId, data]) => data.level >= 3 && subclassesData[clsId])
-                  .map(([clsId, data]) => (
+              <div className="min-w-0 space-y-1.5">
+                {isEditing ? (
+                  <>
+                    <input value={editValues.name || ''} onChange={e => setEditValues(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-black/30 border border-white/20 px-2 py-1 text-2xl font-black uppercase" placeholder="Nome" aria-label="Nome del personaggio" />
+                    <input value={editValues.portraitUrl || ''} onChange={e => setEditValues(prev => ({ ...prev, portraitUrl: e.target.value }))} className="w-full bg-black/30 border border-white/20 px-2 py-1 text-xs" placeholder="URL ritratto (oppure clicca l'immagine)" aria-label="URL ritratto" />
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <select value={editValues.speciesId || ''} onChange={e => setEditValues(prev => ({ ...prev, speciesId: e.target.value, speciesSubOption: '' }))} className="bg-black/30 border border-white/20 px-2 py-1" aria-label="Specie">
+                        {speciesData.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                      </select>
+                      {species?.subOptions && (
+                        <select value={editValues.speciesSubOption ?? (editValues.speciesId === currentCharacter.speciesId ? currentCharacter.speciesSubOption : '') ?? ''} onChange={e => setEditValues(prev => ({ ...prev, speciesSubOption: e.target.value }))} className="bg-black/30 border border-white/20 px-2 py-1" aria-label="Lignaggio">
+                          <option value="">— Lignaggio —</option>
+                          {species.subOptions.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                      )}
+                      {isMulticlass ? (
+                        <span className="text-white/60 self-center">Multiclasse: usa Sali/Scendi di livello</span>
+                      ) : (
+                        <>
+                          <select value={editValues.classId || ''} onChange={e => setEditValues(prev => ({ ...prev, classId: e.target.value }))} className="bg-black/30 border border-white/20 px-2 py-1" aria-label="Classe">
+                            {classesData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <input type="number" min={1} max={20} value={editValues.level || 1} onChange={e => setEditValues(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))} className="w-16 bg-black/30 border border-white/20 px-2 py-1" aria-label="Livello" />
+                        </>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-3xl md:text-5xl font-black uppercase leading-none truncate">{currentCharacter.name || 'Senza nome'}</h1>
+                    <p className="text-sm text-white/75">
+                      {charSpecies?.name}{(charSpecies as any)?.subOptions?.find((o: any) => o.id === currentCharacter.speciesSubOption) ? ` (${(charSpecies as any).subOptions.find((o: any) => o.id === currentCharacter.speciesSubOption).name})` : ''}
+                      {' · '}{Object.entries(classLevels).map(([id, d]) => `${classesData.find(c => c.id === id)?.name || id} ${d.level}`).join(' / ')}
+                      {charBackground ? ` · ${charBackground.name}` : ''}
+                    </p>
+                  </>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(classLevels).filter(([clsId, data]) => data.level >= 3 && subclassesData[clsId]).map(([clsId, data]) => (
                     <select
                       key={clsId}
                       value={data.subclass || ''}
                       onChange={(e) => {
                         handleUpdate({
                           classes: { ...classLevels, [clsId]: { ...classLevels[clsId], subclass: e.target.value } },
-                          ...(clsId === currentCharacter.classId ? { subclassId: e.target.value } : {})
+                          ...(clsId === currentCharacter.classId ? { subclassId: e.target.value } : {}),
                         });
-                        if (isEditing) setEditValues(prev => ({ ...prev, ...(clsId === currentCharacter.classId ? { subclassId: e.target.value } : {}) }));
+                        if (isEditing && clsId === currentCharacter.classId) setEditValues(prev => ({ ...prev, subclassId: e.target.value }));
                       }}
-                      className="bg-bg border border-accent/30 rounded px-2 py-1 text-[10px] font-bold text-accent focus:border-accent outline-none w-full"
+                      className={`text-xs px-2 py-1 border bg-black/30 ${data.subclass ? 'border-white/20 text-white' : 'border-[#ef3340] text-[#ff8a92]'}`}
+                      aria-label={`Sottoclasse ${classesData.find(c => c.id === clsId)?.name}`}
                     >
-                      <option value="">-- Sottoclasse {classesData.find(c => c.id === clsId)?.name} --</option>
-                      {subclassesData[clsId].map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
+                      <option value="">Scegli sottoclasse ({classesData.find(c => c.id === clsId)?.name})</option>
+                      {subclassesData[clsId].map(sub => <option key={sub} value={sub}>{sub}</option>)}
                     </select>
-                  ))
-                }
+                  ))}
+                </div>
               </div>
-           </div>
-        </div>
+            </div>
 
-        <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4">
-           {/* HP Tracker */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-2">
-                 <span className="text-[10px] font-black uppercase text-text-muted tracking-widest">Punti Ferita</span>
-                 <Heart className="w-3 h-3 text-success fill-success" />
-              </div>
-              <div className="flex items-center justify-between">
-                 <button onClick={() => adjustHP(-1)} className="p-1 hover:text-accent"><Minus className="w-4 h-4" /></button>
-                 <div className="text-2xl font-black text-text-primary">
-                    {Math.min(currentCharacter.hpCurrent, math.hpMax)} <span className="text-text-muted text-sm">/ {isEditing ? (
-                      <input
-                        type="number"
-                        min={1}
-                        title="PF massimi personalizzati (vuoto = calcolo automatico)"
-                        value={editValues.hpMaxOverride ?? ''}
-                        placeholder={String(math.hpMax)}
-                        onChange={(e) => setEditValues(prev => ({ ...prev, hpMaxOverride: e.target.value === '' ? undefined : Math.max(1, parseInt(e.target.value) || 1) }))}
-                        className="w-14 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
-                      />
+            <div className="flex flex-wrap items-center gap-2">
+              {!isEditing && (
+                <>
+                  <button onClick={() => setIsLevelUpOpen(true)} disabled={math.level >= 20} className="primary-action px-4 py-2.5 flex items-center gap-2 disabled:opacity-40"><TrendingUp className="w-4 h-4" /> Sali di livello</button>
+                  <button onClick={handleLevelDown} disabled={math.level <= 1} className="secondary-action !bg-white/10 !border-white/20 !text-white disabled:opacity-40" title="Rimuovi un livello">Scendi</button>
+                  <button onClick={() => setIsSummonsOpen(true)} className="secondary-action !bg-white/10 !border-white/20 !text-white flex items-center gap-2 relative" title="Evocazioni e compagni">
+                    <Dog className="w-4 h-4" /> <span className="hidden sm:inline">Evocazioni</span>
+                    {(currentCharacter.activeSummons?.length || 0) > 0 && <span className="absolute -top-2 -right-2 w-5 h-5 grid place-items-center rounded-full bg-[#d4142f] text-[10px] font-bold">{currentCharacter.activeSummons?.length}</span>}
+                  </button>
+                  <button onClick={exportJson} className="secondary-action !bg-white/10 !border-white/20 !text-white" title="Scarica un backup JSON" aria-label="Backup"><Download className="w-4 h-4" /></button>
+                  <button onClick={() => window.print()} className="secondary-action !bg-white/10 !border-white/20 !text-white" title="Stampa o salva come PDF" aria-label="Stampa"><Printer className="w-4 h-4" /></button>
+                </>
+              )}
+              {isEditing && <button onClick={() => setIsEditing(false)} className="secondary-action !bg-white/10 !border-white/20 !text-white">Annulla</button>}
+              <button onClick={() => (isEditing ? handleGlobalSave() : setIsEditing(true))} className={`${isEditing ? 'primary-action' : 'secondary-action !bg-white !text-black !border-white'} px-4 py-2.5 flex items-center gap-2`}>
+                {isEditing ? <><Check className="w-4 h-4" /> Salva</> : <><Edit3 className="w-4 h-4" /> Modifica</>}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6">
+          {/* Caratteristiche e valori rapidi */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pb-3">
+              {(Object.entries(math.scores) as [string, number][]).map(([ability, score]) => renderAbilityTile(ability, score, math.mods[ability as keyof typeof math.mods]))}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pb-3">
+              {quickStat('Competenza', isEditing ? editInput(editValues.proficiencyOverride, math.proficiencyBonus, v => setEditValues(prev => ({ ...prev, proficiencyOverride: v })), 'Bonus di competenza') : formatSigned(math.proficiencyBonus))}
+              {quickStat('Velocità', isEditing ? editInput(editValues.speedOverride, math.speedInfo.base, v => setEditValues(prev => ({ ...prev, speedOverride: v })), 'Velocità', 1.5) : `${math.speed}m`, math.speedInfo.notes[0], undefined, math.speedInfo.notes.join(' · '))}
+              {quickStat('Iniziativa', formatSigned(math.initiative), undefined, () => rollCheck('Iniziativa', math.initiative), "Tira l'iniziativa")}
+              {quickStat('Classe Armatura', isEditing ? editInput(editValues.acOverride, math.armorClass.base, v => setEditValues(prev => ({ ...prev, acOverride: v })), 'Classe Armatura') : math.acBase, <span className="line-clamp-1">{math.armorClass.isOverride ? 'Valore manuale' : math.armorClass.source}</span>)}
+              <div className="stat-chip col-span-2 sm:col-span-1 px-3 py-2.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-text-muted text-center">Punti Ferita</div>
+                <div className="flex items-center justify-between gap-1">
+                  <button onClick={() => adjustHP(-1)} className="p-1 text-text-muted hover:text-danger" aria-label="Togli 1 PF"><Minus className="w-4 h-4" /></button>
+                  <div className="text-2xl font-display font-black leading-tight whitespace-nowrap">
+                    {hpCurrent}<span className="text-sm text-text-muted">/{isEditing ? (
+                      <input type="number" min={1} value={editValues.hpMaxOverride ?? ''} placeholder={String(math.hpMax)} onChange={(e) => setEditValues(prev => ({ ...prev, hpMaxOverride: e.target.value === '' ? undefined : Math.max(1, parseInt(e.target.value) || 1) }))} className="w-12 bg-panel-bg border border-border text-center" aria-label="PF massimi personalizzati" />
                     ) : math.hpMax}</span>
-                 </div>
-                 <button onClick={() => adjustHP(1)} className="p-1 hover:text-accent"><Plus className="w-4 h-4" /></button>
-              </div>
-              <div className="w-full h-1 bg-border rounded-full mt-2 overflow-hidden">
-                 <div 
-                   className="h-full bg-success transition-all" 
- style={{ width: `${Math.min(100, (currentCharacter.hpCurrent / math.hpMax) * 100)}%` }} 
-                 />
-              </div>
-           </div>
-
-           {/* AC & Initiative */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 flex items-center justify-around">
-              <div className="text-center">
-                 <Shield className="w-4 h-4 text-accent mx-auto mb-1" />
-                 {isEditing ? (
-                   <input 
-                     type="number"
-                     title="CA personalizzata (vuoto = calcolo automatico)"
-                     value={editValues.acOverride ?? ''}
-                     placeholder={String(math.armorClass.base)}
-                     onChange={(e) => setEditValues(prev => ({ ...prev, acOverride: e.target.value === '' ? undefined : parseInt(e.target.value) || 0 }))}
-                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
-                   />
-                 ) : (
-                   <div className="text-xl font-black" title={`${math.armorClass.source}${math.armorClass.isOverride ? ' (valore manuale)' : ''}`}>{math.acBase}</div>
-                 )}
-                 <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">AC</div>
-              </div>
-              <div className="text-center">
-                 <Zap className="w-4 h-4 text-accent mx-auto mb-1" />
-                 <div className="text-xl font-black">{math.initiative >= 0 ? `+${math.initiative}` : math.initiative}</div>
-                 <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Iniziativa</div>
-              </div>
-           </div>
-
-           {/* Speed & Proficiency */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 flex items-center justify-around">
-              <div className="text-center">
-                 <MapPin className="w-4 h-4 text-accent mx-auto mb-1" />
-                 {isEditing ? (
-                   <input 
-                     type="number"
-                     step={1.5}
-                     title="Velocità personalizzata in metri (vuoto = calcolo automatico)"
-                     value={editValues.speedOverride ?? ''}
-                     placeholder={String(math.speedInfo.base)}
-                     onChange={(e) => setEditValues(prev => ({ ...prev, speedOverride: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0 }))}
-                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
-                   />
-                 ) : (
-                   <div className="text-xl font-black" title={math.speedInfo.notes.join(' · ')}>{math.speed}m</div>
-                 )}
-                 <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Velocità</div>
-              </div>
-              <div className="text-center">
-                 <Hash className="w-4 h-4 text-accent mx-auto mb-1" />
-                 {isEditing ? (
-                   <input 
-                     type="number"
-                     title="Bonus di competenza personalizzato (vuoto = calcolo automatico)"
-                     value={editValues.proficiencyOverride ?? ''}
-                     placeholder={String(math.proficiencyBonus)}
-                     onChange={(e) => setEditValues(prev => ({ ...prev, proficiencyOverride: e.target.value === '' ? undefined : parseInt(e.target.value) || 0 }))}
-                     className="w-12 bg-card-bg border border-accent/30 rounded text-center font-black text-sm"
-                   />
-                 ) : (
-                   <div className="text-xl font-black">+{math.proficiencyBonus}</div>
-                 )}
-                 <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Competenza</div>
-              </div>
-           </div>
-
-           {/* Level & XP */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 flex flex-col justify-center">
-              <div className="flex items-center justify-between mb-1">
-                 <span className="text-[10px] font-black uppercase text-accent">
-                   Livello {isEditing && !isMulticlass ? editValues.level : math.level}
-                 </span>
-                 <TrendingUp className="w-3 h-3 text-accent" />
-              </div>
-              {isEditing && !isMulticlass ? (
-                <input 
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={editValues.level || 1}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, level: parseInt(e.target.value) || 1 }))}
-                  className="w-full bg-card-bg border border-border rounded py-1 text-center font-bold text-sm"
-                />
-              ) : (
-                <div className="flex gap-2">
-                   <button 
-                     onClick={handleLevelDown}
-                     disabled={math.level <= 1}
-                     className="flex-1 py-1 rounded border border-border text-[9px] font-black hover:bg-accent/10"
-                   >LEVEL DOWN</button>
-                   <button 
-                     onClick={() => setIsLevelUpOpen(true)}
-                     disabled={math.level >= 20}
-                     className="flex-1 py-1 rounded bg-accent text-bg text-[9px] font-black shadow-sm"
-                   >LEVEL UP</button>
+                  </div>
+                  <button onClick={() => adjustHP(1)} className="p-1 text-text-muted hover:text-success" aria-label="Aggiungi 1 PF"><Plus className="w-4 h-4" /></button>
                 </div>
-              )}
-           </div>
-
-           {/* Summons Quick Access */}
-           <button 
-             onClick={() => setIsSummonsOpen(true)}
-             className={`bg-panel-bg border rounded-lg p-4 flex flex-col items-center justify-center transition-all group relative ${
-                (currentCharacter.activeSummons?.length || 0) > 0 
-                ? 'border-accent bg-accent/10 shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
-                : 'border-border hover:border-accent/40'
-             }`}
-           >
-              {(currentCharacter.activeSummons?.length || 0) > 0 && (
-                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#d4af37]" />
-              )}
-              <Dog className={`w-5 h-5 mb-1 group-hover:scale-110 transition-transform ${(currentCharacter.activeSummons?.length || 0) > 0 ? 'text-accent' : 'text-text-muted'}`} />
-              <div className="text-[10px] font-black uppercase text-text-primary tracking-widest leading-tight">Evocazioni</div>
-              <div className={`text-[8px] font-bold mt-0.5 uppercase ${(currentCharacter.activeSummons?.length || 0) > 0 ? 'text-accent' : 'text-text-muted'}`}>
-                {(currentCharacter.activeSummons?.length || 0) > 0 ? `${currentCharacter.activeSummons?.length} Attive` : 'Gestione'}
+                <div className="h-1.5 bg-panel-bg overflow-hidden mt-1"><div className={`h-full transition-all ${hpPct > 50 ? 'bg-success' : hpPct > 25 ? 'bg-yellow-500' : 'bg-danger'}`} style={{ width: `${hpPct}%` }} /></div>
+                {(currentCharacter.hpTemp || 0) > 0 && <div className="text-[10px] text-center text-blue-400 font-bold mt-0.5">+{currentCharacter.hpTemp} temporanei</div>}
               </div>
-           </button>
-        </div>
-      </header>
+            </div>
+          </div>
 
-      {/* Main Grid: Stats & Tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Ability Scores Sidebar */}
-        <div className="lg:col-span-3 space-y-8 mt-2">
-           <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-1 gap-x-2 lg:gap-x-4 gap-y-8">
-              {(Object.entries(math.scores) as [string, number][]).map(([ability, score]) => renderStatBox(ability, score, math.mods[ability as keyof typeof math.mods]))}
-           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] xl:grid-cols-[250px_300px_1fr] gap-6 items-start">
+            <aside className="space-y-6 xl:contents">
+              <div className="space-y-6">
+                <section className="sheet-section">
+                  <div className="sheet-section-title">Tiri Salvezza</div>
+                  <div className="p-2 grid grid-cols-2 gap-1">
+                    {math.savingThrows.map(save => (
+                      <button key={save.ability} onClick={() => rollCheck(`Tiro Salvezza su ${ABILITY_NAMES[save.ability]}`, save.mod)} title="Tira il tiro salvezza" className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-panel-bg text-left">
+                        <span className="flex items-center gap-2 text-xs">
+                          <span className={`w-2 h-2 rounded-full border ${save.isProficient ? 'bg-accent border-accent' : 'border-text-muted'}`} />
+                          <span className={save.isProficient ? 'font-bold' : 'text-text-muted'}>{abilityMap[save.ability]}</span>
+                        </span>
+                        <span className="font-display font-black">{formatSigned(save.mod)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
 
-           {/* Tiri Salvezza */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 shadow-sm">
-              <div className="text-[10px] font-black uppercase text-text-muted mb-3 tracking-widest">Tiri Salvezza</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                 {math.savingThrows.map(save => (
-                   <div key={save.ability} className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-2">
-                         <span className={`w-2 h-2 rounded-full border ${save.isProficient ? 'bg-accent border-accent' : 'border-border'}`} />
-                         <span className={save.isProficient ? 'font-bold text-text-primary' : 'text-text-muted'}>{abilityMap[save.ability]}</span>
-                      </span>
-                      <span className={`font-black ${save.isProficient ? 'text-accent' : 'text-text-primary'}`}>{formatSigned(save.mod)}</span>
-                   </div>
-                 ))}
+                <section className="sheet-section">
+                  <div className="sheet-section-title">Sensi</div>
+                  <div className="p-3 space-y-1.5 text-sm">
+                    {[['Percezione passiva', math.passivePerception], ['Intuizione passiva', math.passiveInsight], ['Indagare passiva', math.passiveInvestigation], ['Scurovisione', math.darkvision ? `${math.darkvision} m` : '—']].map(([k, v]) => (
+                      <div key={k as string} className="flex justify-between items-center"><span className="text-text-muted">{k}</span><strong className="font-display text-lg">{v}</strong></div>
+                    ))}
+                    {(math.armorClass.stealthDisadvantage || math.armorClass.untrained || math.d20Penalty > 0) && (
+                      <div className="border-t border-border pt-2 space-y-1 text-xs text-danger">
+                        {math.armorClass.stealthDisadvantage && <p>Svantaggio a Furtività (armatura)</p>}
+                        {math.armorClass.untrained && <p>Armatura/scudo senza addestramento: Svantaggio alle prove e ai tiri con FOR e DES, niente incantesimi</p>}
+                        {math.d20Penalty > 0 && <p>Esaurimento: −{math.d20Penalty} già incluso nei Test di d20</p>}
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="sheet-section">
+                  <div className="sheet-section-title">Competenze e Lingue</div>
+                  <div className="p-3 space-y-3 text-xs">
+                    <div><span className="text-text-muted uppercase font-bold tracking-wider">Armature</span><div>{proficiencies.armor.length ? proficiencies.armor.join(', ') : 'nessuna'}</div></div>
+                    <div><span className="text-text-muted uppercase font-bold tracking-wider">Armi</span><div>{proficiencies.weapons.join(', ')}</div></div>
+                    {(['toolProficiencies', 'languages'] as const).map(field => {
+                      const shown = field === 'languages' ? proficiencies.languages : proficiencies.tools;
+                      const own = currentCharacter[field] || [];
+                      const value = field === 'languages' ? newLanguage : newTool;
+                      const setValue = field === 'languages' ? setNewLanguage : setNewTool;
+                      return (
+                        <div key={field} className="space-y-1.5">
+                          <div className="text-text-muted uppercase font-bold tracking-wider">{field === 'languages' ? 'Lingue' : 'Strumenti'}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {shown.length === 0 && <span className="italic text-text-muted">nessuno</span>}
+                            {shown.map(item => (
+                              <span key={item} className="px-2 py-0.5 bg-panel-bg border border-border flex items-center gap-1">
+                                {item}
+                                {isEditing && own.includes(item) && <button onClick={() => editList(field, item, false)} className="text-text-muted hover:text-danger" aria-label={`Rimuovi ${item}`}><X className="w-3 h-3" /></button>}
+                              </span>
+                            ))}
+                          </div>
+                          {isEditing && (
+                            <div className="flex gap-1">
+                              <input list={`${field}-options`} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && value.trim()) { editList(field, value, true); setValue(''); } }} placeholder="Aggiungi…" className="flex-1 min-w-0 bg-panel-bg border border-border px-2 py-1" aria-label={field === 'languages' ? 'Aggiungi lingua' : 'Aggiungi strumento'} />
+                              <datalist id={`${field}-options`}>{(field === 'languages' ? [...STANDARD_LANGUAGES, ...RARE_LANGUAGES] : ALL_TOOLS).map(o => <option key={o} value={o} />)}</datalist>
+                              <button onClick={() => { if (value.trim()) { editList(field, value, true); setValue(''); } }} className="px-2 border border-border hover:border-accent" aria-label="Aggiungi"><Plus className="w-3 h-3" /></button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <CampaignJoin />
               </div>
-           </div>
 
-           {/* Sensi */}
-           <div className="bg-panel-bg border border-border rounded-lg p-4 shadow-sm space-y-2 text-xs">
-              <div className="text-[10px] font-black uppercase text-text-muted mb-1 tracking-widest">Sensi passivi</div>
-              <div className="flex justify-between"><span className="text-text-muted">Percezione</span><strong className="text-accent text-base">{math.passivePerception}</strong></div>
-              <div className="flex justify-between"><span className="text-text-muted">Intuizione</span><strong>{math.passiveInsight}</strong></div>
-              <div className="flex justify-between"><span className="text-text-muted">Indagare</span><strong>{math.passiveInvestigation}</strong></div>
-              <div className="flex justify-between border-t border-border/50 pt-2"><span className="text-text-muted">Scurovisione</span><strong>{math.darkvision ? `${math.darkvision}m` : '—'}</strong></div>
-              {(math.armorClass.stealthDisadvantage || math.armorClass.untrained || math.d20Penalty > 0) && (
-                <div className="border-t border-border/50 pt-2 space-y-1 text-[10px] text-danger">
-                  {math.armorClass.stealthDisadvantage && <p>Svantaggio a Furtività (armatura)</p>}
-                  {math.armorClass.untrained && <p>Armatura/scudo senza addestramento: Svantaggio alle prove e ai tiri con FOR e DES, niente incantesimi</p>}
-                  {math.d20Penalty > 0 && <p>Esaurimento: -{math.d20Penalty} già incluso nei Test di d20</p>}
-                </div>
-              )}
-           </div>
-        </div>
+              <section className="sheet-section">
+                <div className="sheet-section-title">Abilità</div>
+                <div className="p-2">{renderSkills()}</div>
+              </section>
+            </aside>
 
-        {/* Dynamic Content Area */}
-        <div className="lg:col-span-9 space-y-6">
-           <ConditionTracker />
-
-           {/* Magic Resources Tracker (2024 Rules) */}
-           <ResourceTracker />
-
-           {/* Rests & Combat */}
-           <CombatAndRests />
-
-           {/* Tab Navigation (Desktop) */}
-           <div className="hidden md:flex p-1 bg-panel-bg border border-border rounded overflow-x-auto no-scrollbar">
-              {TABS.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id)}
-                  className={`flex items-center gap-2 px-6 py-2 rounded-sm text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                    activeTab === t.id ? 'bg-accent text-bg shadow-lg' : 'text-text-muted hover:text-text-primary'
-                  }`}
-                >
-                  <t.Icon className="w-3 h-3" />
-                  {t.label}
-                </button>
-              ))}
-           </div>
-
-           {/* Mobile Accordions */}
-           <div className="md:hidden flex flex-col gap-2">
-             {TABS.map(t => (
-                 <div key={t.id} className="bg-panel-bg border border-border rounded-lg overflow-hidden">
-                   <button
-                     onClick={() => setActiveTab(activeTab === t.id ? null : t.id)}
-                     className={`w-full flex items-center justify-between p-4 transition-colors ${activeTab === t.id ? 'bg-accent/10 border-b border-border' : ''}`}
-                   >
-                     <div className="flex items-center gap-3 font-black uppercase tracking-widest text-[11px]">
-                       <t.Icon className={`w-4 h-4 ${activeTab === t.id ? 'text-accent' : 'text-text-muted'}`} />
-                       <span className={activeTab === t.id ? 'text-accent' : 'text-text-primary'}>{t.label}</span>
-                     </div>
-                     <Plus className={`w-4 h-4 text-text-muted transition-transform duration-300 ${activeTab === t.id ? 'rotate-45 text-accent' : ''}`} />
-                   </button>
-                   <AnimatePresence>
-                     {activeTab === t.id && (
-                       <motion.div
-                         initial={{ height: 0, opacity: 0 }}
-                         animate={{ height: 'auto', opacity: 1 }}
-                         exit={{ height: 0, opacity: 0 }}
-                         className="overflow-hidden"
-                       >
-                         <div className="p-4 border-t border-border/50 min-h-[100px]">
-                           {renderTabContent(t.id)}
-                         </div>
-                       </motion.div>
-                     )}
-                   </AnimatePresence>
-                 </div>
-              ))}
-           </div>
-
-           {/* Tab Content (Desktop) */}
-           <div className="hidden md:block bg-panel-bg border border-border rounded-lg p-8 min-h-[500px]">
-              <AnimatePresence mode="wait">
-                {activeTab && (
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+            <section className="min-w-0 space-y-4 order-first lg:order-none">
+              <div className="flex overflow-x-auto no-scrollbar border-b border-border" role="tablist" aria-label="Sezioni della scheda">
+                {TABS.map(t => (
+                  <button
+                    key={t.id}
+                    role="tab"
+                    aria-selected={activeTab === t.id}
+                    onClick={() => setActiveTab(t.id)}
+                    className={`relative flex items-center gap-2 px-4 py-3 text-sm font-black uppercase tracking-wider whitespace-nowrap transition-colors font-serif ${activeTab === t.id ? 'text-accent' : 'text-text-muted hover:text-text-primary'}`}
                   >
-                    {renderTabContent(activeTab)}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-           </div>
+                    <t.Icon className="w-4 h-4" /> {t.label}
+                    {activeTab === t.id && <motion.span layoutId="sheet-tab-underline" className="absolute left-0 right-0 -bottom-px h-[3px] bg-accent" />}
+                  </button>
+                ))}
+              </div>
+              <div role="tabpanel" className="space-y-6">
+                {renderTabContent(activeTab || 'combat')}
+              </div>
+            </section>
+          </div>
         </div>
       </div>
-    </div>
 
-    <SummonsManager 
-      isOpen={isSummonsOpen} 
-      onClose={() => setIsSummonsOpen(false)} 
-    />
-    <LevelUpModal 
-      isOpen={isLevelUpOpen}
-      onClose={() => setIsLevelUpOpen(false)}
-      character={currentCharacter}
-      onLevelUp={handleLevelUpConfirm}
-    />
+      <PrintSheet character={currentCharacter} stats={math} findSpell={getSpellDetails} />
+      <SummonsManager isOpen={isSummonsOpen} onClose={() => setIsSummonsOpen(false)} />
+      <LevelUpModal isOpen={isLevelUpOpen} onClose={() => setIsLevelUpOpen(false)} character={currentCharacter} onLevelUp={handleLevelUpConfirm} />
     </>
   );
 }

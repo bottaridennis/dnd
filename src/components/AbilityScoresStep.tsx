@@ -1,7 +1,8 @@
 import React from 'react';
 import { useCharacter, Ability, CharacterData } from '../contexts/CharacterContext';
 import { backgroundsData } from '../data/rules2024';
-import { getModifier, formatModifier, abilityMap } from '../lib/utils';
+import { formatModifier } from '../lib/utils';
+import { Section, OptionCard, StepHeader, Counter } from './ui';
 import { ChevronUp, ChevronDown, RotateCcw, Dices } from 'lucide-react';
 import {
   ABILITIES, ABILITY_NAMES, POINT_BUY_BUDGET, POINT_BUY_COSTS, STANDARD_ARRAY, getBackgroundBonus, getBoostMode, getFinalScores,
@@ -90,134 +91,86 @@ export default function AbilityScoresStep() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <h2 className="text-3xl font-serif font-bold text-text-primary">Caratteristiche</h2>
-          <p className="text-text-muted mt-1 text-sm">Scegli il metodo: serie standard, acquisto a punti (27) o tiro di 4d6.</p>
-        </div>
-        <div className="flex p-1 bg-panel-bg rounded border border-border">
-          {(['standard', 'pointbuy', 'manual'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => changeMethod(m)}
-              className={`px-4 py-1.5 rounded-sm transition-all text-xs font-bold uppercase tracking-wider ${method === m ? 'bg-accent text-bg shadow-sm' : 'text-text-muted hover:text-text-primary'}`}
-            >
-              {m === 'standard' ? 'Serie Standard' : m === 'pointbuy' ? 'Point Buy' : 'Tiro / Manuale'}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <StepHeader
+        eyebrow="Capitolo 3"
+        title="Caratteristiche"
+        description="Genera i sei punteggi base, poi applica gli aumenti del background (+2/+1 oppure +1/+1/+1)."
+        aside={method === 'pointbuy' ? <Counter value={pointsUsed} max={POINT_BUY_BUDGET} label="punti spesi" /> : undefined}
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2" role="radiogroup" aria-label="Metodo di generazione">
+        {([
+          ['standard', 'Serie standard', '15, 14, 13, 12, 10, 8 da assegnare'],
+          ['pointbuy', 'Acquisto a punti', '27 punti, valori da 8 a 15'],
+          ['manual', 'Tiro di dadi', '4d6 scartando il più basso'],
+        ] as const).map(([id, title, sub]) => (
+          <OptionCard key={id} selected={method === id} onClick={() => changeMethod(id)} title={title} subtitle={sub} className="!p-3" />
+        ))}
       </div>
 
       {method === 'pointbuy' && (
-        <div className="bg-panel-bg border border-border rounded-lg p-6 flex items-center justify-around shadow-inner">
-          <div className="text-center">
-            <div className={`text-3xl font-bold ${pointsUsed > POINT_BUY_BUDGET ? 'text-danger' : 'text-text-primary'}`}>{POINT_BUY_BUDGET - pointsUsed}</div>
-            <div className="text-[10px] uppercase tracking-widest text-text-muted font-black">Punti rimanenti</div>
-          </div>
-          <div className="w-px h-8 bg-border" />
-          <div className="text-[10px] text-text-muted leading-relaxed max-w-xs">Costi: 8→0 · 9→1 · 10→2 · 11→3 · 12→4 · 13→5 · 14→7 · 15→9</div>
-          <button onClick={() => update({ abilityScores: DEFAULT_SCORES })} className="flex flex-col items-center gap-1 group">
-            <RotateCcw className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
-            <span className="text-[9px] uppercase tracking-tighter text-text-muted group-hover:text-text-primary">Reset</span>
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+          <span>Costi: 8→0 · 9→1 · 10→2 · 11→3 · 12→4 · 13→5 · 14→7 · 15→9</span>
+          <button onClick={() => update({ abilityScores: DEFAULT_SCORES })} className="secondary-action flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5" /> Azzera</button>
         </div>
       )}
-
       {method === 'manual' && (
-        <div className="bg-panel-bg border border-border rounded-lg p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-text-muted">Tira 4d6 e scarta il dado più basso per ogni caratteristica, oppure inserisci i tuoi tiri (3–18).</p>
-          <button onClick={rollAll} className="flex items-center gap-2 px-4 py-2 rounded bg-accent text-bg text-[10px] font-black uppercase tracking-widest">
-            <Dices className="w-4 h-4" /> Tira 4d6
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+          <span>Inserisci i tuoi tiri (3–18) oppure lascia tirare l’app.</span>
+          <button onClick={rollAll} className="primary-action px-4 py-2 flex items-center gap-2"><Dices className="w-4 h-4" /> Tira 4d6 ×6</button>
         </div>
       )}
+      {error && <p className="text-sm text-danger font-bold" role="alert">{error}</p>}
 
-      {error && <p className="text-xs text-danger font-bold">{error}</p>}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {ABILITIES.map((ability) => {
           const base = scores[ability];
           const final = finalScores[ability];
           const bonus = getBackgroundBonus(currentCharacter, ability);
-          const isBoosted = bonus > 0;
           const isAllowed = allowedBoosts.includes(ability);
           const nextCost = method === 'pointbuy' && base < 15 ? (POINT_BUY_COSTS[base + 1] - POINT_BUY_COSTS[base]) : 0;
           const canIncrease = method === 'pointbuy' ? base < 15 && pointsUsed + nextCost <= POINT_BUY_BUDGET : method === 'manual' ? base < 18 : false;
-
           return (
-            <div key={ability} className={`score-card bg-card-bg border rounded-lg p-5 flex items-center justify-between transition-all duration-300 ${isBoosted ? 'border-accent' : 'border-border'}`}>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-0.5">{abilityMap[ability]}</span>
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-lg font-bold ${isBoosted ? 'text-accent' : 'text-text-primary'}`}>{ABILITY_NAMES[ability]}</span>
-                  <span className="text-2xl font-black text-text-primary">{final}</span>
+            <div key={ability} className={`ability-tile !pb-3 flex flex-col items-center gap-2 ${bonus ? '!border-accent' : ''}`}>
+              <div className="text-[10px] font-black uppercase text-text-muted font-serif">{ABILITY_NAMES[ability]}</div>
+              <div className="text-4xl font-display font-black leading-none">{formatModifier(final)}</div>
+              <div className="text-xs text-text-muted">Punteggio <strong className="text-text-primary">{final}</strong>{bonus ? <span className="text-accent"> (+{bonus})</span> : null}</div>
+              {method === 'standard' ? (
+                <select value={base} onChange={(e) => assignStandard(ability, Number(e.target.value))} className="w-full bg-panel-bg border border-border px-2 py-1 text-sm font-bold text-center" aria-label={`Valore base di ${ABILITY_NAMES[ability]}`}>
+                  {STANDARD_ARRAY.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              ) : (
+                <div className="flex items-center w-full border border-border bg-panel-bg">
+                  <button onClick={() => setScore(ability, base - 1)} disabled={base <= (method === 'manual' ? 3 : 8)} className="px-2 py-1 disabled:opacity-30" aria-label={`Diminuisci ${ABILITY_NAMES[ability]}`}><ChevronDown className="w-4 h-4" /></button>
+                  <input
+                    type="number" readOnly={method !== 'manual'} min={3} max={18} value={base}
+                    onChange={(e) => setScore(ability, parseInt(e.target.value, 10) || 3)}
+                    className="w-full min-w-0 text-center bg-transparent font-bold py-1"
+                    aria-label={`Valore base di ${ABILITY_NAMES[ability]}`}
+                  />
+                  <button onClick={() => setScore(ability, base + 1)} disabled={!canIncrease} className="px-2 py-1 disabled:opacity-30" aria-label={`Aumenta ${ABILITY_NAMES[ability]}`}><ChevronUp className="w-4 h-4" /></button>
                 </div>
-                {isBoosted && <span className="text-[10px] text-success font-bold mt-1 tracking-tight">+{bonus} dal background</span>}
-              </div>
-
-              <div className="flex items-center gap-5">
-                <div className={`w-11 h-11 rounded border flex items-center justify-center text-lg font-black transition-colors ${getModifier(final) >= 0 ? 'bg-bg text-accent border-accent/40' : 'bg-bg text-text-muted border-border'}`}>
-                  {formatModifier(final)}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {method === 'standard' ? (
-                    <select value={base} onChange={(e) => assignStandard(ability, Number(e.target.value))} className="bg-bg border border-border rounded px-2 py-1 text-sm font-bold" aria-label={`Valore ${ABILITY_NAMES[ability]}`}>
-                      {STANDARD_ARRAY.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  ) : (
-                    <div className="flex items-center bg-bg border border-border rounded overflow-hidden">
-                      <button onClick={() => setScore(ability, base - 1)} className="p-1 px-2 hover:bg-panel-bg text-text-muted disabled:opacity-30" disabled={base <= (method === 'manual' ? 3 : 8)} aria-label="Diminuisci">
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-                      {method === 'manual' ? (
-                        <input type="number" min={3} max={18} value={base} onChange={(e) => setScore(ability, parseInt(e.target.value, 10) || 3)} className="w-12 text-center bg-transparent text-sm font-bold text-text-primary border-x border-border py-1" />
-                      ) : (
-                        <input type="text" readOnly value={base} className="w-10 text-center bg-transparent text-sm font-bold text-text-primary border-x border-border py-1" />
-                      )}
-                      <button onClick={() => setScore(ability, base + 1)} className="p-1 px-2 hover:bg-panel-bg text-text-muted disabled:opacity-30" disabled={!canIncrease} aria-label="Aumenta">
-                        <ChevronUp className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  {isAllowed && (
-                    <button
-                      onClick={() => toggleBoost(ability)}
-                      className={`text-[9px] font-black uppercase tracking-widest py-1 border rounded transition-all ${isBoosted ? 'bg-accent border-accent text-bg shadow-lg' : 'border-border text-text-muted hover:border-accent hover:text-accent'}`}
-                    >
-                      {isBoosted ? `Bonus +${bonus}` : 'Applica bonus'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              )}
+              {isAllowed ? (
+                <button onClick={() => toggleBoost(ability)} aria-pressed={bonus > 0} className={`w-full text-[10px] font-black uppercase py-1 border font-serif transition-colors ${bonus ? 'bg-accent border-accent text-white' : 'border-border text-text-muted hover:border-accent hover:text-accent'}`}>
+                  {bonus ? `Bonus +${bonus}` : 'Applica bonus'}
+                </button>
+              ) : <div className="h-[26px] text-[10px] text-text-muted/60 grid place-items-center">—</div>}
             </div>
           );
         })}
       </div>
 
-      <div className="bg-panel-bg border border-border rounded-lg p-8">
-        <div className="flex flex-wrap items-center gap-4 mb-8 border-b border-border pb-4">
-          <h4 className="text-text-primary font-bold uppercase text-xs tracking-widest">Bonus del background</h4>
-          <div className="text-[10px] text-text-muted italic">
-            {background ? `${background.name}: ${allowedBoosts.map(a => ABILITY_NAMES[a]).join(', ')}` : 'Scegli prima un background'}
-          </div>
-          <div className="ml-auto text-[10px] font-black uppercase text-accent">{selectedBoosts.length}/{boostMode === '2/1' ? 2 : 3} scelti</div>
+      <Section title={`Aumenti del background${background ? ` · ${background.name}` : ''}`} actions={<Counter value={selectedBoosts.length} max={boostMode === '2/1' ? 2 : 3} label="assegnati" />}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <OptionCard selected={boostMode === '2/1'} onClick={() => setBoostMode('2/1')} title="+2 / +1" subtitle="Il primo bonus scelto vale +2, il secondo +1." className="!p-3" />
+          <OptionCard selected={boostMode === '1/1/1'} onClick={() => setBoostMode('1/1/1')} title="+1 / +1 / +1" subtitle="Tutte e tre le caratteristiche del background ricevono +1." className="!p-3" />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <button onClick={() => setBoostMode('2/1')} className={`p-5 rounded border text-left transition-all ${boostMode === '2/1' ? 'border-accent bg-accent/5' : 'border-border bg-card-bg hover:border-text-muted'}`}>
-            <div className="text-xl font-serif font-bold text-text-primary mb-1">+2 / +1</div>
-            <p className="text-xs text-text-muted leading-relaxed">Due caratteristiche del background: la prima scelta riceve +2, la seconda +1.</p>
-          </button>
-          <button onClick={() => setBoostMode('1/1/1')} className={`p-5 rounded border text-left transition-all ${boostMode === '1/1/1' ? 'border-accent bg-accent/5' : 'border-border bg-card-bg hover:border-text-muted'}`}>
-            <div className="text-xl font-serif font-bold text-text-primary mb-1">+1 / +1 / +1</div>
-            <p className="text-xs text-text-muted leading-relaxed">Tutte e tre le caratteristiche del background ricevono +1.</p>
-          </button>
-        </div>
-        <p className="text-[10px] text-text-muted mt-4">Nessun punteggio può superare 20 con questi bonus.</p>
-      </div>
+        <p className="text-xs text-text-muted mt-3">
+          {background ? <>Caratteristiche disponibili: <strong>{allowedBoosts.map(a => ABILITY_NAMES[a]).join(', ')}</strong>. Nessun punteggio può superare 20.</> : 'Scegli prima un background nel capitolo Origine.'}
+        </p>
+      </Section>
     </div>
   );
 }

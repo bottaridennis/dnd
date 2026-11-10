@@ -180,7 +180,7 @@ export const backgroundsData = [
     }
   },
   { 
-    id: 'hermit', name: 'Eremita', boosts: ['CON', 'WIS', 'CHA'], feat: 'Guaritore', skills: ['Medicina', 'Religione'], tools: ['Kit di Erboristeria'],
+    id: 'hermit', name: 'Eremita', boosts: ['CON', 'WIS', 'CHA'], feat: 'Guaritore', skills: ['Medicina', 'Religione'], tools: ['Kit da Erborista'],
     startingEquipment: {
       options: [
         { id: 'A', name: 'Pacchetto Oggetti', items: ['Kit di Erboristeria', 'Bastone Ferrato', 'Abiti Comuni'], gold: 15 },

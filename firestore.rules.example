@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// Regole di sicurezza per Forge (vedi security_spec.md).
+// Copia questo file in firestore.rules (o incollalo in Firebase Console → Firestore → Regole) e pubblicalo.
+//
+// - Ogni utente legge e scrive solo il proprio profilo, i propri personaggi e il proprio homebrew.
+// - Campagne: il documento ha come ID il codice d'invito; solo il Master lo modifica.
+//   Chi conosce il codice può leggerlo (serve per unirsi e vedere l'ordine d'iniziativa).
+// - Un giocatore collega un proprio personaggio scrivendo campaignId/campaignDmId sulla scheda:
+//   da quel momento il Master (campaignDmId) può LEGGERE quella scheda, mai modificarla.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[A-Za-z0-9_-]+$');
+    }
+
+    function isValidCharacter(data) {
+      return data.userId is string
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.level is int && data.level >= 1 && data.level <= 20
+        && data.classId is string && data.classId.size() <= 40
+        && data.speciesId is string && data.speciesId.size() <= 40
+        && data.backgroundId is string && data.backgroundId.size() <= 40
+        && data.abilityScores is map;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.uid == userId && !('role' in request.resource.data);
+      allow update: if isOwner(userId) && request.resource.data.uid == resource.data.uid && !('role' in request.resource.data);
+      allow delete: if false;
+
+      match /{collection}/{itemId} {
+        allow read, delete: if isOwner(userId) && collection in ['homebrewSpells', 'homebrewWeapons', 'homebrewFeats'];
+        allow create, update: if isOwner(userId)
+          && collection in ['homebrewSpells', 'homebrewWeapons', 'homebrewFeats']
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 120;
+      }
+    }
+
+    match /characters/{characterId} {
+      // Il proprietario, oppure il Master della campagna a cui il personaggio è stato collegato
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid
+            || ('campaignDmId' in resource.data && resource.data.campaignDmId == request.auth.uid));
+      allow create: if isValidId(characterId)
+        && isOwner(request.resource.data.userId)
+        && isValidCharacter(request.resource.data);
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isValidCharacter(request.resource.data);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /campaigns/{campaignId} {
+      // Lettura del singolo documento per chi conosce il codice; elenco solo delle proprie campagne
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.dmId == request.auth.uid;
+      allow create: if isSignedIn()
+        && campaignId.matches('^[A-Z0-9]{6}$')
+        && request.resource.data.dmId == request.auth.uid
+        && request.resource.data.id == campaignId
+        && request.resource.data.name is string && request.resource.data.name.size() <= 120;
+      allow update: if isSignedIn()
+        && resource.data.dmId == request.auth.uid
+        && request.resource.data.dmId == resource.data.dmId
+        && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && resource.data.dmId == request.auth.uid;
+    }
+  }
+}

@@ -1,115 +1,94 @@
-import React, { useState } from 'react';
-import { 
-  Backpack, 
-  Coins, 
-  Scale, 
-  Star, 
-  Trash2, 
-  Plus, 
-  ChevronDown, 
-  Package, 
-  Briefcase,
-  Shield,
-  Sword,
-  Info,
-  AlertCircle,
-  Search,
-  FolderPlus,
-  X
+import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import {
+  Backpack, Coins, Scale, Star, Trash2, Plus, Minus, Package, Briefcase, Shield, Sword, Search, FolderPlus, X, Gem, BookOpen,
 } from 'lucide-react';
 import { useCharacter, InventoryItem, ContainerData } from '../contexts/CharacterContext';
 import { useInventoryMath } from '../hooks/useInventoryMath';
-import { motion, AnimatePresence } from 'motion/react';
 import { characterService } from '../services/characterService';
-import { standardWeapons, standardArmor, findArmor, processStartingItem } from '../data/weaponsData';
+import { standardWeapons, standardArmor, findArmor, findWeapon, processStartingItem } from '../data/weaponsData';
 import { getFinalScores } from '../lib/characterRules';
+import { Section, Tag, EmptyState } from './ui';
+import { useHomebrew } from '../hooks/useHomebrew';
 
-/**
- * PARTE 3: COMPONENTE UI (InventoryManager.tsx)
- * Gestione avanzata dell'inventario con contenitori e automazione pesi.
- */
+const COINS = [
+  { id: 'pp', label: 'Platino', short: 'mp', color: '#c9d6e3' },
+  { id: 'gp', label: 'Oro', short: 'mo', color: '#e0b14a' },
+  { id: 'ep', label: 'Electrum', short: 'me', color: '#b7c2a3' },
+  { id: 'sp', label: 'Argento', short: 'ma', color: '#b8b8c0' },
+  { id: 'cp', label: 'Rame', short: 'mr', color: '#c47a4a' },
+] as const;
+
+type CatalogFilter = 'Tutto' | 'Semplice' | 'Marziale' | 'Armature';
+
+/** Inventario: peso e sintonia, borsello, contenitori, oggetti e catalogo PHB 2024. */
 export default function InventoryManager() {
   const { currentCharacter, dispatch } = useCharacter();
   const { inventoryItems = [], containers = [], currency } = currentCharacter || {};
-  const [activeContainerTab, setActiveContainerTab] = useState<string>('all');
+  const [filter, setFilter] = useState<string>('all');
   const [newItemName, setNewItemName] = useState('');
-  const [isDatabaseOpen, setIsDatabaseOpen] = useState(false);
-  const [dbFilter, setDbFilter] = useState<'Tutte' | 'Semplice' | 'Marziale' | 'Armature'>('Tutte');
-  const [isAddingContainer, setIsAddingContainer] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('Tutto');
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [newContainerName, setNewContainerName] = useState('');
+  const [addingContainer, setAddingContainer] = useState(false);
+  const homebrewWeapons = useHomebrew().custom.weapons;
 
   // La capacità di trasporto usa il punteggio di Forza finale (con bonus di background e aumenti)
   const strength = currentCharacter ? getFinalScores(currentCharacter).STR : 10;
   const math = useInventoryMath(inventoryItems, currency, strength);
 
+  const catalog = useMemo(() => {
+    const needle = catalogSearch.trim().toLocaleLowerCase('it');
+    const weapons = catalogFilter === 'Armature' ? [] : standardWeapons
+      .filter(w => catalogFilter === 'Tutto' || w.category === catalogFilter)
+      .map(w => ({ id: w.id, name: w.name, kind: 'weapon' as const, info: `${w.damage} ${w.damageType}`, extra: w.mastery, weight: w.weight, cost: w.cost }));
+    const armor = catalogFilter === 'Tutto' || catalogFilter === 'Armature' ? standardArmor.map(a => ({
+      id: a.id, name: a.name, kind: 'armor' as const,
+      info: a.category === 'Scudo' ? 'CA +2' : `CA ${a.baseAc}${a.maxDex === null ? ' + Des' : a.maxDex > 0 ? ' + Des (max 2)' : ''}`,
+      extra: a.category === 'Scudo' ? 'Scudo' : `${a.category}${a.strength ? ` · For ${a.strength}` : ''}`, weight: a.weight, cost: a.cost,
+    })) : [];
+    const custom = catalogFilter === 'Armature' ? [] : homebrewWeapons
+      .filter((w: any) => catalogFilter === 'Tutto' || w.category === catalogFilter)
+      .map((w: any) => ({ id: `hb-${w.id}`, name: w.name, kind: 'homebrew' as const, info: `${w.damage || '—'} ${w.damageType || ''}`, extra: `${w.mastery || '—'} · Homebrew`, weight: Number(w.weight) || 0, cost: '—', data: w }));
+    return [...custom, ...weapons, ...armor].filter(e => !needle || e.name.toLocaleLowerCase('it').includes(needle));
+  }, [catalogFilter, catalogSearch, homebrewWeapons]);
+
   if (!currentCharacter) return null;
 
-  const handleUpdate = async (updates: any) => {
+  const save = async (updates: Record<string, unknown>) => {
     dispatch({ type: 'UPDATE_CHARACTER', payload: updates });
-    await characterService.updateCharacter(currentCharacter.id, updates);
+    try { await characterService.updateCharacter(currentCharacter.id, updates); } catch (e) { console.error('Salvataggio inventario non riuscito:', e); }
   };
 
-  const addCustomContainer = () => {
-    if (!newContainerName.trim()) return;
-    const newContainer: ContainerData = {
-      id: crypto.randomUUID(),
-      name: newContainerName,
-      type: 'Other',
-      maxWeight: 15 // Default
-    };
-    handleUpdate({ containers: [...containers, newContainer] });
-    setNewContainerName('');
-    setIsAddingContainer(false);
-  };
-
-  const deleteContainer = (containerId: string) => {
-    // Sposta gli oggetti in "all" (senza container)
-    const updatedItems = inventoryItems.map(item => 
-      item.containerId === containerId ? { ...item, containerId: null } : item
-    );
-    const updatedContainers = containers.filter(c => c.id !== containerId);
-    handleUpdate({ 
-      inventoryItems: updatedItems,
-      containers: updatedContainers
-    });
-    if (activeContainerTab === containerId) setActiveContainerTab('all');
-  };
-
-  const addItem = (containerId: string | null = null) => {
+  const targetContainer = filter === 'all' || filter === 'equipped' ? null : filter;
+  const addItem = () => {
     if (!newItemName.trim()) return;
-    const newItem: InventoryItem = {
-      id: crypto.randomUUID(),
-      name: newItemName,
-      weight: 0,
-      quantity: 1,
-      isAttuned: false,
-      isMagical: false,
-      isEquipped: false,
-      containerId: containerId
-    };
-    handleUpdate({ inventoryItems: [...inventoryItems, newItem] });
+    const item: InventoryItem = { ...processStartingItem(newItemName.trim(), targetContainer), isEquipped: false, containerId: targetContainer };
+    save({ inventoryItems: [...inventoryItems, item] });
     setNewItemName('');
   };
-
-  const removeItem = (id: string) => {
-    handleUpdate({ inventoryItems: inventoryItems.filter(i => i.id !== id) });
+  const addFromCatalog = (name: string, homebrew?: any) => {
+    const base = { ...processStartingItem(name, targetContainer), isEquipped: false, containerId: targetContainer };
+    const item = homebrew ? {
+      ...base,
+      weight: Number(homebrew.weight) || 0,
+      damage: homebrew.damage,
+      damageType: homebrew.damageType,
+      properties: Array.isArray(homebrew.properties) ? homebrew.properties : String(homebrew.properties || '').split(',').map((p: string) => p.trim()).filter(Boolean),
+      mastery: homebrew.mastery,
+    } : base;
+    save({ inventoryItems: [...inventoryItems, item] });
   };
-
-  const updateItem = (id: string, updates: Partial<InventoryItem>) => {
-    handleUpdate({
-      inventoryItems: inventoryItems.map(i => i.id === id ? { ...i, ...updates } : i)
-    });
-  };
+  const updateItem = (id: string, updates: Partial<InventoryItem>) => save({ inventoryItems: inventoryItems.map(i => (i.id === id ? { ...i, ...updates } : i)) });
+  const removeItem = (id: string) => save({ inventoryItems: inventoryItems.filter(i => i.id !== id) });
 
   // Si può indossare una sola armatura e imbracciare un solo scudo alla volta
   const toggleEquipped = (item: InventoryItem) => {
     const armor = findArmor(item.name);
-    if (item.isEquipped || !armor) {
-      updateItem(item.id, { isEquipped: !item.isEquipped });
-      return;
-    }
+    if (item.isEquipped || !armor) { updateItem(item.id, { isEquipped: !item.isEquipped }); return; }
     const isShield = armor.category === 'Scudo';
-    handleUpdate({
+    save({
       inventoryItems: inventoryItems.map(i => {
         if (i.id === item.id) return { ...i, isEquipped: true };
         const other = findArmor(i.name);
@@ -119,447 +98,206 @@ export default function InventoryManager() {
     });
   };
 
-  const updateCurrency = (type: string, val: number) => {
-    const newCurrency = { ...currency, [type]: Math.max(0, val) };
-    handleUpdate({ currency: newCurrency });
-  };
-
   const toggleAttunement = (item: InventoryItem) => {
     if (!item.isAttuned && math.attunementCount >= math.maxAttunement) return;
     updateItem(item.id, { isAttuned: !item.isAttuned });
   };
 
-  // Helper per calcolare il peso attuale di un contenitore specifico
-  const getContainerWeight = (containerId: string) => {
-    return inventoryItems
-      .filter(i => i.containerId === containerId)
-      .reduce((acc, i) => acc + (i.weight * i.quantity), 0);
+  const addContainer = () => {
+    if (!newContainerName.trim()) return;
+    const container: ContainerData = { id: crypto.randomUUID(), name: newContainerName.trim(), type: 'Other', maxWeight: 15 };
+    save({ containers: [...containers, container] });
+    setNewContainerName('');
+    setAddingContainer(false);
+  };
+  const deleteContainer = (id: string) => {
+    save({ containers: containers.filter(c => c.id !== id), inventoryItems: inventoryItems.map(i => (i.containerId === id ? { ...i, containerId: null } : i)) });
+    if (filter === id) setFilter('all');
+  };
+  const containerWeight = (id: string) => inventoryItems.filter(i => i.containerId === id).reduce((acc, i) => acc + (i.weight || 0) * (i.quantity || 1), 0);
+
+  const visibleItems = inventoryItems.filter(i => filter === 'all' || (filter === 'equipped' ? i.isEquipped : i.containerId === filter));
+  const weightPct = Math.min(100, math.weightPercentage);
+
+  const itemIcon = (item: InventoryItem) => {
+    if (findArmor(item.name)) return Shield;
+    if (item.damage || findWeapon(item.name)) return Sword;
+    if (item.isMagical) return Gem;
+    if (/libro|pergamena/i.test(item.name)) return BookOpen;
+    return Package;
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* ProgressBar del Peso */}
-      <div className="bg-panel-bg border border-border rounded-xl p-5 shadow-sm">
-        <div className="flex justify-between items-end mb-3">
-          <div className="flex flex-col">
-             <div className="flex items-center gap-2 text-text-muted text-[10px] font-black uppercase tracking-widest mb-1">
-               <Scale className="w-3 h-3 text-accent" />
-               Peso Trasportato
-             </div>
-             <div className="flex items-baseline gap-1">
-               <span className={`text-2xl font-serif font-black ${math.isEncumbered ? 'text-red-500' : 'text-text-primary'}`}>
-                 {math.totalWeight}
-               </span>
-               <span className="text-text-muted text-xs font-bold">/ {math.carryingCapacity} kg</span>
-             </div>
+    <div className="space-y-6">
+      {/* Riepilogo: peso, sintonia, borsello */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
+        <div className="stat-chip p-4">
+          <div className="flex items-center justify-between text-xs uppercase font-black tracking-wider font-serif text-text-muted">
+            <span className="flex items-center gap-1.5"><Scale className="w-3.5 h-3.5" /> Peso trasportato</span>
+            <span className={math.isEncumbered ? 'text-danger' : ''}>{math.totalWeight} / {math.carryingCapacity} kg</span>
           </div>
-          <div className="text-right">
-             <div className="text-[10px] font-black uppercase text-text-muted tracking-widest mb-1">Sintonia</div>
-             <div className={`text-lg font-serif font-black ${math.attunementCount >= math.maxAttunement ? 'text-accent' : 'text-text-primary'}`}>
-               {math.attunementCount} <span className="text-text-muted text-xs">/ {math.maxAttunement}</span>
-             </div>
+          <div className="h-2 bg-panel-bg mt-2 overflow-hidden"><div className={`h-full transition-all ${math.isEncumbered ? 'bg-danger' : weightPct > 75 ? 'bg-yellow-500' : 'bg-success'}`} style={{ width: `${weightPct}%` }} /></div>
+          <div className="flex justify-between mt-1.5 text-[11px] text-text-muted">
+            <span>Oggetti {math.itemsWeight} kg · Monete {math.coinWeight.toFixed(2)} kg</span>
+            <span>Capacità = Forza {strength} × 7,5 kg</span>
+          </div>
+          {math.isEncumbered && <p className="text-xs text-danger mt-2">Oltre la capacità: puoi solo trascinare o sollevare fino al doppio, con Velocità massima 1,5 m.</p>}
+        </div>
+        <div className="stat-chip p-4 flex items-center gap-4">
+          <Gem className="w-6 h-6 text-accent" />
+          <div>
+            <div className="text-xs uppercase font-black tracking-wider font-serif text-text-muted">Sintonia</div>
+            <div className="flex gap-1.5 mt-1">{Array.from({ length: math.maxAttunement }).map((_, i) => <span key={i} className={`w-5 h-5 rotate-45 border-2 ${i < math.attunementCount ? 'bg-accent border-accent' : 'border-border'}`} />)}</div>
           </div>
         </div>
-        
-        <div className="relative h-3 bg-bg rounded-full border border-border overflow-hidden">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${math.weightPercentage}%` }}
-            className={`h-full transition-all duration-500 ${math.isEncumbered ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-accent shadow-[0_0_10px_rgba(212,175,55,0.4)]'}`}
-          />
-        </div>
-        
-        {math.isEncumbered && (
-          <div className="mt-3 flex items-center gap-2 text-red-500 py-2 px-3 bg-red-500/10 border border-red-500/20 rounded text-[10px] font-bold uppercase animate-pulse">
-            <AlertCircle className="w-3.5 h-3.5" />
-            Oltre la capacità di trasporto: puoi solo spingere, trascinare o sollevare fino al doppio della capacità, con Velocità massima 1,5 m
-          </div>
-        )}
       </div>
 
-      {/* Sezione Ricchezza */}
-      <div className="bg-panel-bg border border-border rounded-xl p-5 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <Coins className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Portamonete</h3>
-          <div className="ml-auto text-[10px] font-black uppercase text-text-muted bg-bg px-2 py-1 rounded border border-border">
-            Peso Monete: {math.coinWeight.toFixed(2)} kg
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          {[
-            { id: 'pp', label: 'Platino', color: 'text-blue-300' },
-            { id: 'gp', label: 'Oro', color: 'text-yellow-500' },
-            { id: 'ep', label: 'Elettro', color: 'text-blue-100' },
-            { id: 'sp', label: 'Argento', color: 'text-gray-300' },
-            { id: 'cp', label: 'Rame', color: 'text-orange-500' },
-          ].map((coin) => (
-             <div key={coin.id} className="bg-bg border border-border rounded-lg p-3 group hover:border-accent/40 transition-colors">
-               <div className={`text-[10px] font-black uppercase ${coin.color} mb-2 tracking-widest`}>{coin.label}</div>
-               <div className="flex items-center justify-between">
-                  <input 
-                    type="number" 
-                    value={(currency as any)[coin.id] || 0}
-                    onChange={(e) => updateCurrency(coin.id, parseInt(e.target.value) || 0)}
-                    className="w-full bg-transparent text-lg font-black text-text-primary focus:outline-none"
-                  />
-               </div>
-             </div>
+      <Section title="Borsello" icon={Coins} bodyClassName="p-3">
+        <div className="grid grid-cols-5 gap-2">
+          {COINS.map(coin => (
+            <label key={coin.id} className="text-center bg-panel-bg border border-border rounded-[var(--radius-sm)] py-2">
+              <span className="flex items-center justify-center gap-1 text-[10px] uppercase font-black font-serif text-text-muted">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: coin.color }} /> {coin.short}
+              </span>
+              <input
+                type="number" min={0}
+                value={(currency as any)?.[coin.id] || 0}
+                onChange={e => save({ currency: { ...currency, [coin.id]: Math.max(0, parseInt(e.target.value) || 0) } })}
+                className="w-full bg-transparent text-center font-display font-black text-xl outline-none"
+                aria-label={`Monete di ${coin.label}`}
+              />
+            </label>
           ))}
         </div>
-      </div>
+      </Section>
 
-      {/* Layout Inventario */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sidebar Contenitori (Responsive) */}
-        <div className="lg:col-span-3 space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div className="text-[10px] font-black uppercase text-text-muted tracking-widest">Contenitori</div>
-            <button 
-              onClick={() => setIsAddingContainer(true)}
-              className="p-1 text-accent hover:bg-accent/10 rounded-full transition-colors"
-              title="Aggiungi Contenitore"
-            >
-              <FolderPlus className="w-4 h-4" />
-            </button>
-          </div>
+      <Section title="Oggetti" icon={Backpack} bodyClassName="" actions={
+        <button onClick={() => setCatalogOpen(v => !v)} className={`secondary-action !py-1 !px-2.5 flex items-center gap-1.5 ${catalogOpen ? '!border-accent !text-accent' : ''}`}><Sword className="w-3.5 h-3.5" /> Catalogo</button>
+      }>
+        {/* Filtri per contenitore */}
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border overflow-x-auto no-scrollbar">
+          {[{ id: 'all', name: `Tutti (${inventoryItems.length})` }, { id: 'equipped', name: 'Equipaggiati' }].map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)} className={`px-3 py-1.5 text-xs font-bold uppercase font-serif whitespace-nowrap rounded-[var(--radius-sm)] ${filter === f.id ? 'bg-accent text-white' : 'text-text-muted hover:bg-panel-bg'}`}>{f.name}</button>
+          ))}
+          {containers.map(c => {
+            const w = containerWeight(c.id);
+            const full = c.maxWeight && w > c.maxWeight;
+            return (
+              <span key={c.id} className={`flex items-center rounded-[var(--radius-sm)] ${filter === c.id ? 'bg-accent text-white' : 'text-text-muted hover:bg-panel-bg'}`}>
+                <button onClick={() => setFilter(c.id)} className="pl-3 pr-1 py-1.5 text-xs font-bold uppercase font-serif whitespace-nowrap flex items-center gap-1.5">
+                  {c.type === 'Backpack' ? <Backpack className="w-3.5 h-3.5" /> : <Briefcase className="w-3.5 h-3.5" />} {c.name}
+                  <span className={`font-sans normal-case ${full ? 'text-danger font-bold' : 'opacity-70'}`}>{w.toFixed(1)}{c.maxWeight ? `/${c.maxWeight}` : ''} kg</span>
+                </button>
+                <button onClick={() => deleteContainer(c.id)} className="px-1.5 py-1.5 opacity-60 hover:opacity-100" aria-label={`Elimina contenitore ${c.name}`}><X className="w-3 h-3" /></button>
+              </span>
+            );
+          })}
+          {addingContainer ? (
+            <span className="flex items-center gap-1">
+              <input autoFocus value={newContainerName} onChange={e => setNewContainerName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addContainer(); if (e.key === 'Escape') setAddingContainer(false); }} placeholder="Nome contenitore" className="bg-panel-bg border border-border px-2 py-1 text-xs w-36" />
+              <button onClick={addContainer} className="p-1 text-accent" aria-label="Crea contenitore"><Plus className="w-4 h-4" /></button>
+            </span>
+          ) : (
+            <button onClick={() => setAddingContainer(true)} className="px-2 py-1.5 text-text-muted hover:text-accent flex items-center gap-1 text-xs whitespace-nowrap" title="Nuovo contenitore"><FolderPlus className="w-4 h-4" /> Contenitore</button>
+          )}
+        </div>
 
-          {/* Form Aggiunta Rapida Contenitore */}
-          <AnimatePresence>
-            {isAddingContainer && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="bg-panel-bg border border-accent/30 rounded-lg p-3 space-y-3 mb-2 shadow-inner">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase text-accent">Nuovo Contenitore</span>
-                    <button onClick={() => setIsAddingContainer(false)}>
-                      <X className="w-3 h-3 text-text-muted" />
+        {/* Catalogo */}
+        <AnimatePresence>
+          {catalogOpen && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-b border-border bg-panel-bg">
+              <div className="p-3 space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="field-shell flex-1"><Search className="w-4 h-4 text-text-muted" /><input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Cerca armi e armature" className="w-full bg-transparent py-2 outline-none text-sm" /></label>
+                  <div className="flex gap-1">
+                    {(['Tutto', 'Semplice', 'Marziale', 'Armature'] as CatalogFilter[]).map(f => (
+                      <button key={f} onClick={() => setCatalogFilter(f)} className={`px-2.5 py-1.5 text-[11px] font-bold uppercase font-serif border rounded-[var(--radius-sm)] ${catalogFilter === f ? 'bg-accent border-accent text-white' : 'border-border text-text-muted'}`}>{f}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                  {catalog.map(entry => (
+                    <button key={entry.id} onClick={() => addFromCatalog(entry.name, (entry as any).data)} className="flex items-center justify-between gap-2 text-left bg-card-bg border border-border hover:border-accent px-3 py-2 rounded-[var(--radius-sm)] group">
+                      <span className="min-w-0">
+                        <span className="block font-bold text-sm truncate">{entry.name}</span>
+                        <span className="block text-[11px] text-text-muted truncate">{entry.info} · {entry.extra} · {entry.weight} kg · {entry.cost}</span>
+                      </span>
+                      <Plus className="w-4 h-4 text-text-muted group-hover:text-accent shrink-0" />
                     </button>
-                  </div>
-                  <input 
-                    autoFocus
-                    type="text"
-                    placeholder="Nome (es. Sacco, Baule...)"
-                    value={newContainerName}
-                    onChange={(e) => setNewContainerName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addCustomContainer()}
-                    className="w-full bg-bg border border-border rounded px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
-                  />
-                  <button 
-                    onClick={addCustomContainer}
-                    className="w-full py-1.5 bg-accent text-bg rounded text-[9px] font-black uppercase tracking-widest"
-                  >
-                    Crea
-                  </button>
+                  ))}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Desktop/Mobile Switch layout per i Tab */}
-          <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 lg:gap-3 no-scrollbar scroll-smooth">
-            <button 
-              onClick={() => setActiveContainerTab('all')}
-              className={`flex-shrink-0 lg:w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${activeContainerTab === 'all' ? 'bg-accent text-bg border-accent shadow-lg' : 'bg-panel-bg text-text-muted border-border hover:border-text-muted'}`}
-            >
-              <div className="flex items-center gap-3">
-                 <Package className="w-4 h-4" />
-                 <span className="text-xs font-bold uppercase whitespace-nowrap lg:whitespace-normal">Tutti gli Oggetti</span>
               </div>
-              <span className="hidden lg:block text-[10px] font-black">{inventoryItems.length}</span>
-            </button>
-            
-            {containers.map((container) => {
-              const currentWeight = getContainerWeight(container.id);
-              const isFull = container.maxWeight && currentWeight >= container.maxWeight;
-              
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Aggiunta rapida */}
+        <div className="flex gap-2 p-3 border-b border-border">
+          <input value={newItemName} onChange={e => setNewItemName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} placeholder={`Aggiungi un oggetto${targetContainer ? ` in ${containers.find(c => c.id === targetContainer)?.name}` : ''}… (es. Corda di canapa)`} className="flex-1 min-w-0 bg-panel-bg border border-border px-3 py-2 rounded-[var(--radius-sm)] outline-none focus:border-accent" aria-label="Nome nuovo oggetto" />
+          <button onClick={addItem} disabled={!newItemName.trim()} className="primary-action px-4 disabled:opacity-40 flex items-center gap-1.5"><Plus className="w-4 h-4" /> Aggiungi</button>
+        </div>
+
+        {/* Elenco oggetti */}
+        {visibleItems.length === 0 ? (
+          <div className="p-4"><EmptyState icon={Package} title="Nessun oggetto qui">Aggiungi oggetti con il campo qui sopra o dal catalogo.</EmptyState></div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {visibleItems.map(item => {
+              const Icon = itemIcon(item);
+              const armor = findArmor(item.name);
+              const weapon = item.damage ? item : undefined;
               return (
-                <div key={container.id} className="flex-shrink-0 lg:w-full group relative">
-                  <div 
-                    onClick={() => setActiveContainerTab(container.id)}
-                    className={`h-full lg:h-auto lg:w-full flex flex-col p-3 rounded-lg border transition-all text-left cursor-pointer ${activeContainerTab === container.id ? 'bg-accent text-bg border-accent shadow-lg' : 'bg-panel-bg text-text-muted border-border hover:border-text-muted'}`}
+                <li key={item.id} className={`flex gap-3 items-start px-3 py-3 ${item.isEquipped ? 'bg-accent/5' : ''}`}>
+                  <button
+                    onClick={() => toggleEquipped(item)}
+                    aria-pressed={item.isEquipped}
+                    title={item.isEquipped ? 'Equipaggiato (clic per togliere)' : 'Equipaggia'}
+                    className={`w-9 h-9 shrink-0 grid place-items-center border rounded-[var(--radius-sm)] transition-colors ${item.isEquipped ? 'bg-accent border-accent text-white' : 'border-border text-text-muted hover:border-accent hover:text-accent'}`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-3">
-                        {container.type === 'Backpack' ? <Backpack className="w-4 h-4" /> : <Briefcase className="w-4 h-4" />}
-                        <span className="text-xs font-bold uppercase tracking-tight whitespace-nowrap lg:whitespace-normal">{container.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isFull && <AlertCircle className={`w-3 h-3 ${activeContainerTab === container.id ? 'text-red-900' : 'text-red-500'}`} />}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteContainer(container.id);
-                          }}
-                          className={`opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-500/20 transition-all ${activeContainerTab === container.id ? 'text-bg hover:bg-black/10' : 'text-red-400'}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
+                    <Icon className="w-4 h-4" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <input value={item.name} onChange={e => updateItem(item.id, { name: e.target.value })} className="flex-1 min-w-0 bg-transparent font-bold outline-none focus:bg-panel-bg px-1 -mx-1" aria-label="Nome oggetto" />
+                      <button onClick={() => updateItem(item.id, { isMagical: !item.isMagical, isAttuned: false, magicBonus: 0 })} aria-pressed={item.isMagical} title="Oggetto magico" className={`p-1.5 rounded-[var(--radius-sm)] ${item.isMagical ? 'text-accent' : 'text-text-muted hover:text-text-primary'}`}><Star className={`w-4 h-4 ${item.isMagical ? 'fill-current' : ''}`} /></button>
+                      {item.isMagical && (item.damage || armor) && (
+                        <select value={item.magicBonus || 0} onChange={e => updateItem(item.id, { magicBonus: Number(e.target.value) })} className="bg-panel-bg border border-border text-xs py-1" aria-label="Bonus magico">
+                          {[0, 1, 2, 3].map(b => <option key={b} value={b}>+{b}</option>)}
+                        </select>
+                      )}
+                      {item.isMagical && (
+                        <button onClick={() => toggleAttunement(item)} disabled={!item.isAttuned && math.attunementCount >= math.maxAttunement} title={item.isAttuned ? 'In sintonia' : 'Sintonizza'} className={`px-1.5 py-1 text-[10px] font-black uppercase font-serif border rounded-[var(--radius-sm)] disabled:opacity-30 ${item.isAttuned ? 'bg-success border-success text-white' : 'border-border text-text-muted'}`}>Sintonia</button>
+                      )}
+                      <button onClick={() => removeItem(item.id)} className="p-1.5 text-text-muted hover:text-danger" aria-label={`Rimuovi ${item.name}`}><Trash2 className="w-4 h-4" /></button>
                     </div>
-                    {container.maxWeight && (
-                      <div className="hidden lg:block w-full mt-2">
-                        <div className="flex justify-between text-[8px] font-black uppercase mb-1">
-                          <span>Peso Contenuto</span>
-                          <span>{currentWeight.toFixed(1)} / {container.maxWeight} kg</span>
-                        </div>
-                        <div className={`h-1 rounded-full bg-black/10 overflow-hidden`}>
-                          <div 
-                            className={`h-full transition-all duration-300 ${activeContainerTab === container.id ? 'bg-white' : 'bg-accent'}`} 
-                            style={{ width: `${Math.min(100, (currentWeight / container.maxWeight) * 100)}%` }} 
-                          />
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {weapon && <Tag>{weapon.damage} {weapon.damageType}</Tag>}
+                      {weapon?.mastery && <Tag>{weapon.mastery}</Tag>}
+                      {armor && <Tag>{armor.category === 'Scudo' ? 'CA +2' : `CA ${armor.baseAc} · ${armor.category}`}</Tag>}
+                      {item.isEquipped && <Tag tone="accent">Equipaggiato</Tag>}
+                      {item.isMagical && <Tag tone="accent">Magico{item.magicBonus ? ` +${item.magicBonus}` : ''}</Tag>}
+                      {item.isAttuned && <Tag tone="success">In sintonia</Tag>}
+                      <span className="flex-1" />
+                      <span className="flex items-center border border-border rounded-[var(--radius-sm)]">
+                        <button onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })} className="p-1 text-text-muted hover:text-accent" aria-label="Diminuisci quantità"><Minus className="w-3.5 h-3.5" /></button>
+                        <span className="w-8 text-center text-sm font-bold" aria-label="Quantità">{item.quantity}</span>
+                        <button onClick={() => updateItem(item.id, { quantity: item.quantity + 1 })} className="p-1 text-text-muted hover:text-accent" aria-label="Aumenta quantità"><Plus className="w-3.5 h-3.5" /></button>
+                      </span>
+                      <label className="flex items-center gap-1 text-xs text-text-muted">
+                        <input type="number" min={0} step={0.5} value={item.weight || 0} onChange={e => updateItem(item.id, { weight: parseFloat(e.target.value) || 0 })} className="w-14 bg-panel-bg border border-border text-center py-0.5 text-text-primary" aria-label="Peso in kg" /> kg
+                      </label>
+                      <select value={item.containerId || 'none'} onChange={e => updateItem(item.id, { containerId: e.target.value === 'none' ? null : e.target.value })} className="bg-panel-bg border border-border px-1.5 py-0.5 text-xs" aria-label="Contenitore">
+                        <option value="none">Addosso</option>
+                        {containers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
-        </div>
-
-        {/* Lista Oggetti */}
-        <div className="lg:col-span-9 space-y-4">
-          <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row gap-4 items-center justify-between">
-               <div className="relative w-full sm:max-w-xs">
-                  <Plus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input 
-                    type="text" 
-                    placeholder="Nuovo oggetto..." 
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addItem(activeContainerTab === 'all' ? null : activeContainerTab)}
-                    className="w-full pl-10 pr-4 py-2 bg-bg border border-border rounded text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                  />
-               </div>
-               <div className="flex gap-2">
-                  <button 
-                    onClick={() => addItem(activeContainerTab === 'all' ? null : activeContainerTab)}
-                    className="px-4 py-2 bg-accent text-bg rounded text-[10px] font-black uppercase tracking-widest shadow-sm hover:scale-105 transition-all"
-                  >
-                    Aggiungi
-                  </button>
-                  <button 
-                    onClick={() => setIsDatabaseOpen(!isDatabaseOpen)}
-                    className="p-2 bg-panel-bg border border-border rounded text-text-muted hover:text-accent transition-all"
-                    title="Database Armi"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-               </div>
-            </div>
-
-            {/* Database Browser Panel */}
-            <AnimatePresence>
-              {isDatabaseOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="bg-black/10 border-b border-border"
-                >
-                  <div className="p-6 space-y-4">
-                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">Armi e Armature PHB 2024</span>
-                        <div className="flex gap-2 flex-wrap">
-                           {['Tutte', 'Semplice', 'Marziale', 'Armature'].map(f => (
-                             <button
-                               key={f}
-                               onClick={() => setDbFilter(f as any)}
-                               className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
-                                 dbFilter === f ? 'bg-accent text-bg border-accent' : 'bg-transparent text-text-muted border-border'
-                               }`}
-                             >
-                               {f}
-                             </button>
-                           ))}
-                        </div>
-                     </div>
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {[
-                          ...(dbFilter === 'Armature' ? [] : standardWeapons
-                            .filter(w => dbFilter === 'Tutte' || w.category === dbFilter)
-                            .map(w => ({ id: w.id, name: w.name, info: `${w.damage} ${w.damageType} · ${w.mastery} · ${w.weight} kg` }))),
-                          ...(dbFilter === 'Tutte' || dbFilter === 'Armature' ? standardArmor.map(a => ({
-                            id: a.id,
-                            name: a.name,
-                            info: a.category === 'Scudo' ? `CA +2 · ${a.weight} kg` : `${a.category} · CA ${a.baseAc}${a.maxDex === null ? ' + Des' : a.maxDex > 0 ? ' + Des (max 2)' : ''}${a.strength ? ` · For ${a.strength}` : ''} · ${a.weight} kg`,
-                          })) : []),
-                        ].map(entry => (
-                          <div key={entry.id} className="flex justify-between items-center p-2 bg-card-bg border border-border rounded hover:border-accent/40 transition-all group">
-                             <div>
-                                <div className="text-[11px] font-bold text-text-primary uppercase">{entry.name}</div>
-                                <div className="text-[8px] text-text-muted uppercase font-mono">{entry.info}</div>
-                             </div>
-                             <button
-                               onClick={() => {
-                                 const targetContainer = activeContainerTab === 'all' ? null : activeContainerTab;
-                                 const item = { ...processStartingItem(entry.name, targetContainer), isEquipped: false, containerId: targetContainer };
-                                 handleUpdate({ inventoryItems: [...inventoryItems, item] });
-                               }}
-                               className="p-1 px-2 bg-accent/10 text-accent rounded text-[9px] font-black uppercase sm:opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-bg transition-all"
-                               aria-label={`Aggiungi ${entry.name}`}
-                             >
-                               +
-                             </button>
-                          </div>
-                        ))}
-                     </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="divide-y divide-border/30">
-               {inventoryItems
-                .filter(i => activeContainerTab === 'all' || i.containerId === activeContainerTab)
-                .length > 0 ? (
-                  inventoryItems
-                    .filter(i => activeContainerTab === 'all' || i.containerId === activeContainerTab)
-                    .map((item) => (
-                      <div key={item.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 group hover:bg-accent/5 transition-colors">
-                        <div className="flex-1 flex items-center gap-3">
-                           <button 
-                             onClick={() => toggleEquipped(item)}
-                             className={`p-2 rounded-lg border transition-all ${item.isEquipped ? 'bg-primary text-white border-primary shadow-sm' : 'bg-bg text-text-muted border-border hover:border-primary/50'}`}
-                             title={item.isEquipped ? 'Equipaggiato' : 'Equipaggia'}
-                           >
-                             <Sword className="w-4 h-4" />
-                           </button>
-                           <div className="flex flex-col min-w-0 flex-1">
-                              <input 
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => updateItem(item.id, { name: e.target.value })}
-                                className="bg-transparent border-none p-0 text-sm font-bold text-text-primary focus:outline-none focus:ring-0 w-full truncate"
-                              />
-                              <div className="flex flex-col gap-1.5 mt-1">
-                                {item.damage && (
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded text-[9px] font-black uppercase text-accent tracking-tighter">
-                                      {item.damage} {item.damageType}
-                                    </span>
-                                    {item.mastery && (
-                                      <span className="px-1.5 py-0.5 bg-bg border border-border rounded text-[9px] font-bold text-text-muted italic">
-                                        {item.mastery}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-tighter">Peso:</span>
-                                    <input 
-                                      type="number"
-                                      step="0.1"
-                                      value={item.weight}
-                                      onChange={(e) => updateItem(item.id, { weight: parseFloat(e.target.value) || 0 })}
-                                      className="w-10 bg-transparent text-[10px] font-black text-accent text-center focus:outline-none"
-                                    />
-                                    <span className="text-[10px] text-text-muted">kg</span>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-tighter">Qtà:</span>
-                                    <div className="flex items-center gap-1 bg-bg/50 px-1.5 py-0.5 rounded border border-border/50">
-                                      <button onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })} className="text-text-muted hover:text-accent"><MinusIcon className="w-2.5 h-2.5" /></button>
-                                      <span className="text-[10px] font-black text-text-primary min-w-[12px] text-center">{item.quantity}</span>
-                                      <button onClick={() => updateItem(item.id, { quantity: item.quantity + 1 })} className="text-text-muted hover:text-accent"><PlusIcon className="w-2.5 h-2.5" /></button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  <Briefcase className="w-2.5 h-2.5 text-text-muted" />
-                                  <select 
-                                    value={item.containerId || 'none'}
-                                    onChange={(e) => updateItem(item.id, { containerId: e.target.value === 'none' ? null : e.target.value })}
-                                    className="bg-transparent text-[10px] font-bold text-text-muted uppercase focus:outline-none cursor-pointer hover:text-accent transition-colors"
-                                  >
-                                    <option value="none" className="bg-panel-bg text-text-primary italic">Nessun Contenitore</option>
-                                    {containers.map(c => (
-                                      <option key={c.id} value={c.id} className="bg-panel-bg text-text-primary">
-                                        {c.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                           </div>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/30">
-                           {/* Toggle Oggetto Magico / Sintonia */}
-                           <div className="flex items-center gap-2 pr-2 sm:pr-4 sm:border-r border-border/50">
-                              <button 
-                                onClick={() => updateItem(item.id, { isMagical: !item.isMagical, isAttuned: false, magicBonus: 0 })}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-black uppercase transition-all ${item.isMagical ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'text-text-muted hover:text-text-primary'}`}
-                              >
-                                {item.isMagical && <Star className="w-2.5 h-2.5 fill-current" />}
-                                Magico
-                              </button>
-                              
-                              {item.isMagical && (item.damage || findArmor(item.name)) && (
-                                <label className="flex items-center gap-1 text-[9px] font-black uppercase text-purple-400" title="Bonus magico (+1, +2, +3)">
-                                  +
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={3}
-                                    value={item.magicBonus || 0}
-                                    onChange={(e) => updateItem(item.id, { magicBonus: Math.max(0, Math.min(3, parseInt(e.target.value) || 0)) })}
-                                    className="w-8 bg-bg border border-border rounded text-center text-[10px]"
-                                  />
-                                </label>
-                              )}
-                              {item.isMagical && (
-                                <button 
-                                  disabled={!item.isAttuned && math.attunementCount >= math.maxAttunement}
-                                  onClick={() => toggleAttunement(item)}
-                                  className={`
-                                    flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-black uppercase transition-all
-                                    ${item.isAttuned ? 'bg-blue-500 text-white shadow-sm' : 'bg-bg border border-border text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed'}
-                                  `}
-                                >
-                                  {item.isAttuned ? "Sintonizzato" : "Sintonia"}
-                                </button>
-                              )}
-                           </div>
-
-                           <button 
-                             onClick={() => removeItem(item.id)}
-                             className="p-1.5 text-text-muted hover:text-red-500 transition-colors"
-                           >
-                             <Trash2 className="w-4 h-4" />
-                           </button>
-                        </div>
-                      </div>
-                    )
-                  )
-                ) : (
-                  <div className="px-5 py-20 text-center text-text-muted">
-                    <Package className="w-10 h-10 mx-auto mb-4 opacity-20" />
-                    <p className="font-serif italic text-sm">L'inventario è vuoto in questa sezione.</p>
-                  </div>
-                )}
-            </div>
-          </div>
-        </div>
-      </div>
+          </ul>
+        )}
+      </Section>
     </div>
   );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14" /><path d="M12 5v14" /></svg>;
-}
-
-function MinusIcon({ className }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14" /></svg>;
 }
