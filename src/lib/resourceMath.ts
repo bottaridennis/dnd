@@ -36,38 +36,44 @@ const FULL_CASTER_TABLE: Record<number, number[]> = {
   20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
 };
 
+type CasterType = 'full' | 'half' | 'third' | null;
+
+function getCasterType(classId: string, subclass?: string): CasterType {
+  const cls = classId.toLowerCase();
+  if (['bard', 'cleric', 'druid', 'sorcerer', 'wizard'].includes(cls)) return 'full';
+  if (['paladin', 'ranger'].includes(cls)) return 'half';
+  if (cls === 'fighter' && /cavaliere arcano|eldritch knight/i.test(subclass || '')) return 'third';
+  if (cls === 'rogue' && /mistificatore arcano|arcane trickster/i.test(subclass || '')) return 'third';
+  return null;
+}
+
 /**
  * 1. calculateSpellSlots
- * Uses 2024 Multiclassing rules.
+ * - Classe singola: si usa la tabella della classe (mezzi e terzi incantatori arrotondano per eccesso).
+ * - Multiclasse (PHB 2024): livelli pieni + metà (per eccesso) di Paladino/Ranger + un terzo (per difetto)
+ *   di Cavaliere Arcano/Mistificatore Arcano. Il Warlock usa la Magia del Patto separata.
  */
 export function calculateSpellSlots(classes: ClassLevels): number[] {
+  const casters = Object.entries(classes)
+    .map(([name, info]) => ({ type: getCasterType(name, info.subclass), level: info.level }))
+    .filter(c => c.type !== null && c.level > 0);
+
   let totalLevel = 0;
-
-  for (const [name, info] of Object.entries(classes)) {
-    const cls = name.toLowerCase();
-    const lvl = info.level;
-
-    // Full Casters
-    if (['bard', 'cleric', 'druid', 'sorcerer', 'wizard'].includes(cls)) {
-      totalLevel += lvl;
-    }
-    // Half Casters (Round up in 2024)
-    else if (['paladin', 'ranger'].includes(cls)) {
-      totalLevel += Math.ceil(lvl / 2);
-    }
-    // Third Casters (Round down)
-    else if (cls === 'fighter' && info.subclass === 'Eldritch Knight') {
-      totalLevel += Math.floor(lvl / 3);
-    } else if (cls === 'rogue' && info.subclass === 'Arcane Trickster') {
-      totalLevel += Math.floor(lvl / 3);
-    }
+  if (casters.length === 1) {
+    const { type, level } = casters[0];
+    if (type === 'full') totalLevel = level;
+    else if (type === 'half') totalLevel = Math.ceil(level / 2);
+    else if (type === 'third') totalLevel = level >= 3 ? Math.ceil(level / 3) : 0;
+  } else {
+    casters.forEach(({ type, level }) => {
+      if (type === 'full') totalLevel += level;
+      else if (type === 'half') totalLevel += Math.ceil(level / 2);
+      else if (type === 'third') totalLevel += Math.floor(level / 3);
+    });
   }
 
-  if (totalLevel === 0) return [0, 0, 0, 0, 0, 0, 0, 0, 0];
-  
-  // Cap at 20 for table lookups
-  const lookupLevel = Math.min(20, totalLevel);
-  return FULL_CASTER_TABLE[lookupLevel] || [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  if (totalLevel <= 0) return [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  return FULL_CASTER_TABLE[Math.min(20, totalLevel)] || [0, 0, 0, 0, 0, 0, 0, 0, 0];
 }
 
 /**

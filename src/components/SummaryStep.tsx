@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { useCharacter, Ability } from '../contexts/CharacterContext';
+import { useCharacter, Ability, CharacterData } from '../contexts/CharacterContext';
+import { computeCharacterStats } from '../lib/characterRules';
 import { classesData, speciesData, backgroundsData } from '../data/rules2024';
 import { getModifier, abilityMap } from '../lib/utils';
 import { Shield, Heart, Zap, Eye, User, Scroll, Briefcase } from 'lucide-react';
@@ -14,30 +15,20 @@ export default function SummaryStep() {
   const charSpecies = speciesData.find(s => s.id === currentCharacter.speciesId);
   const charBackground = backgroundsData.find(b => b.id === currentCharacter.backgroundId);
 
-  const getFinalScore = (ability: Ability) => {
-    let score = currentCharacter.abilityScores[ability];
-    const boostIndex = currentCharacter.selectedBoosts.indexOf(ability);
-    if (boostIndex !== -1) {
-       if (currentCharacter.selectedBoosts.length === 3) {
-         score += 1;
-       } else {
-         score += (boostIndex === 0 ? 2 : 1);
-       }
-    }
-    return score;
+  // Anteprima al 1° livello con lo stesso motore di regole della scheda
+  const preview: CharacterData = {
+    ...currentCharacter,
+    level: 1,
+    classes: currentCharacter.classId ? { [currentCharacter.classId]: { level: 1 } } : {},
   };
-
-  const str = getFinalScore('STR');
-  const dex = getFinalScore('DEX');
-  const con = getFinalScore('CON');
-  const wis = getFinalScore('WIS');
-
-  const proficiencyBonus = 2; // Level 1
+  const stats = computeCharacterStats(preview);
+  const getFinalScore = (ability: Ability) => stats.scores[ability];
   const hpBase = charClass?.hitDie || 8;
-  const hp = hpBase + getModifier(con);
-  const ac = 10 + getModifier(dex);
-  const initiative = getModifier(dex);
-  const passiveWisdom = 10 + getModifier(wis);
+  const hp = stats.hpMax;
+  const ac = stats.acBase;
+  const initiative = stats.initiative;
+  const passiveWisdom = stats.passivePerception;
+  const skills = stats.skills.filter(sk => sk.isProficient).map(sk => sk.name);
 
   const StatBlock = ({ icon: Icon, label, value, sub }: { icon: any, label: string, value: string | number, sub?: string }) => (
     <div className="bg-card-bg border border-border rounded-lg p-6 flex flex-col items-center text-center">
@@ -55,7 +46,7 @@ export default function SummaryStep() {
       <div className="flex flex-col md:flex-row gap-12 items-start">
          <div className="w-full md:w-1/3 space-y-6">
             <div className="aspect-square bg-card-bg border border-accent rounded-xl flex items-center justify-center p-12 transition-all hover:bg-accent/5">
-               <User className="w-full h-full text-accent/20" />
+               {currentCharacter.portraitUrl ? <img src={currentCharacter.portraitUrl} alt={currentCharacter.name} className="w-full h-full object-cover rounded" referrerPolicy="no-referrer" /> : <User className="w-full h-full text-accent/20" />}
             </div>
             <div className="text-center">
                <h2 className="text-4xl font-serif font-black text-text-primary mb-2">{currentCharacter.name || 'Senza Nome'}</h2>
@@ -67,9 +58,9 @@ export default function SummaryStep() {
 
          <div className="w-full md:w-2/3 grid grid-cols-2 gap-4">
             <StatBlock icon={Heart} label="Hit Points" value={hp} sub={`Dado Vita: 1d${hpBase}`} />
-            <StatBlock icon={Shield} label="Classe Armatura" value={ac} sub="Senza Armatura" />
+            <StatBlock icon={Shield} label="Classe Armatura" value={ac} sub={stats.armorClass.source} />
             <StatBlock icon={Zap} label="Iniziativa" value={initiative >= 0 ? `+${initiative}` : initiative} />
-            <StatBlock icon={Eye} label="Sagg. Passiva" value={passiveWisdom} />
+            <StatBlock icon={Eye} label="Percezione Passiva" value={passiveWisdom} sub={`Velocità ${stats.speed}m`} />
          </div>
       </div>
 
@@ -105,7 +96,7 @@ export default function SummaryStep() {
                <div>
                   <span className="text-[10px] font-mono font-black text-text-muted tracking-[0.2em] uppercase mb-3 block">Abilità Competenti</span>
                   <div className="flex flex-wrap gap-2">
-                     {charBackground?.skills.map(s => (
+                     {skills.map(s => (
                        <span key={s} className="px-3 py-1 bg-card-bg border border-border rounded text-[11px] font-bold text-text-primary tracking-tight">{s}</span>
                      ))}
                   </div>
@@ -113,6 +104,7 @@ export default function SummaryStep() {
                <div>
                   <span className="text-[10px] font-mono font-black text-text-muted tracking-[0.2em] uppercase">Talento di Origine</span>
                   <p className="text-accent text-lg font-bold mt-1">{charBackground?.feat}</p>
+                  {currentCharacter.bonusOriginFeat && <p className="text-accent text-sm font-bold">+ {currentCharacter.bonusOriginFeat} (Versatile)</p>}
                </div>
             </div>
          </div>

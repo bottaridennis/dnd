@@ -3,17 +3,28 @@ import React, { useState } from 'react';
 import { useCharacter, initialCharacter, CharacterData, Ability } from '../contexts/CharacterContext';
 import { useAuth } from '../contexts/AuthContext';
 import { characterService } from '../services/characterService';
-import { classesData, speciesData, backgroundsData, ALL_SKILLS } from '../data/rules2024';
-import { FEATURES } from '../data/features';
+import { classesData, speciesData, backgroundsData, ALL_SKILLS, ORIGIN_FEATS } from '../data/rules2024';
 import { ChevronRight, ChevronLeft, Save, Loader2, Dices } from 'lucide-react';
-import AbilityScoresStep from './AbilityScoresStep';
+import AbilityScoresStep, { validateAbilityScores } from './AbilityScoresStep';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
 import StartingEquipment from './StartingEquipment';
 import SummaryStep from './SummaryStep';
-import { getModifier } from '../lib/utils';
 import { useSpeciesAutomation } from '../hooks/useSpeciesAutomation';
+import { abilityMap } from '../lib/utils';
 import { processStartingItem } from '../data/weaponsData';
+import { computeHpMax, getFinalScores, getModifiers, STANDARD_ARRAY, ABILITIES } from '../lib/characterRules';
+import { getSpeciesDerived } from '../lib/species';
+
+const shuffle = <T,>(list: T[]): T[] => {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
+const pick = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 
 const STEPS = [
   'Classe',
@@ -40,48 +51,47 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
 
-  const canProceed = (): boolean => {
-    if (!currentCharacter) return false;
+  const getBgSkills = () => backgroundsData.find(b => b.id === currentCharacter?.backgroundId)?.skills || [];
+  const getClassSkillPicks = () => {
+    const bgSkills = getBgSkills();
+    return (currentCharacter?.proficientSkills || []).filter(s => !bgSkills.includes(s));
+  };
 
+  /** Messaggio che spiega cosa manca per proseguire (null = si può proseguire). */
+  const stepIssue = (): string | null => {
+    if (!currentCharacter) return 'Caricamento…';
+    const charClass = classesData.find(c => c.id === currentCharacter.classId);
     switch (currentStep) {
       case 0: {
-        if (!currentCharacter.classId) return false;
-        const charClass = classesData.find(c => c.id === currentCharacter.classId);
-        if (charClass) {
-          const bgSkills = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.skills || [];
-          const explicitChoices = (currentCharacter.proficientSkills || []).filter(s => !bgSkills.includes(s));
-          if (explicitChoices.length !== charClass.skillChoices) return false;
-        }
-        return true;
+        if (!charClass) return 'Scegli una classe.';
+        if (getClassSkillPicks().length !== charClass.skillChoices) return `Scegli ${charClass.skillChoices} abilità di classe.`;
+        return null;
       }
       case 1: {
-        if (!currentCharacter.speciesId || !currentCharacter.backgroundId) return false;
-        const species = speciesData.find(s => s.id === currentCharacter.speciesId);
-        
-        // PHB 2024: Mandatory SubOption for certain species
-        if (species && (species as any).subOptions && !currentCharacter.speciesSubOption) return false;
-
-        if (species && species.skillChoices) {
-          const charClass = classesData.find(c => c.id === currentCharacter.classId);
-          const target = (charClass?.skillChoices || 0) + species.skillChoices;
-          const bgSkills = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.skills || [];
-          const explicitChoices = (currentCharacter.proficientSkills || []).filter(s => !bgSkills.includes(s));
-          if (explicitChoices.length !== target) return false;
-        }
-        return true;
+        if (!currentCharacter.speciesId) return 'Scegli una specie.';
+        const species = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
+        if (species?.subOptions && !species.subOptions.some((o: any) => o.id === currentCharacter.speciesSubOption)) return 'Scegli il lignaggio della specie.';
+        if (species?.skillChoices && (currentCharacter.speciesSkills || []).length !== species.skillChoices) return 'Scegli l’abilità concessa dalla specie.';
+        if (species?.id === 'human' && !currentCharacter.bonusOriginFeat) return 'Scegli il Talento d’Origine del tratto Versatile.';
+        if (!currentCharacter.backgroundId) return 'Scegli un background.';
+        if (charClass && getClassSkillPicks().length !== charClass.skillChoices) return `Il background copre una tua abilità di classe: scegline un’altra (${getClassSkillPicks().length}/${charClass.skillChoices}).`;
+        return null;
       }
       case 2: {
-        if (!currentCharacter.selectedBoosts || currentCharacter.selectedBoosts.length < 2) return false;
-        return true;
+        const boosts = currentCharacter.selectedBoosts || [];
+        const required = currentCharacter.boostMode === '1/1/1' ? 3 : 2;
+        const allowed = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.boosts || [];
+        if (boosts.length !== required || boosts.some(b => !allowed.includes(b))) return `Assegna i bonus del background (${boosts.length}/${required}).`;
+        return validateAbilityScores(currentCharacter.abilityMethod || 'pointbuy', currentCharacter.abilityScores);
       }
-      case 3: {
-        if (!currentCharacter.name || currentCharacter.name.trim() === '') return false;
-        return true;
-      }
+      case 3:
+        return currentCharacter.name?.trim() ? null : 'Dai un nome al personaggio.';
       default:
-        return true;
+        return null;
     }
   };
+
+  const canProceed = (): boolean => stepIssue() === null;
 
   const nextStep = () => {
     if (canProceed()) {
@@ -107,18 +117,13 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const handleFinish = async () => {
     if (!currentCharacter || !user) return;
     setIsSaving(true);
-    
-    // Calculate initial HP based on 2024 rules
-    const charClass = classesData.find(c => c.id === currentCharacter.classId);
-    const conMod = getModifier(currentCharacter.abilityScores.CON + (currentCharacter.selectedBoosts.includes('CON') ? (currentCharacter.selectedBoosts.indexOf('CON') === 0 ? 2 : 1) : 0));
-    const initialHP = (charClass?.hitDie || 8) + conMod;
 
-    const finalCharacter: CharacterData = {
-      ...currentCharacter,
-      userId: user.uid,
-      hpCurrent: initialHP,
-      hpMax: initialHP, // We'll add this to the schema if needed, or recalculate
-    } as any;
+    const classes = { [currentCharacter.classId]: { level: 1, ...(currentCharacter.subclassId ? { subclass: currentCharacter.subclassId } : {}) } };
+    const prepared: CharacterData = { ...currentCharacter, level: 1, classes, userId: user.uid };
+    // PF iniziali (PHB 2024): massimo del Dado Vita + modificatore di Costituzione (+ Nano, + talento Duro)
+    const hpMax = computeHpMax(prepared, getModifiers(getFinalScores(prepared)).CON);
+    const finalCharacter: CharacterData = { ...prepared, hpCurrent: hpMax, hpTemp: 0, hitDiceSpent: {}, deathSaves: { successes: 0, failures: 0 } };
+    delete (finalCharacter as any).hpMax;
 
     try {
       await characterService.saveCharacter(finalCharacter);
@@ -132,91 +137,107 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   };
 
   const handleRandomize = () => {
-    const randomClass = classesData[Math.floor(Math.random() * classesData.length)];
-    const randomSpecies = speciesData[Math.floor(Math.random() * speciesData.length)];
-    const randomBackground = backgroundsData[Math.floor(Math.random() * backgroundsData.length)];
-    
-    // Sub-options
-    let subOptionId = '';
-    if ((randomSpecies as any).subOptions) {
-      const sub = (randomSpecies as any).subOptions[Math.floor(Math.random() * (randomSpecies as any).subOptions.length)];
-      subOptionId = sub.id;
-    }
+    const randomClass = pick(classesData);
+    const randomSpecies = pick(speciesData) as any;
+    const randomBackground = pick(backgroundsData);
+    const subOptionId = randomSpecies.subOptions ? pick(randomSpecies.subOptions as any[]).id : '';
 
-    // Ability Scores (Standard Array)
-    const baseScores = [15, 14, 13, 12, 10, 8].sort(() => Math.random() - 0.5);
-    const abilities: Ability[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
-    const abilityScores = abilities.reduce((acc, abl, i) => {
-      acc[abl] = baseScores[i];
-      return acc;
-    }, {} as Record<Ability, number>);
+    // Serie standard ordinata secondo le caratteristiche preferite della classe
+    const preferred = [...(randomClass.spellcastingAbility ? [randomClass.spellcastingAbility] : []), ...randomClass.multiclassReq, 'CON', ...shuffle([...ABILITIES])];
+    const order = Array.from(new Set(preferred)) as Ability[];
+    const abilityScores = order.reduce((acc, ability, i) => ({ ...acc, [ability]: STANDARD_ARRAY[i] }), {} as Record<Ability, number>);
 
-    // Boosts (Randomly pick 2 from background options)
-    const boosts = [...randomBackground.boosts].sort(() => Math.random() - 0.5).slice(0, 2);
-
-    // Skills
+    const boosts = order.filter(a => (randomBackground.boosts as string[]).includes(a)).slice(0, 2) as Ability[];
     const bgSkills = randomBackground.skills;
-    const availableClassSkills = randomClass.skillOptions.filter(s => !bgSkills.includes(s));
-    const randomClassSkills = [...availableClassSkills].sort(() => Math.random() - 0.5).slice(0, randomClass.skillChoices);
-    
-    let allSkills = [...bgSkills, ...randomClassSkills];
-    
-    // Species skills
-    if (randomSpecies.skillChoices) {
-      const remainingSkills = ALL_SKILLS.filter(s => !allSkills.includes(s));
-      const speciesSkills = [...remainingSkills].sort(() => Math.random() - 0.5).slice(0, randomSpecies.skillChoices);
-      allSkills = [...allSkills, ...speciesSkills];
-    }
+    const classSkills = shuffle(randomClass.skillOptions.filter(s => !bgSkills.includes(s))).slice(0, randomClass.skillChoices);
+    const speciesSkills = randomSpecies.skillChoices
+      ? shuffle((randomSpecies.skillOptions as string[]).filter(s => !bgSkills.includes(s) && !classSkills.includes(s))).slice(0, randomSpecies.skillChoices)
+      : [];
 
-    // Name
     const names = ['Thaelin', 'Elora', 'Kael', 'Lyra', 'Brak', 'Sif', 'Morgaine', 'Dante', 'Zephyr', 'Vara', 'Jax', 'Lumi', 'Caelum', 'Onyx', 'Sage'];
-    const randomName = names[Math.floor(Math.random() * names.length)];
-
-    // Equipment & Gold
     const classOption = randomClass.startingEquipment?.options[0];
     const bgOption = randomBackground.startingEquipment?.options[0];
-    
-    const inventoryItems: any[] = [];
-    let gold = 0;
-
-    if (classOption) {
-      if (classOption.items) {
-        classOption.items.forEach(item => {
-          inventoryItems.push(processStartingItem(item));
-        });
-      }
-      gold += classOption.gold || 0;
-    }
-
-    if (bgOption) {
-      if (bgOption.items) {
-        bgOption.items.forEach(item => {
-          inventoryItems.push(processStartingItem(item));
-        });
-      }
-      gold += bgOption.gold || 0;
-    }
+    const inventoryItems = [...(classOption?.items || []), ...(bgOption?.items || [])].map(item => processStartingItem(item));
+    const gold = (classOption?.gold || 0) + (bgOption?.gold || 0);
+    const derived = getSpeciesDerived(randomSpecies.id, subOptionId);
 
     dispatch({
       type: 'UPDATE_CHARACTER',
       payload: {
-        name: randomName,
+        name: pick(names),
         classId: randomClass.id,
         speciesId: randomSpecies.id,
         speciesSubOption: subOptionId,
         backgroundId: randomBackground.id,
+        originFeat: randomBackground.feat,
+        bonusOriginFeat: randomSpecies.id === 'human' ? pick(ORIGIN_FEATS) : '',
+        abilityMethod: 'standard',
         abilityScores,
-        selectedBoosts: boosts as Ability[],
-        proficientSkills: allSkills,
-        alignment: ['Legale Buono', 'Neutrale Buono', 'Caotico Buono', 'Legale Neutrale', 'Neutrale', 'Caotico Neutrale'][Math.floor(Math.random() * 6)],
+        boostMode: '2/1',
+        selectedBoosts: boosts,
+        proficientSkills: classSkills,
+        speciesSkills,
+        features: derived.traits,
+        innateSpells: derived.spells,
+        resistances: derived.resistances,
+        alignment: pick(['Legale Buono', 'Neutrale Buono', 'Caotico Buono', 'Legale Neutrale', 'Neutrale', 'Caotico Neutrale']),
         description: 'Un avventuriero generato casualmente in cerca di gloria.',
         inventoryItems,
-        currency: { cp: 0, sp: 0, ep: 0, gp: gold, pp: 0 }
+        currency: { cp: 0, sp: 0, ep: 0, gp: gold, pp: 0 },
       }
     });
 
-    // We can jump to summary if we want, or just stay here
-    setCurrentStep(6); 
+    setCurrentStep(6);
+  };
+
+  const renderClassSkillPicker = () => {
+    const charClass = classesData.find(c => c.id === currentCharacter?.classId);
+    if (!currentCharacter || !charClass) return null;
+    const bgSkills = getBgSkills();
+    const picks = getClassSkillPicks();
+    const limitReached = picks.length >= charClass.skillChoices;
+    return (
+      <div className="p-8 bg-panel-bg border border-border rounded-lg animate-in fade-in duration-300">
+        <h4 className="text-lg font-black text-text-primary mb-2">Competenze di Classe</h4>
+        <p className="text-sm text-text-muted mb-6">
+          Scegli <strong className="text-accent">{charClass.skillChoices}</strong> abilità tra le seguenti opzioni ({picks.length}/{charClass.skillChoices}).
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {charClass.skillOptions.map(skill => {
+            const isSelected = picks.includes(skill);
+            const isFromBg = bgSkills.includes(skill);
+            const isFromSpecies = (currentCharacter.speciesSkills || []).includes(skill);
+            const locked = isFromBg || isFromSpecies;
+            return (
+              <label
+                key={skill}
+                className={`flex items-center justify-between p-2.5 rounded border transition-all cursor-pointer ${
+                  isSelected || locked ? 'bg-accent/10 border-accent/50 text-accent' :
+                  limitReached ? 'opacity-50 cursor-not-allowed bg-card-bg border-border text-text-muted' :
+                  'bg-card-bg border-border text-text-primary hover:border-text-muted'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <input
+                    type="checkbox"
+                    className="accent-accent shrink-0"
+                    checked={isSelected || locked}
+                    disabled={(limitReached && !isSelected) || locked}
+                    onChange={(e) => {
+                      const current = currentCharacter.proficientSkills || [];
+                      dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: e.target.checked ? [...current, skill] : current.filter(s => s !== skill) } });
+                    }}
+                  />
+                  <span className="text-[11px] font-bold uppercase tracking-wider truncate">{skill}</span>
+                </div>
+                {isFromBg && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">DAL BG</span>}
+                {isFromSpecies && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">SPECIE</span>}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   if (!currentCharacter) return null;
@@ -230,7 +251,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               {classesData.map(cls => (
                 <button
                   key={cls.id}
-                  onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, proficientSkills: [] } })}
+                  onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {} } })}
                   className={`group p-8 rounded border text-left transition-all duration-300 ${
                     currentCharacter.classId === cls.id 
                       ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
@@ -248,54 +269,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               ))}
             </div>
 
-            {currentCharacter.classId && (
-               <div className="p-8 bg-panel-bg border border-border rounded-lg animate-in fade-in duration-300">
-                 <h4 className="text-lg font-black text-text-primary mb-2">Competenze di Classe</h4>
-                 <p className="text-sm text-text-muted mb-6">
-                   Scegli <strong className="text-accent">{classesData.find(c => c.id === currentCharacter.classId)?.skillChoices}</strong> abilità tra le seguenti opzioni.
-                 </p>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                   {classesData.find(c => c.id === currentCharacter.classId)?.skillOptions.map(skill => {
-                     const isSelected = currentCharacter.proficientSkills?.includes(skill);
-                     const limitReached = (currentCharacter.proficientSkills?.length || 0) >= (classesData.find(c => c.id === currentCharacter.classId)?.skillChoices || 0);
-                     
-                     // We lock it if it's not selected and we reached the limit, or if it comes from the background (which is static)
-                     const bgSkills = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.skills || [];
-                     const isFromBg = bgSkills.includes(skill);
-
-                     return (
-                       <label 
-                         key={skill} 
-                         className={`flex items-center justify-between p-2.5 rounded border transition-all cursor-pointer ${
-                           isSelected || isFromBg ? 'bg-accent/10 border-accent/50 text-accent' : 
-                           limitReached && !isFromBg ? 'opacity-50 cursor-not-allowed bg-card-bg border-border text-text-muted' : 
-                           'bg-card-bg border-border text-text-primary hover:border-text-muted'
-                         }`}
-                       >
-                         <div className="flex items-center gap-2.5 truncate">
-                           <input 
-                             type="checkbox" 
-                             className="accent-accent shrink-0"
-                             checked={isSelected || isFromBg}
-                             disabled={(limitReached && !isSelected) || isFromBg}
-                             onChange={(e) => {
-                               const currentSkills = currentCharacter.proficientSkills || [];
-                               if (e.target.checked) {
-                                 dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: [...currentSkills, skill] } });
-                               } else {
-                                 dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: currentSkills.filter((s: string) => s !== skill) } });
-                               }
-                             }}
-                           />
-                           <span className="text-[11px] font-bold uppercase tracking-wider truncate">{skill}</span>
-                         </div>
-                         {isFromBg && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">DAL BG</span>}
-                       </label>
-                     );
-                   })}
-                 </div>
-               </div>
-            )}
+            {currentCharacter.classId && renderClassSkillPicker()}
           </div>
         );
       case 1:
@@ -311,7 +285,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 {speciesData.map(sp => (
                   <button
                     key={sp.id}
-                    onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesId: sp.id } })}
+                    onClick={() => sp.id !== currentCharacter.speciesId && dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesId: sp.id, speciesSubOption: '', speciesSkills: [], bonusOriginFeat: '' } })}
                     className={`p-6 rounded border text-center transition-all duration-300 ${
                       currentCharacter.speciesId === sp.id 
                         ? 'border-accent bg-accent/5 shadow-sm' 
@@ -376,68 +350,63 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 return null;
               })()}
               
-              {/* Species Skill Selection if needed (Like Human or Elf) */}
+              {/* Species Skill Selection (Umano: Abile; Elfo: Sensi Acuti) */}
               {(() => {
-                 const currentSp = speciesData.find(s => s.id === currentCharacter.speciesId);
-                 if (currentSp && currentSp.skillChoices) {
-                   return (
-                     <div className="mt-8 p-6 bg-panel-bg border border-border rounded-lg animate-in fade-in">
-                       <h4 className="text-sm font-black text-text-primary mb-2">Tratto della Specie: Abilità</h4>
-                       <p className="text-xs text-text-muted mb-4 flex items-center gap-2">
-                         La tua specie ti garantisce <strong>{currentSp.skillChoices}</strong> competenza aggiuntiva.
-                       </p>
-                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                         {currentSp.skillOptions.map(skill => {
-                           const isSelected = currentCharacter.proficientSkills?.includes(skill);
-                           // To avoid overlapping counting, we count how many "Species" skills are selected
-                           const bgSkills = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.skills || [];
-                           
-                           // Calculate how many selections we still have from the general pool counting class
-                           const charClass = classesData.find(c => c.id === currentCharacter.classId);
-                           const limitTarget = (charClass?.skillChoices || 0) + (currentSp.skillChoices || 0);
-                           
-                           // We just look at all explicit choices currently chosen
-                           const explicitChoices = (currentCharacter.proficientSkills || []).filter(s => !bgSkills.includes(s));
-                           const limitReached = explicitChoices.length >= limitTarget;
-                           const isFromBg = bgSkills.includes(skill);
-                           
-                           return (
-                             <label 
-                               key={skill} 
-                               className={`flex items-center justify-between p-2.5 rounded transition-all cursor-pointer ${
-                                 isSelected || isFromBg ? 'bg-accent/10 border border-accent/30 text-accent' : 
-                                 limitReached && !isFromBg ? 'opacity-50 cursor-not-allowed bg-card-bg text-text-muted' : 
-                                 'bg-card-bg border border-border text-text-primary hover:border-text-muted'
-                               }`}
-                             >
-                                <div className="flex items-center gap-2.5 truncate">
-                                 <input 
-                                   type="checkbox" 
-                                   className="accent-accent shrink-0 w-3 h-3"
-                                   checked={isSelected || isFromBg}
-                                   disabled={(limitReached && !isSelected) || isFromBg}
-                                   onChange={(e) => {
-                                     const currentSkills = currentCharacter.proficientSkills || [];
-                                     if (e.target.checked) {
-                                       dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: [...currentSkills, skill] } });
-                                     } else {
-                                       dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: currentSkills.filter((s: string) => s !== skill) } });
-                                     }
-                                   }}
-                                 />
-                                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">{skill}</span>
-                               </div>
-                               {isFromBg && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">DAL BG</span>}
-                             </label>
-                           );
-                         })}
-                       </div>
-                     </div>
-                   );
-                 }
-                 return null;
+                const currentSp = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
+                if (!currentSp?.skillChoices) return null;
+                const picks = currentCharacter.speciesSkills || [];
+                const taken = [...getBgSkills(), ...getClassSkillPicks()];
+                return (
+                  <div className="mt-8 p-6 bg-panel-bg border border-border rounded-lg animate-in fade-in">
+                    <h4 className="text-sm font-black text-text-primary mb-2">Tratto della Specie: Abilità</h4>
+                    <p className="text-xs text-text-muted mb-4">La tua specie ti concede competenza in <strong>{currentSp.skillChoices}</strong> abilità ({picks.length}/{currentSp.skillChoices}).</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      {(currentSp.skillOptions as string[]).map(skill => {
+                        const isSelected = picks.includes(skill);
+                        const alreadyProficient = taken.includes(skill);
+                        const limitReached = picks.length >= currentSp.skillChoices;
+                        return (
+                          <label key={skill} className={`flex items-center justify-between p-2.5 rounded transition-all cursor-pointer ${
+                            isSelected ? 'bg-accent/10 border border-accent/30 text-accent' :
+                            alreadyProficient || limitReached ? 'opacity-50 cursor-not-allowed bg-card-bg text-text-muted border border-border' :
+                            'bg-card-bg border border-border text-text-primary hover:border-text-muted'
+                          }`}>
+                            <div className="flex items-center gap-2.5 truncate">
+                              <input
+                                type="checkbox"
+                                className="accent-accent shrink-0 w-3 h-3"
+                                checked={isSelected}
+                                disabled={!isSelected && (alreadyProficient || limitReached)}
+                                onChange={(e) => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSkills: e.target.checked ? [...picks, skill] : picks.filter(s => s !== skill) } })}
+                              />
+                              <span className="text-[10px] font-bold uppercase tracking-wider truncate">{skill}</span>
+                            </div>
+                            {alreadyProficient && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 ml-2">GIÀ COMPETENTE</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
               })()}
+
+              {/* Umano: tratto Versatile (un Talento d'Origine a scelta) */}
+              {currentCharacter.speciesId === 'human' && (
+                <div className="mt-6 p-6 bg-panel-bg border border-border rounded-lg animate-in fade-in">
+                  <h4 className="text-sm font-black text-text-primary mb-2">Versatile: Talento d’Origine</h4>
+                  <p className="text-xs text-text-muted mb-4">Gli umani ottengono un Talento d’Origine a scelta (consigliato: Abile).</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ORIGIN_FEATS.map(feat => (
+                      <button key={feat} onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { bonusOriginFeat: feat } })} className={`px-3 py-2 rounded border text-[11px] font-bold ${currentCharacter.bonusOriginFeat === feat ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-bg text-text-primary hover:border-text-muted'}`}>
+                        {feat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
+
+            {currentCharacter.backgroundId && getClassSkillPicks().length < (classesData.find(c => c.id === currentCharacter.classId)?.skillChoices || 0) && renderClassSkillPicker()}
 
             <section>
               <div className="flex items-center gap-4 mb-8">
@@ -450,21 +419,17 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   <button
                     key={bg.id}
                     onClick={() => {
-                        const featName = bg.feat;
-                        const baseFeatName = featName.split(' (')[0];
-                        const featExists = FEATURES.some(f => f.name === featName || f.name === baseFeatName);
-                        
-                        if (!featExists) {
-                            alert(`Attenzione: Il talento di background "${featName}" non è stato trovato nel database. È stato assegnato, ma potresti doverne inserire i dettagli manualmente in seguito.`);
-                        }
-                        
-                        dispatch({ 
-                            type: 'UPDATE_CHARACTER', 
-                            payload: { 
-                                backgroundId: bg.id, 
+                        if (bg.id === currentCharacter.backgroundId) return;
+                        // Le abilità del background sostituiscono eventuali scelte di classe/specie coincidenti
+                        dispatch({
+                            type: 'UPDATE_CHARACTER',
+                            payload: {
+                                backgroundId: bg.id,
                                 selectedBoosts: [],
-                                originFeat: featName
-                            } 
+                                originFeat: bg.feat,
+                                proficientSkills: (currentCharacter.proficientSkills || []).filter(s => !bg.skills.includes(s)),
+                                speciesSkills: (currentCharacter.speciesSkills || []).filter(s => !bg.skills.includes(s)),
+                            }
                         });
                     }}
                     className={`p-8 rounded border text-center transition-all duration-300 flex flex-col items-center justify-center ${
@@ -478,6 +443,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                     </span>
                     <div className="w-8 h-0.5 bg-border my-4" />
                     <p className="text-[10px] text-text-muted uppercase font-black tracking-widest leading-tight">Talento:<br/><span className="text-text-primary">{bg.feat}</span></p>
+                    <p className="text-[9px] text-text-muted mt-2 leading-tight">{bg.skills.join(' · ')}</p>
+                    <p className="text-[9px] text-accent/80 mt-1 font-mono">{bg.boosts.map(b => abilityMap[b] || b).join(' / ')}</p>
                   </button>
                 ))}
               </div>
@@ -491,7 +458,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       case 4:
         return <SpellsFeatsStep />;
       case 5:
-        return <StartingEquipment onNext={() => setCurrentStep(6)} />;
+        return <StartingEquipment />;
       case 6:
         return <SummaryStep />;
       default:
@@ -549,7 +516,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               <button
                 key={step}
                 onClick={() => {
-                   if (idx < currentStep) setCurrentStep(idx);
+                   if (idx <= currentStep) setCurrentStep(idx);
                    else if (idx === currentStep + 1 && canProceed()) setCurrentStep(idx);
                 }}
                 disabled={idx > currentStep + 1 || (idx === currentStep + 1 && !canProceed())}
@@ -586,7 +553,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   {currentStep === 2 && "Le tue abilità naturali e i bonus del background definiscono il tuo potenziale."}
                   {currentStep === 3 && "Dettagli narrativi per rendere unico il tuo eroe nel mondo."}
                   {currentStep === 4 && "Scegli il tuo arsenale magico e i talenti eroici."}
-                  {currentStep === 5 && "Controlla la tua scheda prima di iniziare l'avventura."}
+                  {currentStep === 5 && "Scegli l'equipaggiamento iniziale di classe e background."}
+                {currentStep === 6 && "Controlla la tua scheda prima di iniziare l'avventura."}
                 </p>
               </div>
 
@@ -600,7 +568,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           <div className="shrink-0 p-4 md:px-12 md:py-5 bg-card-bg border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0 z-10">
             <div className="flex w-full md:w-auto gap-4 order-2 md:order-1">
               <button
-                onClick={onCancel}
+                onClick={() => { dispatch({ type: 'DISCARD_DRAFT' }); onCancel(); }}
                 className="flex-1 md:flex-none px-6 py-3 rounded border border-transparent text-sm font-semibold text-text-muted transition-all hover:text-amber-500"
               >
                 Annulla
@@ -621,6 +589,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               </button>
             </div>
             
+            {stepIssue() && <p className="order-0 md:order-1 text-[11px] text-danger font-bold md:ml-auto md:mr-4 text-center">{stepIssue()}</p>}
             <button
               onClick={currentStep === STEPS.length - 1 ? handleFinish : nextStep}
               disabled={isSaving || !canProceed()}

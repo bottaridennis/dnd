@@ -48,7 +48,7 @@ export function useHomebrew() {
 
   // Merge static base data with user's homebrew items
   const allSpells = useMemo(() => {
-    const base = RAW_SPELLS.map(s => normalizeTextFields({ ...s, name: s.displayName || s.name }));
+    const base = RAW_SPELLS.map(s => normalizeTextFields({ ...s, originalName: s.name, name: s.displayName || s.name }));
     const custom = homebrewData.spells.map(spell => normalizeTextFields(spell));
     return [...base, ...custom];
   }, [homebrewData.spells]);

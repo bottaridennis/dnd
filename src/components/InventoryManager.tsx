@@ -21,7 +21,8 @@ import { useCharacter, InventoryItem, ContainerData } from '../contexts/Characte
 import { useInventoryMath } from '../hooks/useInventoryMath';
 import { motion, AnimatePresence } from 'motion/react';
 import { characterService } from '../services/characterService';
-import { standardWeapons } from '../data/weaponsData';
+import { standardWeapons, standardArmor, findArmor, processStartingItem } from '../data/weaponsData';
+import { getFinalScores } from '../lib/characterRules';
 
 /**
  * PARTE 3: COMPONENTE UI (InventoryManager.tsx)
@@ -29,15 +30,17 @@ import { standardWeapons } from '../data/weaponsData';
  */
 export default function InventoryManager() {
   const { currentCharacter, dispatch } = useCharacter();
-  const { inventoryItems = [], containers = [], currency, abilityScores } = currentCharacter || {};
+  const { inventoryItems = [], containers = [], currency } = currentCharacter || {};
   const [activeContainerTab, setActiveContainerTab] = useState<string>('all');
   const [newItemName, setNewItemName] = useState('');
   const [isDatabaseOpen, setIsDatabaseOpen] = useState(false);
-  const [dbFilter, setDbFilter] = useState<'Tutte' | 'Semplice' | 'Marziale'>('Tutte');
+  const [dbFilter, setDbFilter] = useState<'Tutte' | 'Semplice' | 'Marziale' | 'Armature'>('Tutte');
   const [isAddingContainer, setIsAddingContainer] = useState(false);
   const [newContainerName, setNewContainerName] = useState('');
 
-  const math = useInventoryMath(inventoryItems, currency, abilityScores?.STR || 10);
+  // La capacità di trasporto usa il punteggio di Forza finale (con bonus di background e aumenti)
+  const strength = currentCharacter ? getFinalScores(currentCharacter).STR : 10;
+  const math = useInventoryMath(inventoryItems, currency, strength);
 
   if (!currentCharacter) return null;
 
@@ -98,6 +101,24 @@ export default function InventoryManager() {
     });
   };
 
+  // Si può indossare una sola armatura e imbracciare un solo scudo alla volta
+  const toggleEquipped = (item: InventoryItem) => {
+    const armor = findArmor(item.name);
+    if (item.isEquipped || !armor) {
+      updateItem(item.id, { isEquipped: !item.isEquipped });
+      return;
+    }
+    const isShield = armor.category === 'Scudo';
+    handleUpdate({
+      inventoryItems: inventoryItems.map(i => {
+        if (i.id === item.id) return { ...i, isEquipped: true };
+        const other = findArmor(i.name);
+        if (i.isEquipped && other && (other.category === 'Scudo') === isShield) return { ...i, isEquipped: false };
+        return i;
+      }),
+    });
+  };
+
   const updateCurrency = (type: string, val: number) => {
     const newCurrency = { ...currency, [type]: Math.max(0, val) };
     handleUpdate({ currency: newCurrency });
@@ -151,7 +172,7 @@ export default function InventoryManager() {
         {math.isEncumbered && (
           <div className="mt-3 flex items-center gap-2 text-red-500 py-2 px-3 bg-red-500/10 border border-red-500/20 rounded text-[10px] font-bold uppercase animate-pulse">
             <AlertCircle className="w-3.5 h-3.5" />
-            Ingombrato: La tua velocità è dimezzata
+            Oltre la capacità di trasporto: puoi solo spingere, trascinare o sollevare fino al doppio della capacità, con Velocità massima 1,5 m
           </div>
         )}
       </div>
@@ -345,9 +366,9 @@ export default function InventoryManager() {
                 >
                   <div className="p-6 space-y-4">
                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">Database Armi Standard</span>
-                        <div className="flex gap-2">
-                           {['Tutte', 'Semplice', 'Marziale'].map(f => (
+                        <span className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">Armi e Armature PHB 2024</span>
+                        <div className="flex gap-2 flex-wrap">
+                           {['Tutte', 'Semplice', 'Marziale', 'Armature'].map(f => (
                              <button
                                key={f}
                                onClick={() => setDbFilter(f as any)}
@@ -361,21 +382,29 @@ export default function InventoryManager() {
                         </div>
                      </div>
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {standardWeapons
-                          .filter(w => dbFilter === 'Tutte' || w.category === dbFilter)
-                          .map(weapon => (
-                          <div key={weapon.id} className="flex justify-between items-center p-2 bg-card-bg border border-border rounded hover:border-accent/40 transition-all group">
+                        {[
+                          ...(dbFilter === 'Armature' ? [] : standardWeapons
+                            .filter(w => dbFilter === 'Tutte' || w.category === dbFilter)
+                            .map(w => ({ id: w.id, name: w.name, info: `${w.damage} ${w.damageType} · ${w.mastery} · ${w.weight} kg` }))),
+                          ...(dbFilter === 'Tutte' || dbFilter === 'Armature' ? standardArmor.map(a => ({
+                            id: a.id,
+                            name: a.name,
+                            info: a.category === 'Scudo' ? `CA +2 · ${a.weight} kg` : `${a.category} · CA ${a.baseAc}${a.maxDex === null ? ' + Des' : a.maxDex > 0 ? ' + Des (max 2)' : ''}${a.strength ? ` · For ${a.strength}` : ''} · ${a.weight} kg`,
+                          })) : []),
+                        ].map(entry => (
+                          <div key={entry.id} className="flex justify-between items-center p-2 bg-card-bg border border-border rounded hover:border-accent/40 transition-all group">
                              <div>
-                                <div className="text-[11px] font-bold text-text-primary uppercase">{weapon.name}</div>
-                                <div className="text-[8px] text-text-muted uppercase font-mono">{weapon.damage} {weapon.damageType}</div>
+                                <div className="text-[11px] font-bold text-text-primary uppercase">{entry.name}</div>
+                                <div className="text-[8px] text-text-muted uppercase font-mono">{entry.info}</div>
                              </div>
                              <button
-                               onClick={async () => {
+                               onClick={() => {
                                  const targetContainer = activeContainerTab === 'all' ? null : activeContainerTab;
-                                 await characterService.addStandardItemToInventory(currentCharacter!.id, weapon, targetContainer);
-                                 setIsDatabaseOpen(false);
+                                 const item = { ...processStartingItem(entry.name, targetContainer), isEquipped: false, containerId: targetContainer };
+                                 handleUpdate({ inventoryItems: [...inventoryItems, item] });
                                }}
-                               className="p-1 px-2 bg-accent/10 text-accent rounded text-[9px] font-black uppercase opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-bg transition-all"
+                               className="p-1 px-2 bg-accent/10 text-accent rounded text-[9px] font-black uppercase sm:opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-bg transition-all"
+                               aria-label={`Aggiungi ${entry.name}`}
                              >
                                +
                              </button>
@@ -397,7 +426,7 @@ export default function InventoryManager() {
                       <div key={item.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 group hover:bg-accent/5 transition-colors">
                         <div className="flex-1 flex items-center gap-3">
                            <button 
-                             onClick={() => updateItem(item.id, { isEquipped: !item.isEquipped })}
+                             onClick={() => toggleEquipped(item)}
                              className={`p-2 rounded-lg border transition-all ${item.isEquipped ? 'bg-primary text-white border-primary shadow-sm' : 'bg-bg text-text-muted border-border hover:border-primary/50'}`}
                              title={item.isEquipped ? 'Equipaggiato' : 'Equipaggia'}
                            >
@@ -469,13 +498,26 @@ export default function InventoryManager() {
                            {/* Toggle Oggetto Magico / Sintonia */}
                            <div className="flex items-center gap-2 pr-2 sm:pr-4 sm:border-r border-border/50">
                               <button 
-                                onClick={() => updateItem(item.id, { isMagical: !item.isMagical, isAttuned: false })}
+                                onClick={() => updateItem(item.id, { isMagical: !item.isMagical, isAttuned: false, magicBonus: 0 })}
                                 className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-black uppercase transition-all ${item.isMagical ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'text-text-muted hover:text-text-primary'}`}
                               >
                                 {item.isMagical && <Star className="w-2.5 h-2.5 fill-current" />}
                                 Magico
                               </button>
                               
+                              {item.isMagical && (item.damage || findArmor(item.name)) && (
+                                <label className="flex items-center gap-1 text-[9px] font-black uppercase text-purple-400" title="Bonus magico (+1, +2, +3)">
+                                  +
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={3}
+                                    value={item.magicBonus || 0}
+                                    onChange={(e) => updateItem(item.id, { magicBonus: Math.max(0, Math.min(3, parseInt(e.target.value) || 0)) })}
+                                    className="w-8 bg-bg border border-border rounded text-center text-[10px]"
+                                  />
+                                </label>
+                              )}
                               {item.isMagical && (
                                 <button 
                                   disabled={!item.isAttuned && math.attunementCount >= math.maxAttunement}

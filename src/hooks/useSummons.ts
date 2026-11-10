@@ -63,7 +63,7 @@ export function useSummons() {
       cha: template.cha,
       actions: processedActions,
       traits: template.traits || [],
-      iconName: template.icon.name || 'Dog'
+      iconName: template.icon?.displayName || template.icon?.name || 'Dog'
     };
 
     const updatedSummons = [...(currentCharacter.activeSummons || []), newSummon];

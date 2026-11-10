@@ -7,6 +7,8 @@ import {
   CircleUserRound, Settings2
 } from 'lucide-react';
 import { useSummons } from '../hooks/useSummons';
+import { useCharacter } from '../contexts/CharacterContext';
+import { useCharacterMath } from '../hooks/useCharacterMath';
 import { SUMMONS_DATA } from '../data/summons';
 import { ActiveSummon } from '../types/summons';
 import * as LucideIcons from 'lucide-react';
@@ -18,6 +20,8 @@ interface SummonsManagerProps {
 
 export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps) {
   const { activeSummons, summonCreature, summonHomebrew, dismissSummon, updateSummonHp } = useSummons();
+  const { currentCharacter } = useCharacter();
+  const math = useCharacterMath(currentCharacter);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(SUMMONS_DATA[0].id);
   const [spellLevel, setSpellLevel] = useState(4);
@@ -33,8 +37,10 @@ export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps)
   const requiresLevel = selectedTemplate?.category === 'Scaling' && !isHomebrewMode;
 
   const handleSummon = async () => {
-    // In a full app, this would come from character stats
-    const playerStats = { spellAttackModifier: 7 }; 
+    // Bonus di attacco con incantesimi del personaggio (miglior classe incantatrice)
+    const playerStats = { spellAttackModifier: Math.max(0, ...(math?.spellcasting || []).map(s => s.attackBonus)) || (math ? math.proficiencyBonus : 2) };
+    const template = SUMMONS_DATA.find(t => t.id === selectedTemplateId);
+    const effectiveLevel = Math.max(template?.minLevel || 0, spellLevel);
     
     if (isHomebrewMode) {
         if (!hbName) return;
@@ -45,7 +51,7 @@ export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps)
             speed: hbSpeed
         });
     } else {
-        await summonCreature(selectedTemplateId, spellLevel, playerStats);
+        await summonCreature(selectedTemplateId, effectiveLevel, playerStats);
     }
     setIsAddOpen(false);
     setIsHomebrewMode(false);
@@ -214,12 +220,12 @@ export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps)
                       >
                         <label className="text-[10px] font-black uppercase text-accent tracking-widest block px-1">Livello Slot Incantesimo</label>
                         <div className="grid grid-cols-3 gap-2">
-                          {[4, 5, 6, 7, 8, 9].map(lvl => (
+                          {[3, 4, 5, 6, 7, 8, 9].filter(lvl => lvl >= (SUMMONS_DATA.find(t => t.id === selectedTemplateId)?.minLevel || 0)).map(lvl => (
                             <button
                               key={lvl}
                               onClick={() => setSpellLevel(lvl)}
                               className={`py-3 rounded-xl text-xs font-black transition-all border ${
-                                spellLevel === lvl ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/20' : 'bg-card-bg text-text-muted border-border hover:border-accent/40'
+                                Math.max(SUMMONS_DATA.find(t => t.id === selectedTemplateId)?.minLevel || 0, spellLevel) === lvl ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/20' : 'bg-card-bg text-text-muted border-border hover:border-accent/40'
                               }`}
                             >
                               LVL {lvl}

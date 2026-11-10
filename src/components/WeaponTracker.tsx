@@ -1,177 +1,187 @@
-
 import React, { useState } from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { weaponMasteryData, DAMAGE_TYPES } from '../constants/weaponMastery';
-import { 
-  ShieldAlert, 
-  Sword, 
-  Info, 
-  ShieldCheck, 
-  AlertCircle,
-  HelpCircle,
+import {
+  Sword,
+  Info,
+  ShieldCheck,
   X,
-  Plus
+  Plus,
+  Crosshair
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { characterService } from '../services/characterService';
+import { useCharacterMath } from '../hooks/useCharacterMath';
+import { findWeapon, standardWeapons } from '../data/weaponsData';
+import { getWeaponMasteryCount } from '../lib/characterRules';
+import { abilityMap } from '../lib/utils';
+
+const PROPERTY_LABELS: Record<string, string> = {
+  Finesse: 'Accurata', Light: 'Leggera', Heavy: 'Pesante', Reach: 'Portata', 'Two-Handed': 'A Due Mani',
+  Loading: 'Ricarica', Thrown: 'Da Lancio', Versatile: 'Versatile', Ammunition: 'Munizioni',
+};
+
+const translateProperty = (prop: string) => {
+  const [key, rest] = [prop.split(' (')[0], prop.includes('(') ? ` (${prop.split(' (').slice(1).join(' (')}` : ''];
+  return `${PROPERTY_LABELS[key] || key}${rest}`;
+};
 
 export default function WeaponTracker({ isEditing = false }: { isEditing?: boolean }) {
   const { currentCharacter, dispatch } = useCharacter();
+  const math = useCharacterMath(currentCharacter);
   const [selectedMastery, setSelectedMastery] = useState<string | null>(null);
   const [activeDefTab, setActiveDefTab] = useState<'res' | 'imm' | 'vul'>('res');
   const [newMasteryWeapon, setNewMasteryWeapon] = useState('');
 
-  if (!currentCharacter) return null;
+  if (!currentCharacter || !math) return null;
 
-  // Resistances Logic
   const resistances = currentCharacter.resistances || [];
   const immunities = currentCharacter.immunities || [];
   const vulnerabilities = currentCharacter.vulnerabilities || [];
   const charWeaponMasteries = currentCharacter.weaponMasteries || {};
+  const masteryLimit = getWeaponMasteryCount(currentCharacter);
+  const masteredCount = Object.keys(charWeaponMasteries).length;
 
-  const toggleDefense = async (type: string, category: 'resistances' | 'immunities' | 'vulnerabilities') => {
-    const list = (currentCharacter as any)[category] || [];
-    const newList = list.includes(type)
-      ? list.filter((r: string) => r !== type)
-      : [...list, type];
-
-    dispatch({ type: 'UPDATE_CHARACTER', payload: { [category]: newList } });
-    
+  const save = async (updates: Record<string, unknown>) => {
+    dispatch({ type: 'UPDATE_CHARACTER', payload: updates });
     try {
-      await characterService.updateCharacter(currentCharacter.id, { [category]: newList });
+      await characterService.updateCharacter(currentCharacter.id, updates);
     } catch (error) {
-      console.error(`Failed to update ${category}:`, error);
+      console.error('Salvataggio non riuscito:', error);
     }
   };
 
-  const updateWeaponMastery = async (weaponName: string, mastery: string) => {
-    const newMasteries = { ...charWeaponMasteries, [weaponName]: mastery };
-    dispatch({ type: 'UPDATE_CHARACTER', payload: { weaponMasteries: newMasteries } });
-    try {
-      await characterService.updateCharacter(currentCharacter.id, { weaponMasteries: newMasteries });
-    } catch (error) {
-      console.error("Failed to update weapon mastery:", error);
-    }
+  const toggleDefense = (type: string, category: 'resistances' | 'immunities' | 'vulnerabilities') => {
+    const list: string[] = (currentCharacter as any)[category] || [];
+    save({ [category]: list.includes(type) ? list.filter(r => r !== type) : [...list, type] });
   };
 
-  // Predefined weapon-mastery mapping as fallback
-  const defaultWeaponMasteries: Record<string, string> = {
-    "Spada Lunga": "Sap",
-    "Pugnale": "Nick",
-    "Spadone": "Cleave",
-    "Arco Lungo": "Slow",
-    "Alabarda": "Topple",
-    "Martello da Guerra": "Push",
-    "Ascia da Battaglia": "Topple",
-    "Rapiere": "Vex"
+  // PHB 2024: la proprietà di Maestria è fissa per ogni tipo di arma; la classe sceglie su quali tipi usarla
+  const setMastery = (weaponName: string, mastery: string | null) => {
+    const next = { ...charWeaponMasteries };
+    if (mastery === null) delete next[weaponName];
+    else next[weaponName] = mastery;
+    save({ weaponMasteries: next });
   };
+
+  const ownedWeapons: string[] = Array.from(new Set<string>(
+    (currentCharacter.inventoryItems || [])
+      .filter(item => item.damage || findWeapon(item.name))
+      .map(item => findWeapon(item.name)?.name || item.name)
+  ));
+  const weaponList: string[] = Array.from(new Set<string>([...ownedWeapons, ...Object.keys(charWeaponMasteries)]));
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Weapon Mastery Panel */}
-      <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
-        <div className="bg-accent/10 px-6 py-4 border-b border-border flex items-center gap-3">
-          <Sword className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Maestrie delle Armi</h3>
+    <div className="space-y-8">
+      {/* Attacchi */}
+      <div className="bg-card-bg border border-border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+          <Crosshair className="w-4 h-4 text-accent" />
+          <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">Attacchi con le armi</h3>
+          <span className="ml-auto text-[9px] font-black uppercase text-text-muted">Armi equipaggiate</span>
         </div>
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Display all mastered weapons (from character data or equipment) */}
-          {Array.from(new Set([...(currentCharacter.equipment || []), ...Object.keys(charWeaponMasteries)])).map((item, idx) => {
-            const masteryName = charWeaponMasteries[item] || defaultWeaponMasteries[item] || "";
+        {math.attacks.length > 0 ? (
+          <div className="divide-y divide-border/40">
+            {math.attacks.map(attack => (
+              <div key={attack.itemId} className="px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                <div>
+                  <div className="font-bold text-sm text-text-primary">{attack.name}</div>
+                  <div className="text-[10px] text-text-muted">
+                    {abilityMap[attack.ability]} · {attack.properties.map(translateProperty).join(', ') || 'Nessuna proprietà'}
+                    {!attack.proficient && <span className="text-danger"> · Non competente</span>}
+                    {attack.masteryActive && attack.mastery && <span className="text-accent"> · Maestria: {attack.mastery}</span>}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] uppercase font-black text-text-muted">Colpire</div>
+                  <div className="text-lg font-black text-accent">{attack.attackBonus >= 0 ? `+${attack.attackBonus}` : attack.attackBonus}</div>
+                </div>
+                <div className="text-center min-w-[90px]">
+                  <div className="text-[9px] uppercase font-black text-text-muted">Danni</div>
+                  <div className="text-sm font-black text-text-primary">{attack.damage}</div>
+                  <div className="text-[9px] text-text-muted">{attack.damageType}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-5 py-6 text-xs text-text-muted italic">Nessuna arma equipaggiata. Equipaggia un'arma dalla scheda Equipaggiamento per vedere tiro per colpire e danni.</p>
+        )}
+      </div>
 
+      {/* Maestrie */}
+      <div className="bg-card-bg border border-border rounded-lg p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <Sword className="w-4 h-4 text-accent" />
+          <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">Maestria nelle Armi</h3>
+          <span className={`ml-auto text-[10px] font-black uppercase ${masteredCount > masteryLimit ? 'text-danger' : 'text-accent'}`}>{masteredCount} / {masteryLimit}</span>
+        </div>
+        {masteryLimit === 0 && <p className="text-xs text-text-muted">Le tue classi non concedono la Maestria nelle Armi (Barbaro, Guerriero, Paladino, Ranger e Ladro la ottengono al 1° livello; il talento Maestro d’Armi ne aggiunge una).</p>}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {weaponList.map(name => {
+            const data = findWeapon(name);
+            const isMastered = name in charWeaponMasteries;
+            const masteryName = charWeaponMasteries[name] || data?.mastery || '';
+            const disabled = !isMastered && masteredCount >= masteryLimit;
             return (
-              <div key={idx} className="bg-card-bg border border-border rounded-lg p-5 flex flex-col gap-4 group hover:border-accent/40 transition-all shadow-sm hover:shadow-md">
-                <div className="flex justify-between items-center pb-2 border-b border-border/30">
-                  <div className="flex items-center gap-2">
-                    <Sword className="w-4 h-4 text-accent/40 group-hover:text-accent transition-colors shrink-0" />
-                    <span className="text-[11px] font-black uppercase tracking-tight text-text-primary line-clamp-1">{item}</span>
-                  </div>
-                  {isEditing && charWeaponMasteries[item] && (
-                     <button 
-                       onClick={() => {
-                          const newMasteries = { ...charWeaponMasteries };
-                          delete newMasteries[item];
-                          dispatch({ type: 'UPDATE_CHARACTER', payload: { weaponMasteries: newMasteries } });
-                          characterService.updateCharacter(currentCharacter.id, { weaponMasteries: newMasteries });
-                       }}
-                       className="p-1 text-text-muted hover:text-red-500 transition-colors"
-                       title="Rimuovi Maestria"
-                     >
-                       <X className="w-3.5 h-3.5" />
-                     </button>
-                  )}
-                </div>
-                
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={masteryName}
-                      onChange={(e) => updateWeaponMastery(item, e.target.value)}
-                      className="flex-1 bg-bg/50 border border-border rounded px-3 py-1.5 text-[10px] font-black uppercase text-text-primary focus:border-accent focus:bg-bg outline-none transition-all cursor-pointer"
-                    >
-                      <option value="">Nessuna Maestria</option>
-                      {Object.keys(weaponMasteryData).map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                    {masteryName && (
-                      <button
-                        onClick={() => setSelectedMastery(masteryName)}
-                        className="p-2 rounded bg-accent/10 border border-accent/20 text-accent hover:bg-accent hover:text-white transition-all shadow-sm shrink-0"
-                        title="Info Maestria"
-                      >
-                        <Info className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+              <div key={name} className={`p-4 rounded border ${isMastered ? 'border-accent bg-accent/5' : 'border-border bg-bg'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <label className={`flex items-center gap-2 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      className="accent-accent"
+                      checked={isMastered}
+                      disabled={disabled}
+                      onChange={() => setMastery(name, isMastered ? null : (data?.mastery || 'Vex'))}
+                    />
+                    <span className="text-sm font-bold text-text-primary">{name}</span>
+                  </label>
                   {masteryName && (
-                    <div className="text-[10px] text-text-muted italic leading-relaxed line-clamp-2 px-1">
-                      {weaponMasteryData[masteryName].description}
-                    </div>
+                    <button onClick={() => setSelectedMastery(masteryName)} className="flex items-center gap-1 text-[10px] font-black uppercase text-accent" title="Info Maestria">
+                      {masteryName} <Info className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
+                {!data && isMastered && (
+                  <select value={masteryName} onChange={(e) => setMastery(name, e.target.value)} className="mt-2 w-full bg-card-bg border border-border rounded px-2 py-1 text-xs">
+                    {Object.keys(weaponMasteryData).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                )}
+                {masteryName && weaponMasteryData[masteryName] && <p className="text-[10px] text-text-muted mt-2">{weaponMasteryData[masteryName].description}</p>}
               </div>
             );
           })}
-          {isEditing && (
-            <div className="bg-card-bg border border-accent/20 border-dashed rounded-lg p-4 flex flex-col gap-3 group hover:border-accent/40 transition-all">
-              <div className="text-[10px] font-black uppercase text-accent tracking-widest">Aggiungi Arma Manuale</div>
-              <div className="flex gap-2">
-                <input 
-                  type="text"
-                  placeholder="Nome arma (es. Mazza)..."
-                  value={newMasteryWeapon}
-                  onChange={(e) => setNewMasteryWeapon(e.target.value)}
-                  className="flex-1 bg-bg border border-border rounded px-2 py-1 text-[10px] font-black uppercase text-text-primary focus:border-accent outline-none"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newMasteryWeapon.trim()) {
-                      updateWeaponMastery(newMasteryWeapon.trim(), "Slow");
-                      setNewMasteryWeapon('');
-                    }
-                  }}
-                />
-                <button 
-                  onClick={() => {
-                    if (newMasteryWeapon.trim()) {
-                      updateWeaponMastery(newMasteryWeapon.trim(), "Slow");
-                      setNewMasteryWeapon('');
-                    }
-                  }}
-                  className="bg-accent text-bg p-1.5 rounded disabled:opacity-50"
-                  disabled={!newMasteryWeapon.trim()}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-[8px] text-text-muted italic">Aggiungi un'arma per assegnarle una maestria personalizzata.</p>
-            </div>
-          )}
-          {(!currentCharacter.equipment || currentCharacter.equipment.length === 0) && !isEditing && (
-            <div className="col-span-full py-8 text-center text-text-muted italic text-sm">
-              Nessuna arma equipaggiata con Maestria
-            </div>
-          )}
+          {weaponList.length === 0 && <p className="text-xs text-text-muted italic col-span-full">Aggiungi armi all'inventario per sceglierne la Maestria.</p>}
         </div>
+
+        {isEditing && (
+          <div className="flex gap-2 pt-2 border-t border-border/50">
+            <input
+              list="weapon-names"
+              type="text"
+              placeholder="Aggiungi un tipo di arma (es. Mazza)…"
+              value={newMasteryWeapon}
+              onChange={(e) => setNewMasteryWeapon(e.target.value)}
+              className="flex-1 bg-bg border border-border rounded px-3 py-2 text-xs"
+            />
+            <datalist id="weapon-names">{standardWeapons.map(w => <option key={w.id} value={w.name} />)}</datalist>
+            <button
+              onClick={() => {
+                const name = newMasteryWeapon.trim();
+                if (!name) return;
+                const data = findWeapon(name);
+                setMastery(data?.name || name, data?.mastery || 'Vex');
+                setNewMasteryWeapon('');
+              }}
+              disabled={!newMasteryWeapon.trim()}
+              className="px-3 rounded bg-accent text-bg disabled:opacity-30"
+              aria-label="Aggiungi maestria"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Resistances, Immunities & Vulnerabilities Panel */}

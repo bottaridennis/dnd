@@ -1,25 +1,30 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCharacter, InventoryItem } from '../contexts/CharacterContext';
 import { classesData, backgroundsData } from '../data/rules2024';
-import { Package, Coins, Check, Shield, Sword, Briefcase } from 'lucide-react';
-import { characterService } from '../services/characterService';
-import { standardWeapons, processStartingItem } from '../data/weaponsData';
+import { Check, Sword, Briefcase } from 'lucide-react';
+import { processStartingItem } from '../data/weaponsData';
 
 /**
  * PARTE 3: WIZARD EQUIPAGGIAMENTO (StartingEquipment.tsx)
  * Permette la scelta del pacchetto iniziale di classe e background.
  */
-export default function StartingEquipment({ onNext }: { onNext: () => void }) {
+export default function StartingEquipment() {
   const { currentCharacter, dispatch } = useCharacter();
   const [classChoice, setClassChoice] = useState<string>('A');
   const [bgChoice, setBgChoice] = useState<string>('A');
 
+  const charClass = classesData.find(c => c.id === currentCharacter?.classId);
+  const charBg = backgroundsData.find(b => b.id === currentCharacter?.backgroundId);
+
+  // La scelta viene applicata subito, così "Continua" porta sempre l'equipaggiamento selezionato
+  useEffect(() => {
+    applyStartingEquipment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classChoice, bgChoice, charClass?.id, charBg?.id]);
+
   if (!currentCharacter) return null;
 
-  const charClass = classesData.find(c => c.id === currentCharacter.classId);
-  const charBg = backgroundsData.find(b => b.id === currentCharacter.backgroundId);
-
-  const applyStartingEquipment = async () => {
+  function applyStartingEquipment() {
     const classOption = charClass?.startingEquipment?.options.find(o => o.id === classChoice);
     const bgOption = charBg?.startingEquipment?.options.find(o => o.id === bgChoice);
 
@@ -59,9 +64,7 @@ export default function StartingEquipment({ onNext }: { onNext: () => void }) {
         currency: newCurrency
       } 
     });
-
-    onNext();
-  };
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -93,7 +96,7 @@ export default function StartingEquipment({ onNext }: { onNext: () => void }) {
                 </div>
                 <div className="text-[10px] text-text-muted leading-relaxed">
                    {opt.items ? opt.items.join(', ') : 'Solo Monete'} 
-                   {opt.gold && <span className="text-accent font-black"> + {opt.gold} MO</span>}
+                   {opt.gold > 0 && <span className="text-accent font-black"> + {opt.gold} MO</span>}
                 </div>
               </button>
             ))}
@@ -127,7 +130,7 @@ export default function StartingEquipment({ onNext }: { onNext: () => void }) {
                 </div>
                 <div className="text-[10px] text-text-muted leading-relaxed">
                    {opt.items ? opt.items.join(', ') : 'Solo Oro (Standard)'} 
-                   {opt.gold && <span className="text-accent font-black"> + {opt.gold} MO</span>}
+                   {opt.gold > 0 && <span className="text-accent font-black"> + {opt.gold} MO</span>}
                 </div>
               </button>
             ))}
@@ -135,15 +138,7 @@ export default function StartingEquipment({ onNext }: { onNext: () => void }) {
         </section>
       </div>
 
-      <div className="flex justify-center pt-8">
-        <button
-          onClick={applyStartingEquipment}
-          className="px-12 py-4 bg-accent text-bg font-black uppercase text-xs tracking-[0.2em] rounded shadow-lg hover:shadow-accent/40 active:scale-95 transition-all flex items-center gap-3"
-        >
-          Conferma Equipaggiamento e Continua
-          <Package className="w-4 h-4" />
-        </button>
-      </div>
+      <p className="text-center text-[10px] text-text-muted uppercase tracking-widest">Armi e armature del pacchetto vengono equipaggiate automaticamente.</p>
     </div>
   );
 }

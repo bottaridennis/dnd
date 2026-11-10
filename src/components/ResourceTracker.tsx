@@ -5,8 +5,6 @@ import {
   Sparkles, 
   Zap, 
   Flame, 
-  Moon, 
-  Sun, 
   Info,
   CheckCircle2,
   Circle
@@ -25,8 +23,6 @@ export default function ResourceTracker() {
     recoverChannelDivinity,
     expendPactSlot,
     recoverPactSlot,
-    shortRest,
-    longRest
   } = useResourceTracker();
 
   const hasAnyResources = 
@@ -44,20 +40,7 @@ export default function ResourceTracker() {
           <Sparkles className="w-5 h-5 text-accent" />
           <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-tight">Risorse Magiche</h3>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button 
-            onClick={shortRest}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded bg-bg border border-border text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent transition-all"
-          >
-            <Moon className="w-3 h-3" /> Riposo Breve
-          </button>
-          <button 
-            onClick={longRest}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded bg-accent text-bg text-[10px] font-black uppercase tracking-widest shadow-sm hover:scale-105 active:scale-95 transition-all"
-          >
-            <Sun className="w-3 h-3" /> Riposo Lungo
-          </button>
-        </div>
+        <p className="text-[9px] text-text-muted uppercase font-black tracking-widest">I riposi si gestiscono dal pannello Combattimento e Riposi</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
