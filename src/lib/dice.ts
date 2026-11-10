@@ -31,24 +31,28 @@ export function formatFormula(parsed: ParsedFormula): string {
   return parts.join('') || '0';
 }
 
-export interface DamageRoll { total: number; rolls: number[]; formula: string; critical: boolean }
+export interface RolledDie { sides: number; value: number; dropped?: boolean }
+
+export interface DamageRoll { total: number; rolls: number[]; dice: RolledDie[]; formula: string; critical: boolean }
 
 /** Tira una formula; con il critico si raddoppiano i dadi (non i modificatori), come da PHB 2024. */
 export function rollFormula(formula: string, critical = false): DamageRoll | null {
   const parsed = parseFormula(formula);
   if (!parsed) return null;
   const rolls: number[] = [];
+  const dice: RolledDie[] = [];
   let total = parsed.modifier;
   parsed.dice.forEach(term => {
     const count = critical ? term.count * 2 : term.count;
     for (let i = 0; i < count; i++) {
       const value = rollDie(term.sides);
       rolls.push(term.sign * value);
+      dice.push({ sides: term.sides, value });
       total += term.sign * value;
     }
   });
   const shown = critical ? { ...parsed, dice: parsed.dice.map(d => ({ ...d, count: d.count * 2 })) } : parsed;
-  return { total: Math.max(0, total), rolls, formula: formatFormula(shown), critical };
+  return { total: Math.max(0, total), rolls, dice, formula: formatFormula(shown), critical };
 }
 
 export interface D20Roll { total: number; natural: number; rolls: number[]; bonus: number; mode: RollMode; isCritical: boolean; isFumble: boolean }

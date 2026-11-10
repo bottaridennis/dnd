@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { rollD20, rollFormula, signed, type RollMode } from '../lib/dice';
+import { rollD20, rollFormula, signed, type RollMode, type RolledDie } from '../lib/dice';
 
 export interface RollEntry {
   id: string;
@@ -11,6 +11,8 @@ export interface RollEntry {
   fumble?: boolean;
   /** Formula danni da proporre dopo un tiro per colpire */
   followUp?: { label: string; formula: string };
+  /** Dadi da animare in 3D */
+  dice?: RolledDie[];
   at: number;
 }
 
@@ -24,6 +26,12 @@ interface DiceContextValue {
   rollDamage: (label: string, formula: string, critical?: boolean) => RollEntry | null;
   addNote: (label: string, detail: string) => void;
   clear: () => void;
+  /** Dadi 3D animati */
+  dice3d: boolean;
+  setDice3d: (enabled: boolean) => void;
+  /** Tiro attualmente in animazione (il totale viene svelato alla fine) */
+  animating: RollEntry | null;
+  finishAnimation: (id: string) => void;
 }
 
 const DiceContext = createContext<DiceContextValue | undefined>(undefined);
@@ -34,13 +42,27 @@ export function DiceProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<RollEntry[]>([]);
   const [mode, setMode] = useState<RollMode>('normal');
   const [isOpen, setOpen] = useState(false);
+  const [animating, setAnimating] = useState<RollEntry | null>(null);
+  const [dice3d, setDice3dState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('forge-dice3d');
+      if (saved) return saved === 'on';
+      return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch { return true; }
+  });
+  const setDice3d = useCallback((enabled: boolean) => {
+    setDice3dState(enabled);
+    try { localStorage.setItem('forge-dice3d', enabled ? 'on' : 'off'); } catch { /* storage non disponibile */ }
+  }, []);
+  const finishAnimation = useCallback((id: string) => setAnimating(cur => (cur?.id === id ? null : cur)), []);
 
   const push = useCallback((entry: Omit<RollEntry, 'id' | 'at'>) => {
     const full = { ...entry, id: crypto.randomUUID(), at: Date.now() };
     setHistory(prev => [full, ...prev].slice(0, 50));
     setOpen(true);
+    if (dice3d && full.dice?.length) setAnimating(full);
     return full;
-  }, []);
+  }, [dice3d]);
 
   const rollCheck = useCallback<DiceContextValue['rollCheck']>((label, bonus, options) => {
     const effectiveMode = options?.mode ?? mode;
@@ -54,6 +76,7 @@ export function DiceProvider({ children }: { children: React.ReactNode }) {
       critical: result.isCritical,
       fumble: result.isFumble,
       followUp: options?.followUp,
+      dice: result.rolls.map((value, i) => ({ sides: 20, value, dropped: result.rolls.length > 1 && (value !== result.natural || result.rolls.indexOf(value) !== i) })),
     });
     // Il vantaggio/svantaggio vale per un solo tiro
     if (effectiveMode !== 'normal' && !options?.mode) setMode('normal');
@@ -69,13 +92,14 @@ export function DiceProvider({ children }: { children: React.ReactNode }) {
       total: result.total,
       detail: `${result.formula}: [${result.rolls.join(', ')}]`,
       critical,
+      dice: result.dice,
     });
   }, [push]);
 
   const addNote = useCallback((label: string, detail: string) => { push({ label, detail, kind: 'note' }); }, [push]);
   const clear = useCallback(() => setHistory([]), []);
 
-  const value = useMemo(() => ({ history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, addNote, clear }), [history, mode, isOpen, rollCheck, rollDamage, addNote, clear]);
+  const value = useMemo(() => ({ history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation }), [history, mode, isOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation]);
   return <DiceContext.Provider value={value}>{children}</DiceContext.Provider>;
 }
 

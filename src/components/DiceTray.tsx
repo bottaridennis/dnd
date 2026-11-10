@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Dices, X, Trash2, Swords } from 'lucide-react';
+import { Dices, X, Trash2, Swords, Box } from 'lucide-react';
 import { useDice } from '../contexts/DiceContext';
 import { parseFormula } from '../lib/dice';
 
@@ -8,7 +8,7 @@ const QUICK_DICE = [4, 6, 8, 10, 12, 20, 100];
 
 /** Vassoio dei dadi: tiri rapidi, formula libera, vantaggio/svantaggio e cronologia della sessione. */
 export default function DiceTray() {
-  const { history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, clear } = useDice();
+  const { history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, clear, dice3d, setDice3d, animating } = useDice();
   const [formula, setFormula] = useState('');
   const formulaValid = !formula.trim() || parseFormula(formula) !== null;
   const last = history[0];
@@ -33,6 +33,7 @@ export default function DiceTray() {
             <header className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gold/50">
               <h3 className="font-serif text-lg flex items-center gap-2"><Dices className="w-5 h-5 text-accent" /> Dadi</h3>
               <div className="flex items-center gap-1">
+                <button onClick={() => setDice3d(!dice3d)} aria-pressed={dice3d} title={dice3d ? 'Dadi 3D attivi' : 'Dadi 3D disattivati'} className={`flex items-center gap-1 px-2 py-1 text-[10px] uppercase font-bold font-serif border rounded-[var(--radius-sm)] ${dice3d ? 'border-accent text-accent' : 'border-border text-text-muted'}`}><Box className="w-3.5 h-3.5" /> 3D</button>
                 {history.length > 0 && <button onClick={clear} className="p-1.5 text-text-muted hover:text-danger" aria-label="Svuota cronologia"><Trash2 className="w-4 h-4" /></button>}
                 <button onClick={() => setOpen(false)} className="p-1.5 text-text-muted hover:text-accent" aria-label="Chiudi vassoio"><X className="w-4 h-4" /></button>
               </div>
@@ -80,7 +81,7 @@ export default function DiceTray() {
                       {entry.fumble && <div className="text-[10px] uppercase font-bold text-danger">1 naturale</div>}
                     </div>
                     {entry.total !== undefined && (
-                      <div className={`font-display text-3xl leading-none ${entry.critical ? 'text-accent' : entry.fumble ? 'text-danger' : 'text-text-primary'}`}>{entry.total}</div>
+                      <div className={`font-display text-3xl leading-none ${entry.critical ? 'text-accent' : entry.fumble ? 'text-danger' : 'text-text-primary'}`}>{animating?.id === entry.id ? <span className="animate-pulse text-text-muted">…</span> : entry.total}</div>
                     )}
                   </div>
                   {entry.followUp && (
@@ -103,7 +104,7 @@ export default function DiceTray() {
         title="Dadi"
       >
         <Dices className="w-6 h-6" />
-        {!isOpen && last?.total !== undefined && (
+        {!isOpen && last?.total !== undefined && animating?.id !== last.id && (
           <span className="absolute -top-2 -left-2 min-w-7 h-7 px-1 grid place-items-center bg-card-bg text-text-primary border border-gold font-display text-sm">{last.total}</span>
         )}
       </button>
