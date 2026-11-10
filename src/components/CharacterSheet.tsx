@@ -8,6 +8,7 @@ import { subclassesData } from '../data/subclasses';
 import { INVOCATIONS } from '../data/invocations';
 import { getClassFeaturesUpTo } from '../data/classFeatures';
 import { getSubclassFeaturesUpTo, getSubclassSpells } from '../data/subclassFeatures';
+import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
 import { ALL_TOOLS, RARE_LANGUAGES, STANDARD_LANGUAGES } from '../data/languages';
 import { 
   Shield, Heart, Zap, Eye, User, Scroll, 
@@ -135,6 +136,8 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
       ...(choice.feat ? { feats: [...currentCharacter.feats, choice.feat] } : {}),
     });
     setIsLevelUpOpen(false);
+    // Nuovi trucchetti/incantesimi dal manuale: apri subito la scelta
+    if (choice.spellGain || choice.feat?.startsWith('Iniziato alla Magia')) setFeatureModal({ isOpen: true, tab: 'spells' });
   };
 
   const handleLevelDown = () => {
@@ -195,11 +198,27 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
     if (featureModal.tab === 'invocazioni') base = INVOCATIONS;
 
     const listNameForTab = featureModal.tab === 'spells' ? 'spells' : (featureModal.tab === 'talenti' ? 'feats' : 'invocations');
-    const eligibility = (item: any) => featureModal.tab === 'spells'
-      ? { ok: canCharacterUseSpell(item, currentCharacter), reasons: ['Non disponibile per classe o livello'] }
-      : featureModal.tab === 'talenti'
+    const eligibility = (item: any) => {
+      if (featureModal.tab === 'spells') {
+        const res = spellBudget.check(item);
+        return { ok: res.eligible, reasons: [res.reason || 'Non ammesso per classe o livello'] };
+      }
+      return featureModal.tab === 'talenti'
         ? checkFeatPrerequisites(item.prerequisite, currentCharacter)
         : checkInvocationPrerequisites(item.prerequisite, currentCharacter);
+    };
+    /** Se l'elemento si può aggiungere ora (manuale + limiti). Quelli già scelti si possono sempre togliere. */
+    const availability = (item: any, isSelected: boolean): { ok: boolean; reasons: string[] } => {
+      if (isSelected) return { ok: true, reasons: [] };
+      if (featureModal.tab === 'spells') {
+        const res = spellBudget.check(item);
+        return { ok: res.ok, reasons: res.reason ? [res.reason] : [] };
+      }
+      const res = eligibility(item);
+      if (!res.ok) return res;
+      if (featureModal.tab === 'invocazioni' && invocationBudget.full) return { ok: false, reasons: ['Limite di suppliche raggiunto'] };
+      return { ok: true, reasons: [] };
+    };
     const filteredData = base
       .filter((item: any) => (item.name || '').toLowerCase().includes(featureSearch.toLowerCase()) || (item.displayName && item.displayName.toLowerCase().includes(featureSearch.toLowerCase())))
       .filter((item: any) => showIneligible || eligibility(item).ok || ((currentCharacter as any)[listNameForTab] || []).includes(item.name))
@@ -218,7 +237,9 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                 <X className="w-5 h-5" />
              </button>
          </div>
-          <div className="p-4 border-b border-border bg-panel-bg shrink-0">
+          <div className="p-4 border-b border-border bg-panel-bg shrink-0 space-y-3">
+             {featureModal.tab === 'spells' && renderSpellBudget()}
+             {featureModal.tab === 'invocazioni' && <div className={`max-w-3xl mx-auto text-[10px] font-black uppercase tracking-widest ${invocationBudget.over ? 'text-danger' : 'text-text-muted'}`}>Suppliche {invocationBudget.used}/{invocationBudget.max}</div>}
              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-3xl mx-auto">
              <div className="relative flex-1">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
@@ -232,7 +253,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
              </div>
              <label className="flex items-center gap-2 text-[10px] text-text-muted cursor-pointer whitespace-nowrap">
                <input type="checkbox" checked={showIneligible} onChange={e => setShowIneligible(e.target.checked)} className="accent-accent" />
-               Mostra non disponibili
+               Mostra non ammessi
              </label>
              {featureModal.tab === 'spells' && (
                <select value={featureLevelFilter} onChange={e => setFeatureLevelFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="bg-card-bg border border-border rounded px-4 py-3 text-xs text-text-primary">
@@ -248,12 +269,15 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                  const listName = featureModal.tab === 'spells' ? 'spells' : (featureModal.tab === 'talenti' ? 'feats' : 'invocations');
                  const currentList = (currentCharacter as any)[listName] || [];
                  const isSelected = currentList.includes(item.name);
-                 const check = eligibility(item);
+                 const check = availability(item, isSelected);
+                 const isExcess = featureModal.tab === 'spells' && spellBudget.excess.includes(item.name);
 
                  return (
                    <button
                      key={item.name + idx}
+                     disabled={!check.ok}
                      onClick={() => {
+                        if (!check.ok) return;
                         let newList;
                         if (isSelected) {
                           newList = currentList.filter((n: string) => n !== item.name);
@@ -263,7 +287,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                         handleUpdate({ [listName]: newList });
                      }}
                      className={`group relative p-6 rounded-lg border text-left transition-all duration-300 ${
-                       isSelected ? 'border-accent bg-accent/5 ring-1 ring-accent/20' : 'border-border bg-card-bg hover:border-text-muted'
+                       isExcess ? 'border-danger bg-danger/5 ring-1 ring-danger/30' : isSelected ? 'border-accent bg-accent/5 ring-1 ring-accent/20' : check.ok ? 'border-border bg-card-bg hover:border-text-muted' : 'border-border bg-card-bg opacity-50 cursor-not-allowed'
                      }`}
                    >
                      <div className="flex justify-between items-start mb-4">
@@ -276,6 +300,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                            )}
                            {item.prerequisite && <div className="text-[10px] text-accent/60 italic mt-1 font-medium">{item.prerequisite}</div>}
                            {!check.ok && <div className="text-[10px] text-danger mt-1 flex items-center gap-1"><Lock className="w-3 h-3" /> {check.reasons.join(' · ')}</div>}
+                           {isExcess && <div className="text-[10px] text-danger mt-1 font-bold">In eccesso: tocca per rimuovere</div>}
                         </div>
                         {isSelected ? (
                           <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-bg">
@@ -331,12 +356,26 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   const spellLevelLabel = (level?: number) => (level === 0 ? 'Trucchetto' : level ? `Livello ${level}` : '');
 
   const knownSpellDetails = currentCharacter.spells.map(name => ({ name, details: getSpellDetails(name) }));
-  const cantripCount = knownSpellDetails.filter(s => s.details?.level === 0).length;
-  const leveledCount = knownSpellDetails.filter(s => (s.details?.level ?? 1) > 0).length;
-  const maxCantrips = math.spellcasting.reduce((acc, c) => acc + c.cantrips, 0);
-  const maxPrepared = math.spellcasting.reduce((acc, c) => acc + c.prepared, 0);
   const invocationsKnown = getInvocationsKnown(currentCharacter);
   const subclassSpells = Array.from(new Set(Object.values(classLevels).flatMap(c => getSubclassSpells(c.subclass, c.level))));
+  const spellBudget = getSpellBudget(currentCharacter, homebrew.spells);
+  const invocationBudget = getInvocationBudget(currentCharacter);
+  const renderSpellBudget = () => spellBudget.isCaster ? (
+    <div className="max-w-3xl mx-auto space-y-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-widest text-text-muted">
+        <span className={spellBudget.cantrips.used > spellBudget.cantrips.max ? 'text-danger' : ''}>Trucchetti {spellBudget.cantrips.used}/{spellBudget.cantrips.max}</span>
+        <span className={spellBudget.leveled.used > spellBudget.leveled.max ? 'text-danger' : ''}>Preparati {spellBudget.leveled.used}/{spellBudget.leveled.max}</span>
+        {spellBudget.pools.length > 2 && spellBudget.pools.map(pool => (
+          <span key={pool.id} className="normal-case font-semibold tracking-normal">{pool.label} · {pool.kind === 'cantrip' ? 'trucchetti' : `fino al ${pool.maxLevel}°`} {pool.used}/{pool.capacity}</span>
+        ))}
+      </div>
+      {spellBudget.excess.length > 0 && (
+        <p className="text-xs text-danger border border-danger/40 bg-danger/10 px-3 py-2">Hai più incantesimi di quanti ne consenta il manuale (o alcuni non sono più ammessi): rimuovi quelli evidenziati in rosso. Finché non lo fai non puoi aggiungerne altri.</p>
+      )}
+    </div>
+  ) : (
+    <p className="max-w-3xl mx-auto text-xs text-text-muted">Il personaggio non ha privilegi da incantatore: gli incantesimi arrivano da classi incantatrici o da talenti come Iniziato alla Magia.</p>
+  );
   const proficiencies = getProficiencySummary(currentCharacter);
   const editList = (field: 'languages' | 'toolProficiencies', value: string, add: boolean) => {
     const list = currentCharacter[field] || [];
@@ -396,12 +435,15 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
           <button onClick={() => handleUpdate({ concentratingOn: '' })} className="secondary-action !py-1 !px-2">Termina</button>
         </div>
       )}
+      {spellBudget.excess.length > 0 && (
+        <p className="text-xs text-danger border border-danger/40 bg-danger/10 px-3 py-2">Hai più incantesimi di quanti ne consenta il manuale per il tuo livello (o alcuni non sono più ammessi): rimuovi quelli evidenziati.</p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-lg font-serif font-bold text-accent">Incantesimi conosciuti e preparati</h4>
         <div className="flex items-center gap-4">
-          {math.spellcasting.length > 0 && (
-            <span className={`text-[10px] font-black uppercase tracking-widest ${cantripCount > maxCantrips || leveledCount > maxPrepared ? 'text-danger' : 'text-text-muted'}`}>
-              Trucchetti {cantripCount}/{maxCantrips} · Preparati {leveledCount}/{maxPrepared}
+          {spellBudget.isCaster && (
+            <span className={`text-[10px] font-black uppercase tracking-widest ${spellBudget.excess.length ? 'text-danger' : 'text-text-muted'}`}>
+              Trucchetti {spellBudget.cantrips.used}/{spellBudget.cantrips.max} · Preparati {spellBudget.leveled.used}/{spellBudget.leveled.max}
             </span>
           )}
           <button onClick={() => setFeatureModal({ isOpen: true, tab: 'spells' })} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-accent transition-colors">
@@ -413,9 +455,10 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
         {knownSpellDetails.length > 0 ? [...knownSpellDetails]
           .sort((a, b) => (a.details?.level ?? 99) - (b.details?.level ?? 99) || (a.details?.name || a.name).localeCompare(b.details?.name || b.name, 'it'))
           .map(({ name, details }) => (
-          <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-start group">
+          <div key={name} className={`bg-card-bg border rounded p-4 flex justify-between items-start group ${spellBudget.excess.includes(name) ? 'border-danger' : 'border-border'}`}>
             <div className="flex flex-col flex-1 min-w-0">
               <span className="font-bold text-sm">{details?.displayName || details?.name || name}</span>
+              {spellBudget.excess.includes(name) && <span className="text-[9px] text-danger uppercase font-black tracking-normal">Oltre il limite del manuale o non più ammesso</span>}
               {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-normal">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
               {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
             </div>

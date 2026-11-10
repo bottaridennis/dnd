@@ -9,12 +9,15 @@ import {
   ABILITIES, ABILITY_NAMES, canMulticlassInto, getClassLevels, getFinalScores, getHpGainForLevel, getModifiers, getTotalLevel,
 } from '../lib/characterRules';
 import { checkFeatPrerequisites } from '../lib/featEligibility';
+import { getSpellPools } from '../lib/spellBudget';
 
 export interface LevelUpChoice {
   classId: string;
   hpGain: number;
   abilityIncrease?: Partial<Record<Ability, number>>;
   feat?: string;
+  /** il nuovo livello concede trucchetti o incantesimi da scegliere */
+  spellGain?: boolean;
 }
 
 interface LevelUpModalProps {
@@ -62,6 +65,21 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
     }
   };
 
+  // Incantesimi: confronto tra le riserve attuali e quelle dopo l'avanzamento (tabelle del PHB 2024)
+  const spellSummary = (() => {
+    if (!selectedClass) return null;
+    const after: CharacterData = { ...character, level: totalLevel + 1, classes: { ...classLevels, [selectedClass]: { ...(classLevels[selectedClass] || {}), level: nextClassLevel } } };
+    const sum = (pools: ReturnType<typeof getSpellPools>, kind: 'cantrip' | 'leveled') => pools.filter(p => p.kind === kind).reduce((a, p) => a + p.capacity, 0);
+    const maxLevel = (pools: ReturnType<typeof getSpellPools>) => Math.max(0, ...pools.filter(p => p.kind === 'leveled' && !p.id.startsWith('mi-')).map(p => p.maxLevel));
+    const before = getSpellPools(character);
+    const next = getSpellPools(after);
+    const cantrips = sum(next, 'cantrip') - sum(before, 'cantrip');
+    const prepared = sum(next, 'leveled') - sum(before, 'leveled');
+    const newLevel = maxLevel(next) > maxLevel(before) ? maxLevel(next) : 0;
+    if (!cantrips && !prepared && !newLevel) return null;
+    return { cantrips, prepared, newLevel, totalCantrips: sum(next, 'cantrip'), totalPrepared: sum(next, 'leveled') };
+  })();
+
   const asiReady = !needsAsi || (mode === 'asi' ? asiPicks.length === 2 || ABILITIES.every(a => scores[a] + (asiIncrease[a] || 0) >= 20) : Boolean(featName));
 
   const confirm = () => {
@@ -71,6 +89,7 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
       hpGain: getHpGainForLevel(character, selectedClass, mods.CON),
       abilityIncrease: needsAsi && mode === 'asi' ? asiIncrease : undefined,
       feat: needsAsi && mode === 'feat' ? featName : undefined,
+      spellGain: Boolean(spellSummary && (spellSummary.cantrips > 0 || spellSummary.prepared > 0 || spellSummary.newLevel)),
     });
     reset();
   };
@@ -149,6 +168,18 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
                 <div className="p-4 bg-card-bg border border-border rounded-lg">
                   <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">Nuovi privilegi</div>
                   <ul className="text-sm text-text-primary list-disc pl-5 space-y-1">{CLASS_FEATURES[selectedClass][nextClassLevel].map(f => <li key={f}>{f}</li>)}</ul>
+                </div>
+              )}
+
+              {spellSummary && (
+                <div className="p-4 bg-card-bg border border-border rounded-lg">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">Incantesimi</div>
+                  <ul className="text-sm text-text-primary list-disc pl-5 space-y-1">
+                    {spellSummary.cantrips > 0 && <li>+{spellSummary.cantrips} trucchett{spellSummary.cantrips === 1 ? 'o' : 'i'} (totale {spellSummary.totalCantrips})</li>}
+                    {spellSummary.prepared > 0 && <li>+{spellSummary.prepared} incantesim{spellSummary.prepared === 1 ? 'o preparato' : 'i preparati'} (totale {spellSummary.totalPrepared})</li>}
+                    {spellSummary.newLevel > 0 && <li>Accesso agli incantesimi di {spellSummary.newLevel}° livello</li>}
+                  </ul>
+                  <p className="text-[10px] text-text-muted mt-2">Dopo la conferma si apre la scelta degli incantesimi, limitata alla tua lista e al tuo livello.</p>
                 </div>
               )}
 
