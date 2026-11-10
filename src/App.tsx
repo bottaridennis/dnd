@@ -151,11 +151,7 @@ function AppContent() {
 
       <main className="flex-1 w-full relative">
         {view === 'wizard' && <CharacterWizard onComplete={() => setView('dashboard')} onCancel={() => setView('dashboard')} />}
-        {view === 'homebrew' && (
-          <div className="p-4 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <HomebrewCreator />
-          </div>
-        )}
+        {view === 'homebrew' && <HomebrewCreator />}
         {view === 'campaigns' && <CampaignManager />}
         {view === 'sheet' && <CharacterSheet onBack={() => setView('dashboard')} />}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}

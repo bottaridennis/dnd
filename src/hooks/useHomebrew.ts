@@ -71,6 +71,8 @@ export function useHomebrew() {
     spells: allSpells,
     weapons: allWeapons,
     feats: allFeats,
+    /** Solo i contenuti creati dall'utente */
+    custom: homebrewData,
     loading,
     refresh: async () => {
       if (user) {

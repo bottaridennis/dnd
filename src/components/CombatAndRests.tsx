@@ -120,21 +120,19 @@ export default function CombatAndRests() {
   const totalDice = math.hitDice.reduce((acc, p) => acc + p.total, 0);
 
   return (
-    <div className="bg-panel-bg p-6 md:p-8 border border-border rounded-lg space-y-6 shadow-inner animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center gap-3">
-          <ShieldAlert className="w-5 h-5 text-accent" />
-          <h3 className="text-sm font-black uppercase tracking-widest text-text-muted">Combattimento e Riposi</h3>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={shortRest} className="flex items-center gap-2 px-4 py-2 bg-card-bg border border-border rounded text-[10px] font-black uppercase text-accent hover:border-accent transition-colors">
+    <section className="sheet-section">
+      <div className="sheet-section-title">
+        <ShieldAlert className="w-3.5 h-3.5" /> Punti ferita e riposi
+        <div className="ml-auto flex gap-2">
+          <button onClick={shortRest} className="secondary-action !py-1.5 !px-3 flex items-center gap-1.5">
             <Tent className="w-4 h-4" /> Riposo Breve
           </button>
-          <button onClick={longRest} className="flex items-center gap-2 px-4 py-2 bg-accent text-bg border border-accent rounded text-[10px] font-black uppercase shadow-lg transition-all">
+          <button onClick={longRest} className="primary-action py-1.5 px-3 flex items-center gap-1.5">
             <Moon className="w-4 h-4" /> Riposo Lungo
           </button>
         </div>
       </div>
+      <div className="p-4 space-y-5">
 
       {currentCharacter.concentratingOn && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs border border-accent bg-accent/10 px-4 py-2">
@@ -302,6 +300,7 @@ export default function CombatAndRests() {
           )}
         </AnimatePresence>
       </div>
-    </div>
+      </div>
+    </section>
   );
 }

@@ -54,19 +54,17 @@ export default function ConditionTracker() {
   };
 
   return (
-    <div className="bg-panel-bg border border-border rounded-xl p-6 shadow-sm space-y-8">
-      <div className="flex items-center justify-between border-b border-border pb-4">
-        <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Condizioni ed Esaurimento</h3>
-        </div>
+    <section className="sheet-section">
+      <div className="sheet-section-title">
+        <Activity className="w-3.5 h-3.5" /> Condizioni ed esaurimento
         {exhaustion > 0 && (
-           <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">
+           <div className="ml-auto flex items-center gap-2 px-2 py-0.5 bg-danger/10 border border-danger/30 text-[10px] font-black text-danger uppercase tracking-wider">
              <AlertCircle className="w-3 h-3" />
-             Malus: -{exhaustion * 2} d20 / -{exhaustion * 1.5}m Speed
+             −{exhaustion * 2} ai d20 · −{exhaustion * 1.5} m
            </div>
         )}
       </div>
+      <div className="p-4">
 
       <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
         {/* Tracker Esaurimento */}
@@ -120,7 +118,8 @@ export default function ConditionTracker() {
           })}
         </div>
       </div>
-    </div>
+      </div>
+    </section>
   );
 }
 

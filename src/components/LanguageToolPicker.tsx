@@ -7,6 +7,7 @@ import {
   getClassToolChoices, getFixedClassTools, getFixedLanguages, getLanguageChoices,
 } from '../data/languages';
 import { getClassLevels } from '../lib/characterRules';
+import { Section, ToggleChip, Counter } from './ui';
 
 /** Requisiti di scelta di lingue e strumenti per il personaggio in creazione. */
 export function getOriginChoiceRequirements(character: Parameters<typeof getClassLevels>[0] & { backgroundId?: string }) {
@@ -40,38 +41,27 @@ export default function LanguageToolPicker() {
   };
 
   const chip = (value: string, selected: boolean, disabled: boolean, onClick: () => void) => (
-    <button key={value} type="button" onClick={onClick} disabled={disabled}
-      className={`px-3 py-1.5 border text-sm transition-colors ${selected ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-border bg-card-bg hover:border-accent'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
-      {value}
-    </button>
+    <ToggleChip key={value} selected={selected} disabled={disabled} onClick={onClick}>{value}</ToggleChip>
   );
 
   return (
-    <div className="space-y-8">
-      <section className="bg-panel-bg border border-border p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="font-serif text-lg flex items-center gap-2"><Languages className="w-4 h-4 text-accent" /> Lingue</h4>
-          <span className="text-[11px] uppercase font-bold tracking-widest text-accent">{languages.length}/{req.languageCount} a scelta</span>
-        </div>
-        <p className="text-sm text-text-muted">Conosci già: <strong>{req.fixedLanguages.join(', ')}</strong>. Scegli {req.languageCount} lingue (di solito tra quelle standard; le rare con il permesso del DM).</p>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Section title="Lingue" icon={Languages} actions={<Counter value={languages.length} max={req.languageCount} label="a scelta" />} bodyClassName="p-4 space-y-3">
+        <p className="text-sm text-text-muted">Conosci già: <strong className="text-text-primary">{req.fixedLanguages.join(', ')}</strong>. Scegli tra le lingue standard; le rare con il permesso del Master.</p>
         <div className="flex flex-wrap gap-2">
           {STANDARD_LANGUAGES.filter(l => !req.fixedLanguages.includes(l)).map(l => chip(l, languages.includes(l), !languages.includes(l) && languages.length >= req.languageCount, () => toggle('languages', l, req.languageCount)))}
         </div>
-        <details>
-          <summary className="cursor-pointer text-xs uppercase tracking-widest text-text-muted">Lingue rare</summary>
+        <details className="group">
+          <summary className="cursor-pointer text-xs uppercase font-bold tracking-wider text-text-muted font-serif hover:text-text-primary">Lingue rare</summary>
           <div className="flex flex-wrap gap-2 mt-3">
             {RARE_LANGUAGES.filter(l => !req.fixedLanguages.includes(l)).map(l => chip(l, languages.includes(l), !languages.includes(l) && languages.length >= req.languageCount, () => toggle('languages', l, req.languageCount)))}
           </div>
         </details>
-      </section>
+      </Section>
 
-      <section className="bg-panel-bg border border-border p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="font-serif text-lg flex items-center gap-2"><Wrench className="w-4 h-4 text-accent" /> Strumenti</h4>
-          {req.toolCount > 0 && <span className="text-[11px] uppercase font-bold tracking-widest text-accent">{tools.length}/{req.toolCount} a scelta</span>}
-        </div>
+      <Section title="Strumenti" icon={Wrench} actions={req.toolCount > 0 ? <Counter value={tools.length} max={req.toolCount} label="a scelta" /> : undefined} bodyClassName="p-4 space-y-3">
         <p className="text-sm text-text-muted">
-          {req.fixedTools.length ? <>Competenze già ottenute: <strong>{req.fixedTools.join(', ')}</strong>. </> : null}
+          {req.fixedTools.length ? <>Già ottenuti: <strong className="text-text-primary">{req.fixedTools.join(', ')}</strong>. </> : null}
           {req.toolCount > 0 ? `Scegli ${req.toolLabel}.` : 'Nessuna scelta richiesta.'}
         </p>
         {req.toolCount > 0 && (
@@ -79,7 +69,7 @@ export default function LanguageToolPicker() {
             {req.toolOptions.filter(t => !req.fixedTools.includes(t)).map(t => chip(t, tools.includes(t), !tools.includes(t) && tools.length >= req.toolCount, () => toggle('toolProficiencies', t, req.toolCount)))}
           </div>
         )}
-      </section>
+      </Section>
     </div>
   );
 }

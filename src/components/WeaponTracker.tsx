@@ -76,11 +76,10 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
   return (
     <div className="space-y-8">
       {/* Attacchi */}
-      <div className="bg-card-bg border border-border rounded-lg overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-          <Crosshair className="w-4 h-4 text-accent" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">Attacchi con le armi</h3>
-          <span className="ml-auto text-[9px] font-black uppercase text-text-muted">Clicca per tirare</span>
+      <div className="sheet-section overflow-hidden">
+        <div className="sheet-section-title">
+          <Crosshair className="w-3.5 h-3.5" /> Attacchi
+          <span className="ml-auto text-[10px] normal-case tracking-normal font-sans font-normal">Clicca colpire o danni per tirare</span>
         </div>
         {math.attacks.length > 0 ? (
           <div className="divide-y divide-border/40">
@@ -120,12 +119,12 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
       </div>
 
       {/* Maestrie */}
-      <div className="bg-card-bg border border-border rounded-lg p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <Sword className="w-4 h-4 text-accent" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">Maestria nelle Armi</h3>
+      <div className="sheet-section">
+        <div className="sheet-section-title">
+          <Sword className="w-3.5 h-3.5" /> Maestria nelle armi
           <span className={`ml-auto text-[10px] font-black uppercase ${masteredCount > masteryLimit ? 'text-danger' : 'text-accent'}`}>{masteredCount} / {masteryLimit}</span>
         </div>
+        <div className="p-4 space-y-4">
         {masteryLimit === 0 && <p className="text-xs text-text-muted">Le tue classi non concedono la Maestria nelle Armi (Barbaro, Guerriero, Paladino, Ranger e Ladro la ottengono al 1° livello; il talento Maestro d’Armi ne aggiunge una).</p>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -192,15 +191,15 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Resistances, Immunities & Vulnerabilities Panel */}
-      <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
-        <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-primary" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Difese Speciali</h3>
+      <div className="sheet-section overflow-hidden">
+        <div className="sheet-section-title">
+          <ShieldCheck className="w-3.5 h-3.5" /> Resistenze, immunità e vulnerabilità
         </div>
-        <div className="p-6">
+        <div className="p-4">
           <div className="flex bg-bg rounded border border-border p-1 w-full max-w-sm mb-6 mx-auto sm:mx-0 overflow-x-auto no-scrollbar">
              <button 
                onClick={() => setActiveDefTab('res')}

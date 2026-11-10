@@ -3,6 +3,7 @@ import {
   collection, 
   doc, 
   addDoc, 
+  deleteDoc,
   getDocs, 
   query, 
   serverTimestamp,
@@ -63,6 +64,15 @@ export const homebrewService = {
       return docRef.id;
     } catch (error) {
       handleHomebrewError(error, OperationType.WRITE, path);
+    }
+  },
+
+  async deleteHomebrewItem(userId: string, itemType: HomebrewType, id: string) {
+    const subCollection = itemType === 'spell' ? 'homebrewSpells' : itemType === 'weapon' ? 'homebrewWeapons' : 'homebrewFeats';
+    try {
+      await deleteDoc(doc(db, 'users', userId, subCollection, id));
+    } catch (error) {
+      handleHomebrewError(error, OperationType.DELETE, `users/${userId}/${subCollection}/${id}`);
     }
   },
 

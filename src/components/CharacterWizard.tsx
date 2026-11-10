@@ -4,7 +4,30 @@ import { useCharacter, initialCharacter, CharacterData, Ability } from '../conte
 import { useAuth } from '../contexts/AuthContext';
 import { characterService } from '../services/characterService';
 import { classesData, speciesData, backgroundsData, ALL_SKILLS, ORIGIN_FEATS } from '../data/rules2024';
-import { ChevronRight, ChevronLeft, Save, Loader2, Dices } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, Save, Loader2, Dices, Check, Target, Users, ScrollText, Sword, Axe, Music, Sun, Leaf, Hand, ShieldPlus, Crosshair, VenetianMask, Flame, Eye, BookOpen,
+} from 'lucide-react';
+import { Section, OptionCard, Tag, ToggleChip, StepHeader, Counter } from './ui';
+
+const CLASS_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  barbarian: Axe, bard: Music, cleric: Sun, druid: Leaf, fighter: Sword, monk: Hand,
+  paladin: ShieldPlus, ranger: Crosshair, rogue: VenetianMask, sorcerer: Flame, warlock: Eye, wizard: BookOpen,
+};
+
+const CLASS_BLURBS: Record<string, string> = {
+  barbarian: 'Guerriero primordiale che combatte in preda all’Ira.',
+  bard: 'Artista che intreccia magia, ispirazione e versatilità.',
+  cleric: 'Sacerdote che incanala il potere della propria divinità.',
+  druid: 'Custode della natura capace di mutare forma.',
+  fighter: 'Maestro delle armi e delle armature in ogni mischia.',
+  monk: 'Artista marziale che usa il Focus e la velocità.',
+  paladin: 'Campione sacro legato a un giuramento.',
+  ranger: 'Esploratore e cacciatore con magia della natura.',
+  rogue: 'Specialista furtivo, abile e letale con l’Attacco Furtivo.',
+  sorcerer: 'Incantatore con magia innata e Metamagia.',
+  warlock: 'Incantatore che ha stretto un patto con un’entità.',
+  wizard: 'Studioso della magia arcana con un libro di incantesimi.',
+};
 import AbilityScoresStep, { validateAbilityScores } from './AbilityScoresStep';
 import { getOriginChoiceRequirements } from './LanguageToolPicker';
 import { STANDARD_LANGUAGES } from '../data/languages';
@@ -210,192 +233,140 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     const picks = getClassSkillPicks();
     const limitReached = picks.length >= charClass.skillChoices;
     return (
-      <div className="p-8 bg-panel-bg border border-border rounded-lg animate-in fade-in duration-300">
-        <h4 className="text-lg font-black text-text-primary mb-2">Competenze di Classe</h4>
-        <p className="text-sm text-text-muted mb-6">
-          Scegli <strong className="text-accent">{charClass.skillChoices}</strong> abilità tra le seguenti opzioni ({picks.length}/{charClass.skillChoices}).
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <Section title={`Competenze di classe · ${charClass.name}`} icon={Target} actions={<Counter value={picks.length} max={charClass.skillChoices} label="scelte" />}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {charClass.skillOptions.map(skill => {
             const isSelected = picks.includes(skill);
             const isFromBg = bgSkills.includes(skill);
             const isFromSpecies = (currentCharacter.speciesSkills || []).includes(skill);
             const locked = isFromBg || isFromSpecies;
             return (
-              <label
+              <ToggleChip
                 key={skill}
-                className={`flex items-center justify-between p-2.5 rounded border transition-all cursor-pointer ${
-                  isSelected || locked ? 'bg-accent/10 border-accent/50 text-accent' :
-                  limitReached ? 'opacity-50 cursor-not-allowed bg-card-bg border-border text-text-muted' :
-                  'bg-card-bg border-border text-text-primary hover:border-text-muted'
-                }`}
+                selected={isSelected || locked}
+                disabled={locked || (limitReached && !isSelected)}
+                onClick={() => {
+                  const current = currentCharacter.proficientSkills || [];
+                  dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: isSelected ? current.filter(s => s !== skill) : [...current, skill] } });
+                }}
               >
-                <div className="flex items-center gap-2.5 truncate">
-                  <input
-                    type="checkbox"
-                    className="accent-accent shrink-0"
-                    checked={isSelected || locked}
-                    disabled={(limitReached && !isSelected) || locked}
-                    onChange={(e) => {
-                      const current = currentCharacter.proficientSkills || [];
-                      dispatch({ type: 'UPDATE_CHARACTER', payload: { proficientSkills: e.target.checked ? [...current, skill] : current.filter(s => s !== skill) } });
-                    }}
-                  />
-                  <span className="text-[11px] font-bold uppercase tracking-wider truncate">{skill}</span>
-                </div>
-                {isFromBg && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">DAL BG</span>}
-                {isFromSpecies && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 whitespace-nowrap ml-2">SPECIE</span>}
-              </label>
+                <span className="truncate">{skill}</span>
+                {isFromBg && <span className="text-[9px] uppercase opacity-70">· background</span>}
+                {isFromSpecies && <span className="text-[9px] uppercase opacity-70">· specie</span>}
+              </ToggleChip>
             );
           })}
         </div>
-      </div>
+      </Section>
     );
   };
 
   if (!currentCharacter) return null;
 
+  const currentSpecies = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
+  const currentClass = classesData.find(c => c.id === currentCharacter.classId);
+
   const renderStep = () => {
     switch (currentStep) {
       case 0:
         return (
-          <div className="space-y-12 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {classesData.map(cls => (
-                <button
-                  key={cls.id}
-                  onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {}, toolProficiencies: [], languages: [] } })}
-                  className={`group p-8 rounded border text-left transition-all duration-300 ${
-                    currentCharacter.classId === cls.id 
-                      ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
-                      : 'border-border bg-card-bg hover:border-text-muted hover:bg-panel-bg'
-                  }`}
-                >
-                  <div className={`text-2xl font-serif font-black mb-1 transition-colors ${currentCharacter.classId === cls.id ? 'text-accent' : 'text-text-primary'}`}>
-                    {cls.name}
-                  </div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-[9px] font-mono font-black px-2 py-0.5 bg-bg rounded-sm text-text-muted border border-border tracking-widest uppercase">Dado Vita d{cls.hitDie}</span>
-                  </div>
-                  <p className="text-[10px] text-text-muted leading-relaxed uppercase tracking-[0.15em] font-black">Tiri Salvezza: <span className="text-text-primary">{cls.saves.map(a => abilityMap[a] || a).join(', ')}</span></p>
-                </button>
-              ))}
+          <div className="space-y-6">
+            <StepHeader eyebrow="Capitolo 1" title="Scegli la classe" description="La classe definisce il tuo ruolo nel gruppo: come combatti, quale magia usi e quali competenze ottieni." />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {classesData.map(cls => {
+                const Icon = CLASS_ICONS[cls.id] || Sword;
+                const primary = cls.multiclassReq;
+                return (
+                  <OptionCard
+                    key={cls.id}
+                    selected={currentCharacter.classId === cls.id}
+                    onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {}, toolProficiencies: [], languages: [] } })}
+                    title={<span className="flex items-center gap-2"><Icon className="w-5 h-5 text-accent shrink-0" />{cls.name}</span>}
+                    subtitle={CLASS_BLURBS[cls.id]}
+                    meta={<>
+                      <Tag tone="accent">d{cls.hitDie}</Tag>
+                      <Tag title="Caratteristica principale">{primary.map(a => abilityMap[a] || a).join(cls.multiclassAny ? ' o ' : ' + ')}</Tag>
+                      <Tag title="Tiri salvezza">TS {cls.saves.map(a => abilityMap[a] || a).join(', ')}</Tag>
+                      {cls.spellcastingAbility && <Tag>Incantatore</Tag>}
+                    </>}
+                  />
+                );
+              })}
             </div>
-
-            {currentCharacter.classId && renderClassSkillPicker()}
+            {currentClass && renderClassSkillPicker()}
           </div>
         );
       case 1:
         return (
-          <div className="space-y-16 animate-in fade-in duration-500">
-            <section>
-              <div className="flex items-center gap-4 mb-8">
-                 <div className="h-px flex-1 bg-border" />
-                 <h3 className="text-sm font-black uppercase text-text-muted tracking-[0.3em]">Specie</h3>
-                 <div className="h-px flex-1 bg-border" />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {speciesData.map(sp => (
-                  <button
+          <div className="space-y-8">
+            <StepHeader eyebrow="Capitolo 2" title="Origine" description="Specie e background: da dove vieni e cosa facevi prima dell'avventura. Il background assegna aumenti di caratteristica, abilità e un Talento d'Origine." />
+
+            <Section title="Specie" icon={Users} bodyClassName="p-4 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                {speciesData.map((sp: any) => (
+                  <OptionCard
                     key={sp.id}
+                    selected={currentCharacter.speciesId === sp.id}
                     onClick={() => sp.id !== currentCharacter.speciesId && dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesId: sp.id, speciesSubOption: '', speciesSkills: [], bonusOriginFeat: '' } })}
-                    className={`p-6 rounded border text-center transition-all duration-300 ${
-                      currentCharacter.speciesId === sp.id 
-                        ? 'border-accent bg-accent/5 shadow-sm' 
-                        : 'border-border bg-card-bg hover:border-text-muted'
-                    }`}
-                  >
-                    <span className={`text-[11px] font-black tracking-widest uppercase ${currentCharacter.speciesId === sp.id ? 'text-accent' : 'text-text-primary'}`}>
-                      {sp.name}
-                    </span>
-                    <div className="text-[9px] text-text-muted font-mono mt-1 font-bold tracking-normal">{sp.speed}m Velocità</div>
-                  </button>
+                    title={sp.name}
+                    subtitle={`${sp.size} · ${sp.speed} m${sp.darkvision ? ` · Scurov. ${sp.darkvision} m` : ''}`}
+                    className="!p-3"
+                  />
                 ))}
               </div>
 
-              {/* Species Sub-Option Selection (PHB 2024 Lineages) */}
-              {(() => {
-                const currentSp = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
-                if (currentSp && currentSp.subOptions) {
-                  return (
-                    <div className="mt-8 p-8 bg-card-bg border border-accent/20 rounded-xl animate-in slide-in-from-top-4 duration-500">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-accent/10 rounded-lg">
-                          <ChevronRight className="w-5 h-5 text-accent" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-serif font-black text-text-primary uppercase tracking-normal">Scegli il tuo Lignaggio</h4>
-                          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Opzioni specifiche per la specie {currentSp.name}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {currentSp.subOptions.map((opt: any) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSubOption: opt.id } })}
-                            className={`p-5 rounded-lg border text-left transition-all duration-300 relative group overflow-hidden ${
-                              currentCharacter.speciesSubOption === opt.id 
-                                ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
-                                : 'border-border bg-panel-bg hover:border-text-muted hover:bg-bg'
-                            }`}
-                          >
-                            {currentCharacter.speciesSubOption === opt.id && (
-                              <div className="absolute top-0 right-0 p-1.5 bg-accent text-bg rounded-bl-lg">
-                                <ChevronRight className="w-3 h-3" />
-                              </div>
-                            )}
-                            <div className={`text-sm font-black mb-1.5 transition-colors ${currentCharacter.speciesSubOption === opt.id ? 'text-accent' : 'text-text-primary'}`}>
-                              {opt.name}
-                            </div>
-                            <div className="text-[9px] text-text-muted font-bold uppercase tracking-wider line-clamp-2">
-                              {opt.spells && `Trucchetti: ${opt.spells.join(', ')}`}
-                              {opt.resistance && `Resistenza: ${opt.resistance}`}
-                              {opt.damageType && `Elemento: ${opt.damageType}`}
-                              {opt.feature && `Privilegio: ${opt.feature}`}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              {/* Species Skill Selection (Umano: Abile; Elfo: Sensi Acuti) */}
-              {(() => {
-                const currentSp = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
-                if (!currentSp?.skillChoices) return null;
+              {currentSpecies && (
+                <div className="border border-border bg-panel-bg rounded-[var(--radius-lg)] p-4">
+                  <div className="text-[10px] uppercase font-bold tracking-widest text-text-muted mb-2 font-serif">Tratti di {currentSpecies.name}</div>
+                  <div className="flex flex-wrap gap-1.5">{currentSpecies.traits.map((t: string) => <Tag key={t}>{t}</Tag>)}</div>
+                </div>
+              )}
+
+              {currentSpecies?.subOptions && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs uppercase font-bold tracking-widest font-serif">Lignaggio</div>
+                    {!currentCharacter.speciesSubOption && <Tag tone="danger">Da scegliere</Tag>}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {currentSpecies.subOptions.map((opt: any) => (
+                      <OptionCard
+                        key={opt.id}
+                        selected={currentCharacter.speciesSubOption === opt.id}
+                        onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSubOption: opt.id } })}
+                        title={opt.name}
+                        className="!p-3"
+                        meta={<>
+                          {opt.spells && <Tag>Incantesimi: {opt.spells.join(', ')}</Tag>}
+                          {opt.resistance && <Tag>Resistenza: {opt.resistance}</Tag>}
+                          {opt.damageType && !opt.resistance && <Tag>Danno: {opt.damageType}</Tag>}
+                          {opt.feature && <Tag>{opt.feature}</Tag>}
+                          {opt.speed && <Tag>Velocità {opt.speed} m</Tag>}
+                        </>}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {currentSpecies?.skillChoices && (() => {
                 const picks = currentCharacter.speciesSkills || [];
                 const taken = [...getBgSkills(), ...getClassSkillPicks()];
                 return (
-                  <div className="mt-8 p-6 bg-panel-bg border border-border rounded-lg animate-in fade-in">
-                    <h4 className="text-sm font-black text-text-primary mb-2">Tratto della Specie: Abilità</h4>
-                    <p className="text-xs text-text-muted mb-4">La tua specie ti concede competenza in <strong>{currentSp.skillChoices}</strong> abilità ({picks.length}/{currentSp.skillChoices}).</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                      {(currentSp.skillOptions as string[]).map(skill => {
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs uppercase font-bold tracking-widest font-serif">{currentSpecies.id === 'human' ? 'Abile: una competenza a scelta' : 'Sensi Acuti: una competenza'}</div>
+                      <Counter value={picks.length} max={currentSpecies.skillChoices} label="scelte" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(currentSpecies.skillOptions as string[]).map(skill => {
                         const isSelected = picks.includes(skill);
-                        const alreadyProficient = taken.includes(skill);
-                        const limitReached = picks.length >= currentSp.skillChoices;
+                        const already = taken.includes(skill);
                         return (
-                          <label key={skill} className={`flex items-center justify-between p-2.5 rounded transition-all cursor-pointer ${
-                            isSelected ? 'bg-accent/10 border border-accent/30 text-accent' :
-                            alreadyProficient || limitReached ? 'opacity-50 cursor-not-allowed bg-card-bg text-text-muted border border-border' :
-                            'bg-card-bg border border-border text-text-primary hover:border-text-muted'
-                          }`}>
-                            <div className="flex items-center gap-2.5 truncate">
-                              <input
-                                type="checkbox"
-                                className="accent-accent shrink-0 w-3 h-3"
-                                checked={isSelected}
-                                disabled={!isSelected && (alreadyProficient || limitReached)}
-                                onChange={(e) => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSkills: e.target.checked ? [...picks, skill] : picks.filter(s => s !== skill) } })}
-                              />
-                              <span className="text-[10px] font-bold uppercase tracking-wider truncate">{skill}</span>
-                            </div>
-                            {alreadyProficient && <span className="text-[8px] bg-border/50 rounded px-1.5 py-0.5 text-text-muted shrink-0 ml-2">GIÀ COMPETENTE</span>}
-                          </label>
+                          <ToggleChip key={skill} selected={isSelected} disabled={!isSelected && (already || picks.length >= currentSpecies.skillChoices)}
+                            onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesSkills: isSelected ? picks.filter(s => s !== skill) : [...picks, skill] } })}>
+                            {skill}{already && <span className="text-[9px] uppercase opacity-70">· già tua</span>}
+                          </ToggleChip>
                         );
                       })}
                     </div>
@@ -403,66 +374,55 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 );
               })()}
 
-              {/* Umano: tratto Versatile (un Talento d'Origine a scelta) */}
               {currentCharacter.speciesId === 'human' && (
-                <div className="mt-6 p-6 bg-panel-bg border border-border rounded-lg animate-in fade-in">
-                  <h4 className="text-sm font-black text-text-primary mb-2">Versatile: Talento d’Origine</h4>
-                  <p className="text-xs text-text-muted mb-4">Gli umani ottengono un Talento d’Origine a scelta (consigliato: Abile).</p>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs uppercase font-bold tracking-widest font-serif">Versatile: Talento d’Origine</div>
+                    {!currentCharacter.bonusOriginFeat && <Tag tone="danger">Da scegliere</Tag>}
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {ORIGIN_FEATS.map(feat => (
-                      <button key={feat} onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { bonusOriginFeat: feat } })} className={`px-3 py-2 rounded border text-[11px] font-bold ${currentCharacter.bonusOriginFeat === feat ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-bg text-text-primary hover:border-text-muted'}`}>
-                        {feat}
-                      </button>
+                      <ToggleChip key={feat} selected={currentCharacter.bonusOriginFeat === feat} onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { bonusOriginFeat: feat } })}>{feat}</ToggleChip>
                     ))}
                   </div>
                 </div>
               )}
-            </section>
+            </Section>
 
-            {currentCharacter.backgroundId && getClassSkillPicks().length < (classesData.find(c => c.id === currentCharacter.classId)?.skillChoices || 0) && renderClassSkillPicker()}
-
-            <section>
-              <div className="flex items-center gap-4 mb-8">
-                 <div className="h-px flex-1 bg-border" />
-                 <h3 className="text-sm font-black uppercase text-text-muted tracking-[0.3em]">Background</h3>
-                 <div className="h-px flex-1 bg-border" />
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Section title="Background" icon={ScrollText}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 {backgroundsData.map(bg => (
-                  <button
+                  <OptionCard
                     key={bg.id}
+                    selected={currentCharacter.backgroundId === bg.id}
                     onClick={() => {
-                        if (bg.id === currentCharacter.backgroundId) return;
-                        // Le abilità del background sostituiscono eventuali scelte di classe/specie coincidenti
-                        dispatch({
-                            type: 'UPDATE_CHARACTER',
-                            payload: {
-                                backgroundId: bg.id,
-                                selectedBoosts: [],
-                                originFeat: bg.feat,
-                                toolProficiencies: [],
-                                proficientSkills: (currentCharacter.proficientSkills || []).filter(s => !bg.skills.includes(s)),
-                                speciesSkills: (currentCharacter.speciesSkills || []).filter(s => !bg.skills.includes(s)),
-                            }
-                        });
+                      if (bg.id === currentCharacter.backgroundId) return;
+                      // Le abilità del background sostituiscono eventuali scelte di classe/specie coincidenti
+                      dispatch({
+                        type: 'UPDATE_CHARACTER',
+                        payload: {
+                          backgroundId: bg.id,
+                          selectedBoosts: [],
+                          originFeat: bg.feat,
+                          toolProficiencies: [],
+                          proficientSkills: (currentCharacter.proficientSkills || []).filter(s => !bg.skills.includes(s)),
+                          speciesSkills: (currentCharacter.speciesSkills || []).filter(s => !bg.skills.includes(s)),
+                        }
+                      });
                     }}
-                    className={`p-8 rounded border text-center transition-all duration-300 flex flex-col items-center justify-center ${
-                      currentCharacter.backgroundId === bg.id 
-                        ? 'border-accent bg-accent/5 ring-1 ring-accent/10' 
-                        : 'border-border bg-card-bg hover:border-text-muted'
-                    }`}
-                  >
-                    <span className={`text-lg font-serif font-bold ${currentCharacter.backgroundId === bg.id ? 'text-accent' : 'text-text-primary'}`}>
-                      {bg.name}
-                    </span>
-                    <div className="w-8 h-0.5 bg-border my-4" />
-                    <p className="text-[10px] text-text-muted uppercase font-black tracking-widest leading-tight">Talento:<br/><span className="text-text-primary">{bg.feat}</span></p>
-                    <p className="text-[9px] text-text-muted mt-2 leading-tight">{bg.skills.join(' · ')}</p>
-                    <p className="text-[9px] text-accent/80 mt-1 font-mono">{bg.boosts.map(b => abilityMap[b] || b).join(' / ')}</p>
-                  </button>
+                    title={bg.name}
+                    subtitle={bg.skills.join(' · ')}
+                    className="!p-3"
+                    meta={<>
+                      <Tag tone="accent">{bg.feat}</Tag>
+                      <Tag title="Caratteristiche che puoi aumentare">{bg.boosts.map(b => abilityMap[b] || b).join(' / ')}</Tag>
+                    </>}
+                  />
                 ))}
               </div>
-            </section>
+            </Section>
+
+            {currentCharacter.backgroundId && getClassSkillPicks().length < (currentClass?.skillChoices || 0) && renderClassSkillPicker()}
           </div>
         );
       case 2:
@@ -480,145 +440,69 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     }
   };
 
+  const issue = stepIssue();
+  const isLast = currentStep === STEPS.length - 1;
 
   return (
-    <div className="flex flex-col absolute inset-0 overflow-hidden bg-bg font-sans">
-      {/* Header */}
-      <header className="hidden md:flex h-[68px] bg-card-bg border-b border-border items-center px-8 justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div><div className="brand-title text-2xl text-text-primary">Forgia dell’eroe</div><div className="eyebrow !text-[7px]">Sette capitoli · PHB 2024</div></div>
-        </div>
-        
-        <div className="flex gap-2">
-          {STEPS.map((_, idx) => (
-            <div 
-              key={idx}
-              className={`w-7 h-[3px] transition-all duration-300 ${
-                idx === currentStep ? 'bg-accent' : idx < currentStep ? 'bg-primary' : 'bg-border'
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="text-[11px] font-mono text-text-muted flex items-center gap-2">
-           <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-           {currentCharacter.name || 'Eroe senza nome'} · Livello 1 {classesData.find(c => c.id === currentCharacter.classId)?.name || 'Avventuriero'}
-        </div>
-      </header>
-
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Mobile Step Indicator */}
-        <div className="md:hidden flex items-center justify-between p-4 bg-panel-bg border-b border-border shadow-sm shrink-0">
-          <div className="flex items-center gap-3">
-             <div className="w-7 h-7 rounded-full border border-accent flex items-center justify-center text-accent text-[11px] font-black">{currentStep + 1}</div>
-             <div className="text-sm font-bold text-text-primary uppercase tracking-wider">{STEPS[currentStep]}</div>
-          </div>
-          <div className="flex flex-col items-end">
-             <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
-               Capitolo {currentStep + 1}/{STEPS.length}
-             </div>
-             <div className="text-[10px] font-mono text-accent truncate max-w-[100px]">
-               {currentCharacter.name || 'Senza nome'}
-             </div>
-          </div>
-        </div>
-
-        {/* Sidebar Desktop */}
-        <aside className="hidden md:flex w-[220px] bg-panel-bg border-r border-border py-8 flex-col shrink-0">
-          <div className="px-6 mb-7"><p className="eyebrow !text-[8px]">Indice</p><p className="font-serif text-3xl mt-1">Creazione</p></div><nav className="flex flex-col gap-1">
-            {STEPS.map((step, idx) => (
-              <button
-                key={step}
-                onClick={() => {
-                   if (idx <= currentStep) setCurrentStep(idx);
-                   else if (idx === currentStep + 1 && canProceed()) setCurrentStep(idx);
-                }}
-                disabled={idx > currentStep + 1 || (idx === currentStep + 1 && !canProceed())}
-                className={`flex items-center gap-3 px-6 py-3 text-[13px] font-medium transition-all group ${
-                  idx === currentStep 
-                    ? 'bg-card-bg border-r-4 border-accent text-accent'
-                    : idx < currentStep
-                      ? 'text-text-muted hover:text-text-primary hover:bg-white/5 cursor-pointer'
-                      : 'text-text-muted/30 cursor-not-allowed'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] shrink-0 transition-colors ${
-                  idx === currentStep ? 'border-accent' : 'border-text-muted group-hover:border-text-primary'
-                }`}>
-                  {idx + 1}
-                </span>
-                {step}
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Workspace */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-bg">
-          <main className="flex-1 overflow-y-auto p-6 md:p-12 scroll-smooth">
-            <div className="max-w-4xl mx-auto">
-              <div className="mb-8 md:mb-12">
-                <p className="hidden md:block eyebrow mb-3">Capitolo {currentStep + 1} di {STEPS.length}</p><h2 className="hidden md:block text-6xl font-serif font-normal text-text-primary mb-3 tracking-[-.04em]">
-                  {STEPS[currentStep]}
-                </h2>
-                <p className="text-xs md:text-sm text-text-muted">
-                  {currentStep === 0 && "Inizia il tuo viaggio scegliendo una delle iconiche classi di D&D."}
-                  {currentStep === 1 && "Definisci le tue radici: la tua specie e il tuo passato plasmano il tuo futuro."}
-                  {currentStep === 2 && "Le tue abilità naturali e i bonus del background definiscono il tuo potenziale."}
-                  {currentStep === 3 && "Dettagli narrativi per rendere unico il tuo eroe nel mondo."}
-                  {currentStep === 4 && "Scegli il tuo arsenale magico e i talenti eroici."}
-                  {currentStep === 5 && "Scegli l'equipaggiamento iniziale di classe e background."}
-                {currentStep === 6 && "Controlla la tua scheda prima di iniziare l'avventura."}
-                </p>
-              </div>
-
-              <div className="min-h-[300px] md:min-h-[400px] pb-12">
-                {renderStep()}
-              </div>
-            </div>
-          </main>
-
-          {/* Pinned Navigation Buttons */}
-          <div className="shrink-0 p-4 md:px-12 md:py-5 bg-card-bg border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0 z-10">
-            <div className="flex w-full md:w-auto gap-4 order-2 md:order-1">
-              <button
-                onClick={() => { dispatch({ type: 'DISCARD_DRAFT' }); onCancel(); }}
-                className="flex-1 md:flex-none px-6 py-3 rounded border border-transparent text-sm font-semibold text-text-muted transition-all hover:text-amber-500"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleRandomize}
-                className="flex-1 md:flex-none px-4 py-3 rounded bg-bg border border-accent/20 text-accent text-[10px] font-black uppercase tracking-widest hover:bg-accent/5 hover:border-accent transition-all flex items-center justify-center gap-2"
-                title="Genera un personaggio casuale"
-              >
-                <Dices className="w-4 h-4" /> Casuale
-              </button>
-              <button
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                className="flex-1 md:flex-none btn-secondary px-6 py-3 rounded border border-border text-sm font-semibold text-text-muted transition-all hover:bg-white/5 hover:text-text-primary disabled:opacity-20 disabled:cursor-not-allowed"
-              >
-                Indietro
-              </button>
-            </div>
-            
-            {stepIssue() && <p className="order-0 md:order-1 text-[11px] text-danger font-bold md:ml-auto md:mr-4 text-center">{stepIssue()}</p>}
-            <button
-              onClick={currentStep === STEPS.length - 1 ? handleFinish : nextStep}
-              disabled={isSaving || !canProceed()}
-              className={`w-full md:w-auto order-1 md:order-2 px-8 py-3 rounded font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                !canProceed() 
-                  ? 'bg-card-bg text-text-muted/50 cursor-not-allowed border border-border/50 shadow-inner' 
-                  : 'bg-accent text-bg hover:shadow-[0_0_20px_rgba(212,175,55,0.3)] active:scale-95'
-              }`}
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {currentStep === STEPS.length - 1 ? 'Concludi e Salva' : 'Continua'}
-            </button>
+    <div className="min-h-[calc(100vh-64px)] flex flex-col">
+      {/* Barra dei passi */}
+      <div className="bg-card-bg border-b border-border sticky top-16 z-30">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 flex items-center gap-4">
+          <ol className="flex-1 flex overflow-x-auto no-scrollbar" aria-label="Passi della creazione">
+            {STEPS.map((step, idx) => {
+              const done = idx < currentStep;
+              const active = idx === currentStep;
+              const reachable = idx <= currentStep || (idx === currentStep + 1 && canProceed());
+              return (
+                <li key={step} className="shrink-0">
+                  <button
+                    onClick={() => reachable && setCurrentStep(idx)}
+                    disabled={!reachable}
+                    aria-current={active ? 'step' : undefined}
+                    className={`relative flex items-center gap-2 px-3 py-4 text-xs font-serif font-bold uppercase tracking-wider whitespace-nowrap transition-colors
+                      ${active ? 'text-text-primary' : done ? 'text-text-muted hover:text-text-primary' : 'text-text-muted/50'}`}
+                  >
+                    <span className={`w-6 h-6 rounded-full grid place-items-center text-[11px] border ${active ? 'bg-accent border-accent text-white' : done ? 'bg-success/15 border-success text-success' : 'border-border'}`}>
+                      {done ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                    </span>
+                    <span className={active ? '' : 'hidden md:inline'}>{step}</span>
+                    {active && <span className="absolute left-0 right-0 bottom-0 h-[3px] bg-accent" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          <div className="hidden lg:block text-right text-xs text-text-muted shrink-0">
+            <div className="font-bold text-text-primary uppercase font-serif">{currentCharacter.name || 'Eroe senza nome'}</div>
+            <div>Livello 1 {currentClass?.name || ''}{currentSpecies ? ` · ${currentSpecies.name}` : ''}</div>
           </div>
         </div>
       </div>
+
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 py-8">
+        {renderStep()}
+      </main>
+
+      {/* Navigazione */}
+      <footer className="sticky bottom-0 z-30 bg-card-bg/95 backdrop-blur border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center gap-3">
+          <button onClick={() => { dispatch({ type: 'DISCARD_DRAFT' }); onCancel(); }} className="text-xs uppercase font-bold tracking-wider text-text-muted hover:text-danger font-serif">Annulla</button>
+          <button onClick={handleRandomize} className="secondary-action flex items-center gap-2" title="Genera un personaggio casuale completo"><Dices className="w-4 h-4" /> Casuale</button>
+          <div className="flex-1 min-w-[160px] text-right">
+            {issue && <span className="text-xs text-danger font-bold" role="status">{issue}</span>}
+          </div>
+          <button onClick={prevStep} disabled={currentStep === 0} className="secondary-action flex items-center gap-1 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> Indietro</button>
+          <button
+            onClick={isLast ? handleFinish : nextStep}
+            disabled={isSaving || !canProceed()}
+            className="primary-action px-6 py-2.5 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : isLast ? <Save className="w-4 h-4" /> : null}
+            {isLast ? 'Crea personaggio' : 'Continua'}
+            {!isLast && <ChevronRight className="w-4 h-4" />}
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

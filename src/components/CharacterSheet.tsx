@@ -629,14 +629,14 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   );
 
   const quickStat = (label: string, value: React.ReactNode, sub?: React.ReactNode, onClick?: () => void, title?: string) => (
-    <div className="stat-chip text-center px-3 py-2.5 flex flex-col justify-center">
-      <div className="text-[10px] font-black uppercase tracking-widest text-text-muted">{label}</div>
+    <div className="stat-chip text-center px-2 py-2.5 flex flex-col justify-center min-w-0">
+      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted truncate">{label}</div>
       {onClick ? (
         <button onClick={onClick} title={title} className="text-3xl font-display font-black leading-tight hover:text-accent">{value}</button>
       ) : (
         <div className="text-3xl font-display font-black leading-tight" title={title}>{value}</div>
       )}
-      {sub && <div className="text-[10px] text-text-muted leading-tight">{sub}</div>}
+      {sub && <div className="text-[10px] text-text-muted leading-tight truncate">{sub}</div>}
     </div>
   );
 
@@ -795,7 +795,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
 
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6">
           {/* Caratteristiche e valori rapidi */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pb-3">
               {(Object.entries(math.scores) as [string, number][]).map(([ability, score]) => renderAbilityTile(ability, score, math.mods[ability as keyof typeof math.mods]))}
             </div>

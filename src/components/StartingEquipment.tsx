@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useCharacter, InventoryItem } from '../contexts/CharacterContext';
 import { classesData, backgroundsData } from '../data/rules2024';
-import { Check, Sword, Briefcase } from 'lucide-react';
+import { Sword, Briefcase, Coins } from 'lucide-react';
+import { Section, OptionCard, Tag, StepHeader } from './ui';
 import { processStartingItem } from '../data/weaponsData';
 
 /**
@@ -66,79 +67,39 @@ export default function StartingEquipment() {
     });
   }
 
+  const totalGold = (charClass?.startingEquipment?.options.find(o => o.id === classChoice)?.gold || 0) + (charBg?.startingEquipment?.options.find(o => o.id === bgChoice)?.gold || 0);
+
+  const renderOptions = (options: { id: string; name: string; items?: string[]; gold: number }[] | undefined, choice: string, setChoice: (id: string) => void) => (
+    <div className="space-y-2">
+      {(options || []).map(opt => (
+        <OptionCard
+          key={opt.id}
+          selected={choice === opt.id}
+          onClick={() => setChoice(opt.id)}
+          title={`Opzione ${opt.id} · ${opt.name}`}
+          subtitle={opt.items ? undefined : 'Compra tu l’equipaggiamento'}
+          meta={<>
+            {(opt.items || []).map(item => <Tag key={item}>{item}</Tag>)}
+            {opt.gold > 0 && <Tag tone="accent">{opt.gold} mo</Tag>}
+          </>}
+          className="!p-3"
+        />
+      ))}
+    </div>
+  );
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Scelta Classe */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-3 border-b border-border pb-2">
-            <Sword className="w-5 h-5 text-accent" />
-            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Eredità di Classe</h3>
-          </div>
-          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
-            Scegli come iniziare la tua carriera come {charClass?.name}
-          </p>
-          
-          <div className="space-y-3">
-            {charClass?.startingEquipment?.options.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => setClassChoice(opt.id)}
-                className={`w-full p-4 rounded-lg border text-left transition-all ${
-                  classChoice === opt.id 
-                    ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
-                    : 'border-border bg-card-bg hover:border-text-muted'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                   <span className={`text-sm font-black transition-colors ${classChoice === opt.id ? 'text-accent' : 'text-text-primary'}`}>{opt.name}</span>
-                   {classChoice === opt.id && <Check className="w-4 h-4 text-accent" />}
-                </div>
-                <div className="text-[10px] text-text-muted leading-relaxed">
-                   {opt.items ? opt.items.join(', ') : 'Solo Monete'} 
-                   {opt.gold > 0 && <span className="text-accent font-black"> + {opt.gold} MO</span>}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Scelta Background */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-3 border-b border-border pb-2">
-            <Briefcase className="w-5 h-5 text-accent" />
-            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Risorse di Origine</h3>
-          </div>
-          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
-            Il tuo passato come {charBg?.name} ti ha fornito questi strumenti
-          </p>
-
-          <div className="space-y-3">
-            {charBg?.startingEquipment?.options.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => setBgChoice(opt.id)}
-                className={`w-full p-4 rounded-lg border text-left transition-all ${
-                  bgChoice === opt.id 
-                    ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
-                    : 'border-border bg-card-bg hover:border-text-muted'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                   <span className={`text-sm font-black transition-colors ${bgChoice === opt.id ? 'text-accent' : 'text-text-primary'}`}>{opt.name}</span>
-                   {bgChoice === opt.id && <Check className="w-4 h-4 text-accent" />}
-                </div>
-                <div className="text-[10px] text-text-muted leading-relaxed">
-                   {opt.items ? opt.items.join(', ') : 'Solo Oro (Standard)'} 
-                   {opt.gold > 0 && <span className="text-accent font-black"> + {opt.gold} MO</span>}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+    <div className="space-y-6">
+      <StepHeader
+        eyebrow="Capitolo 6"
+        title="Equipaggiamento iniziale"
+        description="Prendi il pacchetto proposto oppure le monete per comprare ciò che vuoi. Armi e armature del pacchetto vengono equipaggiate automaticamente."
+        aside={<span className="inline-flex items-center gap-2 px-3 py-1.5 border border-accent text-accent"><Coins className="w-4 h-4" /><strong className="font-display text-xl">{totalGold}</strong><span className="text-[10px] uppercase font-bold font-serif">monete d’oro</span></span>}
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Section title={`Classe · ${charClass?.name || '—'}`} icon={Sword}>{renderOptions(charClass?.startingEquipment?.options, classChoice, setClassChoice)}</Section>
+        <Section title={`Background · ${charBg?.name || '—'}`} icon={Briefcase}>{renderOptions(charBg?.startingEquipment?.options, bgChoice, setBgChoice)}</Section>
       </div>
-
-      <p className="text-center text-[10px] text-text-muted uppercase tracking-widest">Armi e armature del pacchetto vengono equipaggiate automaticamente.</p>
     </div>
   );
 }

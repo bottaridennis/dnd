@@ -53,14 +53,12 @@ export default function ResourceTracker() {
   if (!hasAnyResources) return null;
 
   return (
-    <div className="bg-panel-bg border border-border rounded-lg px-4 py-6 sm:p-6 space-y-8 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-4 gap-4">
-        <div className="flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-normal">Risorse</h3>
-        </div>
-        <p className="text-[9px] text-text-muted uppercase font-black tracking-widest">I riposi si gestiscono dal pannello Combattimento e Riposi</p>
+    <section className="sheet-section">
+      <div className="sheet-section-title">
+        <Sparkles className="w-3.5 h-3.5" /> Slot e risorse
+        <span className="ml-auto text-[10px] normal-case tracking-normal font-sans font-normal">Si ripristinano con i riposi (scheda Combattimento)</span>
       </div>
+      <div className="p-4 space-y-6">
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Spell Slots */}
@@ -251,6 +249,7 @@ export default function ResourceTracker() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </section>
   );
 }
