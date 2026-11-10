@@ -5,6 +5,7 @@ import { CharacterData, useCharacter } from '../contexts/CharacterContext';
 import { characterService } from '../services/characterService';
 import { useCharacterMath } from '../hooks/useCharacterMath';
 import { getLongRestUpdates, getShortRestUpdates, rollDie } from '../lib/rests';
+import { useDice } from '../contexts/DiceContext';
 
 /**
  * Pannello Combattimento e Riposi (PHB 2024) — tutto viene salvato sul personaggio.
@@ -19,6 +20,8 @@ export default function CombatAndRests() {
   const [amount, setAmount] = useState('');
   const [saveRoll, setSaveRoll] = useState('');
   const [log, setLog] = useState<string | null>(null);
+  const [concentrationDc, setConcentrationDc] = useState<number | null>(null);
+  const { rollCheck } = useDice();
 
   if (!currentCharacter || !math) return null;
 
@@ -41,6 +44,12 @@ export default function CombatAndRests() {
 
   const takeDamage = (dmg: number) => {
     if (dmg <= 0) return;
+    // Concentrazione (PHB 2024): TS Costituzione CD 10 o metà del danno (max 30); a 0 PF termina
+    if (currentCharacter.concentratingOn) {
+      const dropsToZero = dmg >= hp + tempHp;
+      setConcentrationDc(dropsToZero ? null : Math.min(30, Math.max(10, Math.floor(dmg / 2))));
+      if (dropsToZero) save({ concentratingOn: '' });
+    }
     const absorbed = Math.min(tempHp, dmg);
     const remaining = dmg - absorbed;
     const updates: Partial<CharacterData> = { hpTemp: tempHp - absorbed };
@@ -98,7 +107,7 @@ export default function CombatAndRests() {
     );
   };
 
-  const shortRest = () => save(getShortRestUpdates(currentCharacter), 'Riposo Breve completato: slot del Patto e un uso di Incanalare Divinità recuperati.');
+  const shortRest = () => save(getShortRestUpdates(currentCharacter), 'Riposo Breve completato: slot del Patto, Incanalare Divinità e risorse di classe recuperati secondo le regole.');
   const longRest = () => {
     if (hp === 0 && !isStable && !isDead) {
       setLog('Serve almeno 1 PF per iniziare un Riposo Lungo.');
@@ -126,6 +135,30 @@ export default function CombatAndRests() {
           </button>
         </div>
       </div>
+
+      {currentCharacter.concentratingOn && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs border border-accent bg-accent/10 px-4 py-2">
+          <span><strong className="font-serif">Concentrazione:</strong> {currentCharacter.concentratingOn}</span>
+          <div className="flex items-center gap-2">
+            {concentrationDc !== null && (
+              <button
+                onClick={() => {
+                  const conSave = math.savingThrows.find(st => st.ability === 'CON')?.mod ?? math.mods.CON;
+                  const entry = rollCheck(`Concentrazione (CD ${concentrationDc})`, conSave);
+                  const kept = (entry.total ?? 0) >= concentrationDc;
+                  if (!kept) save({ concentratingOn: '' }, `Concentrazione persa (${entry.total} contro CD ${concentrationDc}).`);
+                  else setLog(`Concentrazione mantenuta (${entry.total} contro CD ${concentrationDc}).`);
+                  setConcentrationDc(null);
+                }}
+                className="primary-action px-3 py-1.5"
+              >
+                TS Costituzione CD {concentrationDc}
+              </button>
+            )}
+            <button onClick={() => { save({ concentratingOn: '' }); setConcentrationDc(null); }} className="secondary-action !py-1 !px-2">Termina</button>
+          </div>
+        </div>
+      )}
 
       {log && (
         <div className="flex items-center justify-between gap-3 text-xs bg-card-bg border border-accent/30 text-text-primary rounded px-4 py-2">

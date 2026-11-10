@@ -107,6 +107,10 @@ export interface CharacterData {
     isActive: boolean;
   };
   activeSummons?: ActiveSummon[];
+  /** Usi spesi delle risorse di classe (Ira, Recuperare Energie, Punti Focus…) */
+  classResourcesSpent?: Record<string, number>;
+  /** Incantesimo su cui il personaggio sta mantenendo la Concentrazione */
+  concentratingOn?: string;
   createdAt?: any;
   updatedAt?: any;
 }

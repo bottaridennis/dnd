@@ -6,6 +6,8 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
+import DiceTray from './components/DiceTray';
+import { DiceProvider } from './contexts/DiceContext';
 import { Wand2, Menu, Moon, Sun, Swords, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
 import { auth } from './firebase';
 import { userService } from './services/userService';
@@ -193,6 +195,7 @@ function AppContent() {
         )}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
+      {view === 'sheet' && <DiceTray />}
     </div>
   );
 }
@@ -229,9 +232,11 @@ export default function App() {
   return (
     <AuthProvider>
       <CharacterProvider>
+        <DiceProvider>
         <div className="min-h-screen bg-bg text-text-primary font-sans selection:bg-primary/30 transition-colors duration-300">
           <AppContent />
         </div>
+        </DiceProvider>
       </CharacterProvider>
     </AuthProvider>
   );

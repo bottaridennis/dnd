@@ -15,6 +15,7 @@ import { useCharacterMath } from '../hooks/useCharacterMath';
 import { findWeapon, standardWeapons } from '../data/weaponsData';
 import { getWeaponMasteryCount } from '../lib/characterRules';
 import { abilityMap } from '../lib/utils';
+import { useDice } from '../contexts/DiceContext';
 
 const PROPERTY_LABELS: Record<string, string> = {
   Finesse: 'Accurata', Light: 'Leggera', Heavy: 'Pesante', Reach: 'Portata', 'Two-Handed': 'A Due Mani',
@@ -29,6 +30,7 @@ const translateProperty = (prop: string) => {
 export default function WeaponTracker({ isEditing = false }: { isEditing?: boolean }) {
   const { currentCharacter, dispatch } = useCharacter();
   const math = useCharacterMath(currentCharacter);
+  const { rollCheck, rollDamage } = useDice();
   const [selectedMastery, setSelectedMastery] = useState<string | null>(null);
   const [activeDefTab, setActiveDefTab] = useState<'res' | 'imm' | 'vul'>('res');
   const [newMasteryWeapon, setNewMasteryWeapon] = useState('');
@@ -78,7 +80,7 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
           <Crosshair className="w-4 h-4 text-accent" />
           <h3 className="text-xs font-black uppercase tracking-widest text-text-primary">Attacchi con le armi</h3>
-          <span className="ml-auto text-[9px] font-black uppercase text-text-muted">Armi equipaggiate</span>
+          <span className="ml-auto text-[9px] font-black uppercase text-text-muted">Clicca per tirare</span>
         </div>
         {math.attacks.length > 0 ? (
           <div className="divide-y divide-border/40">
@@ -92,15 +94,23 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
                     {attack.masteryActive && attack.mastery && <span className="text-accent"> · Maestria: {attack.mastery}</span>}
                   </div>
                 </div>
-                <div className="text-center">
+                <button
+                  onClick={() => rollCheck(`${attack.name}: tiro per colpire`, attack.attackBonus, { followUp: { label: `${attack.name}: danni ${attack.damageType}`, formula: attack.damage } })}
+                  title="Tira per colpire"
+                  className="text-center px-2 py-1 border border-transparent hover:border-accent"
+                >
                   <div className="text-[9px] uppercase font-black text-text-muted">Colpire</div>
                   <div className="text-lg font-black text-accent">{attack.attackBonus >= 0 ? `+${attack.attackBonus}` : attack.attackBonus}</div>
-                </div>
-                <div className="text-center min-w-[90px]">
+                </button>
+                <button
+                  onClick={() => rollDamage(`${attack.name}: danni ${attack.damageType}`, attack.damage)}
+                  title="Tira i danni"
+                  className="text-center min-w-[90px] px-2 py-1 border border-transparent hover:border-accent"
+                >
                   <div className="text-[9px] uppercase font-black text-text-muted">Danni</div>
                   <div className="text-sm font-black text-text-primary">{attack.damage}</div>
                   <div className="text-[9px] text-text-muted">{attack.damageType}</div>
-                </div>
+                </button>
               </div>
             ))}
           </div>

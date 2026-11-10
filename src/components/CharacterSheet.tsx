@@ -26,6 +26,8 @@ import InventoryManager from './InventoryManager';
 import ConditionTracker from './ConditionTracker';
 import SummonsManager from './SummonsManager';
 import LevelUpModal, { type LevelUpChoice } from './LevelUpModal';
+import SpellCastControls from './SpellCastControls';
+import { useDice } from '../contexts/DiceContext';
 
 type SheetTab = 'stats' | 'spells' | 'feats' | 'equipment' | 'mastery';
 
@@ -41,6 +43,7 @@ export default function CharacterSheet() {
   const { currentCharacter, dispatch } = useCharacter();
   const math = useCharacterMath(currentCharacter);
   const homebrew = useHomebrew();
+  const { rollCheck } = useDice();
   const [activeTab, setActiveTab] = useState<SheetTab | null>('stats');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [newItemText, setNewItemText] = useState('');
@@ -320,7 +323,7 @@ export default function CharacterSheet() {
 
   const renderSkills = () => (
     <div className="space-y-4">
-      {isEditing && <p className="text-[10px] text-text-muted">Clicca un'abilità per passare da nessuna competenza → competenza → maestria (bonus raddoppiato).</p>}
+      <p className="text-[10px] text-text-muted">{isEditing ? "Clicca un'abilità per passare da nessuna competenza → competenza → maestria (bonus raddoppiato)." : "Clicca un'abilità per tirare la prova (vantaggio/svantaggio dal vassoio dei dadi)."}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
         {math.skills.map(skill => {
           const state = isEditing ? editingSkillState(skill.name) : skill;
@@ -328,8 +331,9 @@ export default function CharacterSheet() {
             <button
               type="button"
               key={skill.name}
-              onClick={() => isEditing && cycleSkill(skill.name)}
-              className={`flex items-center justify-between border-b border-border/50 py-3 px-2 rounded-sm transition-colors text-left ${isEditing ? 'hover:bg-accent/10 cursor-pointer' : 'cursor-default hover:bg-accent/5'}`}
+              onClick={() => (isEditing ? cycleSkill(skill.name) : rollCheck(`Prova di ${skill.name}`, skill.mod))}
+              title={isEditing ? undefined : `Tira ${skill.name}`}
+              className="flex items-center justify-between border-b border-border/50 py-3 px-2 rounded-sm transition-colors text-left hover:bg-accent/10 cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className={`w-2.5 h-2.5 rounded-full border ${state.isExpert ? 'bg-accent border-accent ring-2 ring-accent/40' : state.isProficient ? 'bg-accent border-accent shadow-[0_0_8px_rgba(212,175,55,0.4)]' : 'border-border'}`} />
@@ -362,6 +366,12 @@ export default function CharacterSheet() {
           ))}
         </div>
       )}
+      {currentCharacter.concentratingOn && (
+        <div className="flex items-center justify-between gap-3 p-3 border border-accent bg-accent/10">
+          <span className="text-sm"><strong className="font-serif">Concentrazione:</strong> {currentCharacter.concentratingOn}</span>
+          <button onClick={() => handleUpdate({ concentratingOn: '' })} className="secondary-action !py-1 !px-2">Termina</button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-lg font-serif font-bold text-accent">Incantesimi conosciuti e preparati</h4>
         <div className="flex items-center gap-4">
@@ -379,10 +389,11 @@ export default function CharacterSheet() {
         {knownSpellDetails.length > 0 ? [...knownSpellDetails]
           .sort((a, b) => (a.details?.level ?? 99) - (b.details?.level ?? 99) || (a.details?.name || a.name).localeCompare(b.details?.name || b.name, 'it'))
           .map(({ name, details }) => (
-          <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-center group">
-            <div className="flex flex-col">
+          <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-start group">
+            <div className="flex flex-col flex-1 min-w-0">
               <span className="font-bold text-sm">{details?.displayName || details?.name || name}</span>
               {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-normal">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
+              {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
             </div>
             <div className="flex items-center gap-3">
               {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent transition-all" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
@@ -400,8 +411,11 @@ export default function CharacterSheet() {
             {(currentCharacter.innateSpells || []).map(name => {
               const details = getSpellDetails(name);
               return (
-                <div key={name} className="bg-card-bg border border-dashed border-accent/30 rounded p-3 flex justify-between items-center">
-                  <span className="font-bold text-xs">{details?.displayName || details?.name || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                <div key={name} className="bg-card-bg border border-dashed border-accent/30 rounded p-3 flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-xs">{details?.displayName || details?.name || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                    {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
+                  </div>
                   {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
                 </div>
               );
@@ -541,9 +555,13 @@ export default function CharacterSheet() {
          </div>
        ) : (
          <>
-           <div className="text-3xl md:text-4xl font-serif font-black text-text-primary my-1 md:my-2">
+           <button
+             onClick={() => rollCheck(`Prova di ${ABILITY_NAMES[ability as keyof typeof ABILITY_NAMES]}`, mod - math.d20Penalty)}
+             title="Tira una prova di caratteristica"
+             className="text-3xl md:text-4xl font-serif font-black text-text-primary my-1 md:my-2 hover:text-accent transition-colors"
+           >
              {mod >= 0 ? `+${mod}` : mod}
-           </div>
+           </button>
            <div className="absolute -bottom-3 md:-bottom-4 w-10 md:w-14 h-6 md:h-8 bg-bg border-2 border-accent/40 rounded-full flex items-center justify-center text-xs md:text-sm font-bold text-text-primary shadow-sm">
              {score}
            </div>
@@ -844,7 +862,7 @@ export default function CharacterSheet() {
               </div>
               <div className="text-center">
                  <Zap className="w-4 h-4 text-accent mx-auto mb-1" />
-                 <div className="text-xl font-black">{math.initiative >= 0 ? `+${math.initiative}` : math.initiative}</div>
+                 <button onClick={() => rollCheck('Iniziativa', math.initiative)} title="Tira l'iniziativa" className="text-xl font-black hover:text-accent">{math.initiative >= 0 ? `+${math.initiative}` : math.initiative}</button>
                  <div className="text-[9px] uppercase font-black text-text-muted px-2 py-0.5 border border-border rounded mt-1">Iniziativa</div>
               </div>
            </div>
@@ -953,13 +971,13 @@ export default function CharacterSheet() {
               <div className="text-[10px] font-black uppercase text-text-muted mb-3 tracking-widest">Tiri Salvezza</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                  {math.savingThrows.map(save => (
-                   <div key={save.ability} className="flex items-center justify-between text-xs">
+                   <button key={save.ability} onClick={() => rollCheck(`Tiro Salvezza su ${ABILITY_NAMES[save.ability]}`, save.mod)} title="Tira il tiro salvezza" className="flex items-center justify-between text-xs hover:text-accent text-left">
                       <span className="flex items-center gap-2">
                          <span className={`w-2 h-2 rounded-full border ${save.isProficient ? 'bg-accent border-accent' : 'border-border'}`} />
                          <span className={save.isProficient ? 'font-bold text-text-primary' : 'text-text-muted'}>{abilityMap[save.ability]}</span>
                       </span>
                       <span className={`font-black ${save.isProficient ? 'text-accent' : 'text-text-primary'}`}>{formatSigned(save.mod)}</span>
-                   </div>
+                   </button>
                  ))}
               </div>
            </div>

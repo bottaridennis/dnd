@@ -1,5 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useCharacter } from '../contexts/CharacterContext';
+import { useCharacterMath } from '../hooks/useCharacterMath';
+import { characterService } from '../services/characterService';
+import { getClassResources, type ClassResource } from '../data/classResources';
 import { useResourceTracker } from '../hooks/useResourceTracker';
 import { 
   Sparkles, 
@@ -25,7 +29,22 @@ export default function ResourceTracker() {
     recoverPactSlot,
   } = useResourceTracker();
 
-  const hasAnyResources = 
+  const { currentCharacter, dispatch } = useCharacter();
+  const math = useCharacterMath(currentCharacter);
+  const classResources = currentCharacter && math ? getClassResources(currentCharacter, math.mods) : [];
+  const spentMap = currentCharacter?.classResourcesSpent || {};
+  const [poolAmounts, setPoolAmounts] = useState<Record<string, string>>({});
+
+  const setSpent = (id: string, value: number, max: number) => {
+    if (!currentCharacter) return;
+    const next = { ...spentMap, [id]: Math.max(0, Math.min(max, value)) };
+    dispatch({ type: 'UPDATE_CHARACTER', payload: { classResourcesSpent: next } });
+    characterService.updateCharacter(currentCharacter.id, { classResourcesSpent: next }).catch(err => console.error('Salvataggio risorse non riuscito:', err));
+  };
+
+  const recoveryLabel = (r: ClassResource) => r.recovery === 'long' ? 'Riposo Lungo' : r.recovery === 'short' ? 'Riposo Breve' : '1 al Riposo Breve, tutte al Lungo';
+
+  const hasAnyResources = classResources.length > 0 || 
     maxResources.spellSlots.some(s => s > 0) || 
     maxResources.pactMagic.count > 0 || 
     maxResources.sorceryPoints > 0 || 
@@ -38,7 +57,7 @@ export default function ResourceTracker() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-4 gap-4">
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-normal">Risorse Magiche</h3>
+          <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-normal">Risorse</h3>
         </div>
         <p className="text-[9px] text-text-muted uppercase font-black tracking-widest">I riposi si gestiscono dal pannello Combattimento e Riposi</p>
       </div>
@@ -184,6 +203,54 @@ export default function ResourceTracker() {
           )}
         </div>
       </div>
+      {classResources.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase text-text-muted tracking-widest">Privilegi di classe</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {classResources.map(r => {
+              const spent = Math.min(r.max, spentMap[r.id] || 0);
+              const left = r.max - spent;
+              return (
+                <div key={r.id} className="bg-card-bg border border-border rounded p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-text-primary">{r.name}</div>
+                      <div className="text-[9px] uppercase tracking-wider text-text-muted">{recoveryLabel(r)}</div>
+                    </div>
+                    <span className="font-display text-lg leading-none">{left}<span className="text-xs text-text-muted"> / {r.max}</span></span>
+                  </div>
+                  {r.kind === 'uses' && r.max <= 10 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from({ length: r.max }).map((_, i) => {
+                        const isSpent = i < spent;
+                        return (
+                          <button key={i} onClick={() => setSpent(r.id, isSpent ? spent - 1 : spent + 1, r.max)} aria-label={isSpent ? `Recupera ${r.name}` : `Usa ${r.name}`} className="hover:scale-110 transition-transform">
+                            {isSpent ? <Circle className="w-5 h-5 text-border" /> : <CheckCircle2 className="w-5 h-5 text-accent fill-accent/10" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        value={poolAmounts[r.id] ?? '1'}
+                        onChange={e => setPoolAmounts(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        className="w-14 bg-bg border border-border rounded text-center text-xs"
+                        aria-label={`Quantità ${r.name}`}
+                      />
+                      <button onClick={() => setSpent(r.id, spent + Math.max(1, parseInt(poolAmounts[r.id] ?? '1', 10) || 1), r.max)} disabled={left <= 0} className="flex-1 py-1 rounded bg-bg border border-border text-[9px] font-black uppercase tracking-widest hover:border-accent hover:text-accent disabled:opacity-30">Spendi</button>
+                      <button onClick={() => setSpent(r.id, spent - Math.max(1, parseInt(poolAmounts[r.id] ?? '1', 10) || 1), r.max)} disabled={spent <= 0} className="flex-1 py-1 rounded bg-bg border border-border text-[9px] font-black uppercase tracking-widest hover:border-accent hover:text-accent disabled:opacity-30">Recupera</button>
+                    </div>
+                  )}
+                  {r.note && <div className="text-[10px] text-text-muted italic">{r.note}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

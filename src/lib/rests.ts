@@ -1,5 +1,6 @@
 import type { CharacterData } from '../contexts/CharacterContext';
-import { computeCharacterStats } from './characterRules';
+import { computeCharacterStats, getFinalScores, getModifiers } from './characterRules';
+import { getClassResources, recoverClassResources } from '../data/classResources';
 import { normalizeResources } from '../hooks/useResourceTracker';
 
 /**
@@ -8,7 +9,9 @@ import { normalizeResources } from '../hooks/useResourceTracker';
  */
 export function getShortRestUpdates(character: CharacterData): Partial<CharacterData> {
   const resources = normalizeResources(character.resources);
+  const classResources = getClassResources(character, getModifiers(getFinalScores(character)));
   return {
+    classResourcesSpent: recoverClassResources(character.classResourcesSpent, classResources, 'short'),
     resources: {
       ...resources,
       spentPactSlots: 0,
@@ -29,6 +32,8 @@ export function getLongRestUpdates(character: CharacterData): Partial<CharacterD
     hitDiceSpent: {},
     deathSaves: { successes: 0, failures: 0 },
     exhaustion: Math.max(0, (character.exhaustion || 0) - 1),
+    classResourcesSpent: {},
+    concentratingOn: '',
     resources: {
       spentSpellSlots: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 },
       spentPactSlots: 0,
