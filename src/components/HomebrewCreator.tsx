@@ -90,7 +90,7 @@ export default function HomebrewCreator() {
           <Hammer className="w-7 h-7 text-white" />
         </div>
         <div>
-          <h2 className="text-2xl font-serif font-black text-text-primary uppercase tracking-tight">Fucina di Contenuti</h2>
+          <h2 className="text-2xl font-serif font-black text-text-primary uppercase tracking-normal">Fucina di Contenuti</h2>
           <p className="text-[10px] font-black uppercase text-text-muted tracking-widest">Crea e salva il tuo Homebrew</p>
         </div>
       </div>

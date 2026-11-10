@@ -58,7 +58,7 @@ export default function ConditionTracker() {
       <div className="flex items-center justify-between border-b border-border pb-4">
         <div className="flex items-center gap-3">
           <Activity className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Condizioni ed Esaurimento</h3>
+          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Condizioni ed Esaurimento</h3>
         </div>
         {exhaustion > 0 && (
            <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">
@@ -114,7 +114,7 @@ export default function ConditionTracker() {
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] font-bold tracking-tight uppercase truncate">{cond.name}</span>
+                <span className="text-[11px] font-bold tracking-normal uppercase truncate">{cond.name}</span>
               </button>
             );
           })}

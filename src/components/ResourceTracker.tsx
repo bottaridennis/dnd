@@ -38,7 +38,7 @@ export default function ResourceTracker() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-4 gap-4">
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-tight">Risorse Magiche</h3>
+          <h3 className="font-serif font-black text-xl text-text-primary uppercase tracking-normal">Risorse Magiche</h3>
         </div>
         <p className="text-[9px] text-text-muted uppercase font-black tracking-widest">I riposi si gestiscono dal pannello Combattimento e Riposi</p>
       </div>
@@ -59,7 +59,7 @@ export default function ResourceTracker() {
                 return (
                   <div key={level} className="bg-card-bg border border-border rounded-lg p-3 group hover:border-accent/30 transition-colors">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-black text-accent uppercase tracking-tighter">Livello {level}</span>
+                      <span className="text-[10px] font-black text-accent uppercase tracking-normal">Livello {level}</span>
                       <span className="text-[9px] font-mono text-text-muted">{max - spent} / {max} Rimanenti</span>
                     </div>
                     <div className="flex flex-wrap gap-2.5 sm:gap-1.5">

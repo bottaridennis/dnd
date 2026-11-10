@@ -89,7 +89,7 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
       >
         <div>
           <div className="font-serif font-black text-lg text-text-primary group-hover:text-accent transition-colors">{def.name}</div>
-          <div className="text-[11px] font-mono text-text-muted uppercase mt-1 tracking-tighter">Diventa livello {level} · d{def.hitDie}</div>
+          <div className="text-[11px] font-mono text-text-muted uppercase mt-1 tracking-normal">Diventa livello {level} · d{def.hitDie}</div>
           {(CLASS_FEATURES[classId]?.[level] || []).length > 0 && (
             <div className="text-[10px] text-text-muted mt-2 leading-snug">{CLASS_FEATURES[classId][level].join(' · ')}</div>
           )}

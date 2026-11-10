@@ -97,7 +97,7 @@ export default function SummaryStep() {
                   <span className="text-[10px] font-mono font-black text-text-muted tracking-[0.2em] uppercase mb-3 block">Abilità Competenti</span>
                   <div className="flex flex-wrap gap-2">
                      {skills.map(s => (
-                       <span key={s} className="px-3 py-1 bg-card-bg border border-border rounded text-[11px] font-bold text-text-primary tracking-tight">{s}</span>
+                       <span key={s} className="px-3 py-1 bg-card-bg border border-border rounded text-[11px] font-bold text-text-primary tracking-normal">{s}</span>
                      ))}
                   </div>
                </div>

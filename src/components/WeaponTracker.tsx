@@ -188,7 +188,7 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
       <div className="bg-panel-bg border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="bg-primary/10 px-6 py-4 border-b border-border flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Difese Speciali</h3>
+          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Difese Speciali</h3>
         </div>
         <div className="p-6">
           <div className="flex bg-bg rounded border border-border p-1 w-full max-w-sm mb-6 mx-auto sm:mx-0 overflow-x-auto no-scrollbar">
@@ -217,7 +217,7 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
                   key={type}
                   onClick={() => toggleDefense(type, category)}
                   className={`
-                    px-2 py-2.5 rounded border text-[9px] font-black uppercase tracking-tighter transition-all duration-200
+                    px-2 py-2.5 rounded border text-[9px] font-black uppercase tracking-normal transition-all duration-200
                     ${isActive 
                       ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105 z-10' 
                       : 'bg-bg text-text-muted border-border hover:border-primary/50 hover:text-primary'}
@@ -268,7 +268,7 @@ export default function WeaponTracker({ isEditing = false }: { isEditing?: boole
                   <Sword className="w-8 h-8 text-accent" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-serif font-black text-white uppercase tracking-tighter leading-none">
+                  <h2 className="text-3xl font-serif font-black text-white uppercase tracking-normal leading-none">
                     {weaponMasteryData[selectedMastery].name}
                   </h2>
                   <p className="text-xs text-accent font-black uppercase tracking-widest mt-1">

@@ -75,7 +75,7 @@ export default function SummonsManager({ isOpen, onClose }: SummonsManagerProps)
                  <Sparkles className="w-6 h-6" />
               </div>
               <div>
-                 <h2 className="text-2xl font-serif font-black text-text-primary tracking-tight">Gestore Evocazioni</h2>
+                 <h2 className="text-2xl font-serif font-black text-text-primary tracking-normal">Gestore Evocazioni</h2>
                  <p className="text-[10px] font-black uppercase text-accent tracking-[0.2em]">D&D 5.5e Summoning Manager</p>
               </div>
            </div>
@@ -354,7 +354,7 @@ const SummonCard: React.FC<{
                  <button onClick={() => onHpChange(summon.currentHp - 1)} className="text-red-500 font-black text-2xl hover:scale-125 transition-transform">－</button>
                  <div className="text-2xl font-serif font-black flex flex-col items-center">
                    <span>{summon.currentHp}</span>
-                   <span className="text-[10px] text-text-muted font-sans font-bold -mt-1 uppercase tracking-tighter">PF MAX: {summon.maxHp}</span>
+                   <span className="text-[10px] text-text-muted font-sans font-bold -mt-1 uppercase tracking-normal">PF MAX: {summon.maxHp}</span>
                  </div>
                  <button onClick={() => onHpChange(summon.currentHp + 1)} className="text-emerald-500 font-black text-2xl hover:scale-125 transition-transform">＋</button>
               </div>
@@ -390,7 +390,7 @@ const SummonCard: React.FC<{
             {summon.actions.map(action => (
               <div key={action.name} className="p-4 bg-accent/5 rounded-2xl border border-accent/10 hover:border-accent/40 transition-all cursor-default">
                 <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-black uppercase text-text-primary tracking-tight">{action.name}</span>
+                  <span className="text-xs font-black uppercase text-text-primary tracking-normal">{action.name}</span>
                   <Sword className="w-4 h-4 text-accent" />
                 </div>
                 <p className="text-[10px] text-text-muted leading-tight">{action.desc}</p>

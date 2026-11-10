@@ -181,7 +181,7 @@ export default function InventoryManager() {
       <div className="bg-panel-bg border border-border rounded-xl p-5 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <Coins className="w-5 h-5 text-accent" />
-          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Portamonete</h3>
+          <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Portamonete</h3>
           <div className="ml-auto text-[10px] font-black uppercase text-text-muted bg-bg px-2 py-1 rounded border border-border">
             Peso Monete: {math.coinWeight.toFixed(2)} kg
           </div>
@@ -287,7 +287,7 @@ export default function InventoryManager() {
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-3">
                         {container.type === 'Backpack' ? <Backpack className="w-4 h-4" /> : <Briefcase className="w-4 h-4" />}
-                        <span className="text-xs font-bold uppercase tracking-tight whitespace-nowrap lg:whitespace-normal">{container.name}</span>
+                        <span className="text-xs font-bold uppercase tracking-normal whitespace-nowrap lg:whitespace-normal">{container.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {isFull && <AlertCircle className={`w-3 h-3 ${activeContainerTab === container.id ? 'text-red-900' : 'text-red-500'}`} />}
@@ -442,7 +442,7 @@ export default function InventoryManager() {
                               <div className="flex flex-col gap-1.5 mt-1">
                                 {item.damage && (
                                   <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded text-[9px] font-black uppercase text-accent tracking-tighter">
+                                    <span className="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded text-[9px] font-black uppercase text-accent tracking-normal">
                                       {item.damage} {item.damageType}
                                     </span>
                                     {item.mastery && (
@@ -454,7 +454,7 @@ export default function InventoryManager() {
                                 )}
                                 <div className="flex items-center gap-3">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-tighter">Peso:</span>
+                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-normal">Peso:</span>
                                     <input 
                                       type="number"
                                       step="0.1"
@@ -466,7 +466,7 @@ export default function InventoryManager() {
                                   </div>
                                   
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-tighter">Qtà:</span>
+                                    <span className="text-[10px] font-black uppercase text-text-muted tracking-normal">Qtà:</span>
                                     <div className="flex items-center gap-1 bg-bg/50 px-1.5 py-0.5 rounded border border-border/50">
                                       <button onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })} className="text-text-muted hover:text-accent"><MinusIcon className="w-2.5 h-2.5" /></button>
                                       <span className="text-[10px] font-black text-text-primary min-w-[12px] text-center">{item.quantity}</span>

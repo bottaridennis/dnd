@@ -250,7 +250,7 @@ export default function CharacterSheet() {
                         <div>
                            <h4 className={`font-serif font-bold text-lg ${isSelected ? 'text-accent' : 'text-text-primary'}`}>{item.displayName || item.name}</h4>
                            {item.level !== undefined && (
-                             <span className="text-[10px] uppercase font-mono font-black text-text-muted tracking-tighter">
+                             <span className="text-[10px] uppercase font-mono font-black text-text-muted tracking-normal">
                                 {item.level === 0 ? 'Trucchetto' : `Livello ${item.level}`} • {SCHOOL_LABELS[item.school] || item.school}
                              </span>
                            )}
@@ -333,7 +333,7 @@ export default function CharacterSheet() {
             >
               <div className="flex items-center gap-3">
                 <div className={`w-2.5 h-2.5 rounded-full border ${state.isExpert ? 'bg-accent border-accent ring-2 ring-accent/40' : state.isProficient ? 'bg-accent border-accent shadow-[0_0_8px_rgba(212,175,55,0.4)]' : 'border-border'}`} />
-                <span className={`text-[11px] font-bold tracking-tight ${state.isProficient ? 'text-text-primary' : 'text-text-muted'}`}>{skill.name}</span>
+                <span className={`text-[11px] font-bold tracking-normal ${state.isProficient ? 'text-text-primary' : 'text-text-muted'}`}>{skill.name}</span>
                 <span className="text-[10px] text-text-muted/40 font-mono">({abilityMap[skill.ability] || skill.ability})</span>
                 {state.isExpert && <span className="text-[8px] font-black uppercase text-accent">Maestria</span>}
               </div>
@@ -382,7 +382,7 @@ export default function CharacterSheet() {
           <div key={name} className="bg-card-bg border border-border rounded p-4 flex justify-between items-center group">
             <div className="flex flex-col">
               <span className="font-bold text-sm">{details?.displayName || details?.name || name}</span>
-              {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-tighter">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
+              {details && <span className="text-[9px] text-text-muted uppercase font-black tracking-normal">{spellLevelLabel(details.level)} • {SCHOOL_LABELS[details.school] || details.school}{details.concentration ? ' • Concentrazione' : ''}{details.ritual ? ' • Rituale' : ''}</span>}
             </div>
             <div className="flex items-center gap-3">
               {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent transition-all" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
@@ -419,7 +419,7 @@ export default function CharacterSheet() {
         <div className="flex items-center gap-3">
           <div className={`w-1.5 h-1.5 rounded-full ${kind === 'invocation' ? 'bg-purple-500' : 'bg-accent'}`} />
           <div className="flex flex-col">
-            <span className="font-bold text-sm tracking-tight">{details?.name || name}</span>
+            <span className="font-bold text-sm tracking-normal">{details?.name || name}</span>
             {kind === 'invocation' && <span className="text-[9px] font-black uppercase text-text-muted tracking-widest">Supplica Occulta</span>}
           </div>
         </div>
@@ -720,7 +720,7 @@ export default function CharacterSheet() {
                   </div>
                 </div>
               ) : (
-                <h1 className="text-2xl font-serif font-black tracking-tight line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
+                <h1 className="text-2xl font-serif font-black tracking-normal line-clamp-1">{currentCharacter.name || 'Senza Nome'}</h1>
               )}
               <div className="text-[10px] font-black uppercase text-accent tracking-widest mb-2">
                 {isEditing ? (

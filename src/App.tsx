@@ -6,7 +6,7 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
-import { Wand2, Menu, Moon, Sun, Feather, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
+import { Wand2, Menu, Moon, Sun, Swords, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
 import { auth } from './firebase';
 import { userService } from './services/userService';
 import { AnimatePresence, motion } from 'motion/react';
@@ -27,7 +27,7 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-bg flex flex-col items-center justify-center gap-4">
         <Wand2 className="w-9 h-9 text-accent animate-spin" />
-        <span className="eyebrow">Aprendo l’archivio…</span>
+        <span className="eyebrow">Si apre il grimorio…</span>
       </div>
     );
   }
@@ -73,11 +73,11 @@ function AppContent() {
                onClick={() => navigateTo('dashboard')}
              >
                <div className="brand-mark">
-                 <Feather className="w-5 h-5" />
+                 <Swords className="w-5 h-5" />
                </div>
                <div className="leading-none">
-                 <span className="block text-xl font-serif font-medium text-text-primary tracking-tight">Forge</span>
-                 <span className="text-[8px] text-accent uppercase font-black tracking-[0.24em]">Hero archive · 2024</span>
+                 <span className="block text-xl brand-title text-text-primary">Forge</span>
+                 <span className="text-[9px] text-accent uppercase font-bold tracking-[0.24em]">Cronache degli Eroi</span>
                </div>
              </div>
              
@@ -133,7 +133,7 @@ function AppContent() {
               onClick={e => e.stopPropagation()}
             >
                <div className="h-[72px] flex items-center justify-between px-6 border-b border-border">
-                <span className="font-serif text-3xl text-text-primary">Indice</span>
+                <span className="brand-title text-2xl text-text-primary">Indice</span>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="text-text-muted hover:text-accent">
                   <X className="w-6 h-6" />
                 </button>

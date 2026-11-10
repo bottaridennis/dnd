@@ -119,7 +119,7 @@ export default function AbilityScoresStep() {
           <div className="text-[10px] text-text-muted leading-relaxed max-w-xs">Costi: 8→0 · 9→1 · 10→2 · 11→3 · 12→4 · 13→5 · 14→7 · 15→9</div>
           <button onClick={() => update({ abilityScores: DEFAULT_SCORES })} className="flex flex-col items-center gap-1 group">
             <RotateCcw className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
-            <span className="text-[9px] uppercase tracking-tighter text-text-muted group-hover:text-text-primary">Reset</span>
+            <span className="text-[9px] uppercase tracking-normal text-text-muted group-hover:text-text-primary">Reset</span>
           </button>
         </div>
       )}
@@ -153,7 +153,7 @@ export default function AbilityScoresStep() {
                   <span className={`text-lg font-bold ${isBoosted ? 'text-accent' : 'text-text-primary'}`}>{ABILITY_NAMES[ability]}</span>
                   <span className="text-2xl font-black text-text-primary">{final}</span>
                 </div>
-                {isBoosted && <span className="text-[10px] text-success font-bold mt-1 tracking-tight">+{bonus} dal background</span>}
+                {isBoosted && <span className="text-[10px] text-success font-bold mt-1 tracking-normal">+{bonus} dal background</span>}
               </div>
 
               <div className="flex items-center gap-5">

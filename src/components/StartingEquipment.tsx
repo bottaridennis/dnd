@@ -73,7 +73,7 @@ export default function StartingEquipment() {
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b border-border pb-2">
             <Sword className="w-5 h-5 text-accent" />
-            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Eredità di Classe</h3>
+            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Eredità di Classe</h3>
           </div>
           <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
             Scegli come iniziare la tua carriera come {charClass?.name}
@@ -107,7 +107,7 @@ export default function StartingEquipment() {
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b border-border pb-2">
             <Briefcase className="w-5 h-5 text-accent" />
-            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-tight">Risorse di Origine</h3>
+            <h3 className="font-serif font-black text-lg text-text-primary uppercase tracking-normal">Risorse di Origine</h3>
           </div>
           <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
             Il tuo passato come {charBg?.name} ti ha fornito questi strumenti

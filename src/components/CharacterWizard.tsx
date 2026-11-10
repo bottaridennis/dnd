@@ -264,7 +264,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-[9px] font-mono font-black px-2 py-0.5 bg-bg rounded-sm text-text-muted border border-border tracking-widest uppercase">Dado Vita d{cls.hitDie}</span>
                   </div>
-                  <p className="text-[10px] text-text-muted leading-relaxed uppercase tracking-[0.15em] font-black">Tiri Salvezza: <span className="text-text-primary">{cls.saves.join(', ')}</span></p>
+                  <p className="text-[10px] text-text-muted leading-relaxed uppercase tracking-[0.15em] font-black">Tiri Salvezza: <span className="text-text-primary">{cls.saves.map(a => abilityMap[a] || a).join(', ')}</span></p>
                 </button>
               ))}
             </div>
@@ -295,7 +295,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                     <span className={`text-[11px] font-black tracking-widest uppercase ${currentCharacter.speciesId === sp.id ? 'text-accent' : 'text-text-primary'}`}>
                       {sp.name}
                     </span>
-                    <div className="text-[9px] text-text-muted font-mono mt-1 font-bold tracking-tighter">{sp.speed}m Velocità</div>
+                    <div className="text-[9px] text-text-muted font-mono mt-1 font-bold tracking-normal">{sp.speed}m Velocità</div>
                   </button>
                 ))}
               </div>
@@ -311,7 +311,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                           <ChevronRight className="w-5 h-5 text-accent" />
                         </div>
                         <div>
-                          <h4 className="text-lg font-serif font-black text-text-primary uppercase tracking-tight">Scegli il tuo Lignaggio</h4>
+                          <h4 className="text-lg font-serif font-black text-text-primary uppercase tracking-normal">Scegli il tuo Lignaggio</h4>
                           <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Opzioni specifiche per la specie {currentSp.name}</p>
                         </div>
                       </div>
@@ -472,7 +472,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       {/* Header */}
       <header className="hidden md:flex h-[68px] bg-card-bg border-b border-border items-center px-8 justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div><div className="font-serif text-2xl text-text-primary tracking-tight">Atelier dell’eroe</div><div className="eyebrow !text-[7px]">Sette capitoli · PHB 2024</div></div>
+          <div><div className="brand-title text-2xl text-text-primary">Forgia dell’eroe</div><div className="eyebrow !text-[7px]">Sette capitoli · PHB 2024</div></div>
         </div>
         
         <div className="flex gap-2">
@@ -488,7 +488,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
 
         <div className="text-[11px] font-mono text-text-muted flex items-center gap-2">
            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-           {currentCharacter.name || 'Untitled Hero'} | Lev 1 {classesData.find(c => c.id === currentCharacter.classId)?.name || 'Adventurer'}
+           {currentCharacter.name || 'Eroe senza nome'} · Livello 1 {classesData.find(c => c.id === currentCharacter.classId)?.name || 'Avventuriero'}
         </div>
       </header>
 
@@ -501,10 +501,10 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           </div>
           <div className="flex flex-col items-end">
              <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
-               Step {currentStep + 1}/{STEPS.length}
+               Capitolo {currentStep + 1}/{STEPS.length}
              </div>
              <div className="text-[10px] font-mono text-accent truncate max-w-[100px]">
-               {currentCharacter.name || 'Untitled'}
+               {currentCharacter.name || 'Senza nome'}
              </div>
           </div>
         </div>
