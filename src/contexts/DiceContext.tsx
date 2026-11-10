@@ -32,6 +32,9 @@ interface DiceContextValue {
   /** Tiro attualmente in animazione (il totale viene svelato alla fine) */
   animating: RollEntry | null;
   finishAnimation: (id: string) => void;
+  /** WebGL non disponibile: i dadi 3D non si possono mostrare su questo dispositivo */
+  dice3dFailed: boolean;
+  reportDice3dFailure: () => void;
 }
 
 const DiceContext = createContext<DiceContextValue | undefined>(undefined);
@@ -46,10 +49,12 @@ export function DiceProvider({ children }: { children: React.ReactNode }) {
   const [dice3d, setDice3dState] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('forge-dice3d');
-      if (saved) return saved === 'on';
-      return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Attivi di default anche con "Riduci movimento": in quel caso l'animazione è breve e senza rotolamento
+      return saved !== 'off';
     } catch { return true; }
   });
+  const [dice3dFailed, setDice3dFailed] = useState(false);
+  const reportDice3dFailure = useCallback(() => setDice3dFailed(true), []);
   const setDice3d = useCallback((enabled: boolean) => {
     setDice3dState(enabled);
     try { localStorage.setItem('forge-dice3d', enabled ? 'on' : 'off'); } catch { /* storage non disponibile */ }
@@ -99,7 +104,7 @@ export function DiceProvider({ children }: { children: React.ReactNode }) {
   const addNote = useCallback((label: string, detail: string) => { push({ label, detail, kind: 'note' }); }, [push]);
   const clear = useCallback(() => setHistory([]), []);
 
-  const value = useMemo(() => ({ history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation }), [history, mode, isOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation]);
+  const value = useMemo(() => ({ history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation, dice3dFailed, reportDice3dFailure }), [history, mode, isOpen, rollCheck, rollDamage, addNote, clear, dice3d, setDice3d, animating, finishAnimation, dice3dFailed, reportDice3dFailure]);
   return <DiceContext.Provider value={value}>{children}</DiceContext.Provider>;
 }
 

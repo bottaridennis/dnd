@@ -33,7 +33,9 @@ import { getOriginChoiceRequirements } from './LanguageToolPicker';
 import { STANDARD_LANGUAGES } from '../data/languages';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
-import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
+import { getSpellBudget } from '../lib/spellBudget';
+import { getFeatBudget, getInvocationBudget } from '../lib/featBudget';
+import { INVOCATIONS } from '../data/invocations';
 import { useHomebrew } from '../hooks/useHomebrew';
 import StartingEquipment from './StartingEquipment';
 import SummaryStep from './SummaryStep';
@@ -122,8 +124,10 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       case 4: {
         const budget = getSpellBudget(currentCharacter, homebrew.spells);
         if (budget.excess.length) return `Troppi incantesimi o non ammessi: rimuovine ${budget.excess.length} (${budget.excess.join(', ')}).`;
-        const invocations = getInvocationBudget(currentCharacter);
-        if (invocations.over) return `Troppe Suppliche Occulte (${invocations.used}/${invocations.max}).`;
+        const feats = getFeatBudget(currentCharacter, homebrew.feats);
+        if (feats.excess.length) return `Talenti non ammessi dal manuale: rimuovi ${feats.excess.join(', ')}.`;
+        const invocations = getInvocationBudget(currentCharacter, INVOCATIONS);
+        if (invocations.excess.length) return `Suppliche Occulte in eccesso o non ammesse: rimuovi ${invocations.excess.join(', ')}.`;
         return null;
       }
       default:

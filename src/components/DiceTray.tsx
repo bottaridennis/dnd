@@ -8,7 +8,7 @@ const QUICK_DICE = [4, 6, 8, 10, 12, 20, 100];
 
 /** Vassoio dei dadi: tiri rapidi, formula libera, vantaggio/svantaggio e cronologia della sessione. */
 export default function DiceTray() {
-  const { history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, clear, dice3d, setDice3d, animating } = useDice();
+  const { history, mode, setMode, isOpen, setOpen, rollCheck, rollDamage, clear, dice3d, setDice3d, animating, dice3dFailed } = useDice();
   const [formula, setFormula] = useState('');
   const formulaValid = !formula.trim() || parseFormula(formula) !== null;
   const last = history[0];
@@ -38,6 +38,7 @@ export default function DiceTray() {
                 <button onClick={() => setOpen(false)} className="p-1.5 text-text-muted hover:text-accent" aria-label="Chiudi vassoio"><X className="w-4 h-4" /></button>
               </div>
             </header>
+            {dice3d && dice3dFailed && <p className="px-5 pt-2 text-[11px] text-text-muted">Questo browser non supporta i dadi 3D (WebGL disattivato): i risultati compaiono qui.</p>}
 
             <div className="px-5 py-3 space-y-3 border-b border-gold/30">
               <div className="grid grid-cols-3 gap-1 text-[10px] uppercase font-bold tracking-wider">

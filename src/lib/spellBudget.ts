@@ -1,6 +1,6 @@
 import type { CharacterData } from '../contexts/CharacterContext';
 import { getSubclassSpells } from '../data/subclassFeatures';
-import { computeCharacterStats, getAllFeats, getClassLevels, getInvocationsKnown } from './characterRules';
+import { computeCharacterStats, getAllFeats, getClassLevels } from './characterRules';
 import { CLASS_LABELS, getCharacterClassLevels, getMaxSpellLevel, type SpellLike } from './spellEligibility';
 
 /**
@@ -147,9 +147,3 @@ export function getSpellBudget(character: CharacterData, library: SpellLike[]): 
   return { pools, cantrips, leveled, excess, free, isCaster: pools.length > 0, check };
 }
 
-/** Suppliche Occulte: limite dalla tabella del Warlock. */
-export function getInvocationBudget(character: CharacterData) {
-  const max = getInvocationsKnown(character);
-  const used = (character.invocations || []).length;
-  return { used, max, full: used >= max, over: used > max };
-}

@@ -10,6 +10,8 @@ import {
 } from '../lib/characterRules';
 import { checkFeatPrerequisites } from '../lib/featEligibility';
 import { getSpellPools } from '../lib/spellBudget';
+import { getFeatCategory, getFeatSlots } from '../lib/featBudget';
+import { getInvocationsKnown } from '../lib/characterRules';
 
 export interface LevelUpChoice {
   classId: string;
@@ -18,6 +20,10 @@ export interface LevelUpChoice {
   feat?: string;
   /** il nuovo livello concede trucchetti o incantesimi da scegliere */
   spellGain?: boolean;
+  /** il nuovo livello concede un talento Stile di Combattimento da scegliere */
+  styleGain?: boolean;
+  /** il nuovo livello concede Suppliche Occulte da scegliere */
+  invocationGain?: boolean;
 }
 
 interface LevelUpModalProps {
@@ -50,7 +56,8 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
   const featOptions = FEATURES.filter(f => {
     if (epicBoon) return f.prerequisite?.includes('Benedizione Epica') || f.prerequisite?.includes('Talento Generale');
     return !f.prerequisite?.includes('Benedizione Epica');
-  }).map(f => ({ ...f, check: checkFeatPrerequisites(f.prerequisite, { ...character, level: totalLevel + 1 }) }))
+  }).filter(f => getFeatCategory(f.prerequisite) !== 'style') // gli Stili di Combattimento arrivano solo dal privilegio omonimo
+    .map(f => ({ ...f, check: checkFeatPrerequisites(f.prerequisite, { ...character, level: totalLevel + 1 }) }))
     .filter(f => f.name !== 'Aumento dei Punteggi di Caratteristica')
     .sort((a, b) => Number(b.check.ok) - Number(a.check.ok) || a.name.localeCompare(b.name, 'it'));
 
@@ -80,6 +87,13 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
     return { cantrips, prepared, newLevel, totalCantrips: sum(next, 'cantrip'), totalPrepared: sum(next, 'leveled') };
   })();
 
+  const gains = (() => {
+    if (!selectedClass) return { style: 0, invocations: 0 };
+    const after: CharacterData = { ...character, level: totalLevel + 1, classes: { ...classLevels, [selectedClass]: { ...(classLevels[selectedClass] || {}), level: nextClassLevel } } };
+    const styles = (c: CharacterData) => getFeatSlots(c).slots.filter(k => k === 'style').length;
+    return { style: styles(after) - styles(character), invocations: getInvocationsKnown(after) - getInvocationsKnown(character) };
+  })();
+
   const asiReady = !needsAsi || (mode === 'asi' ? asiPicks.length === 2 || ABILITIES.every(a => scores[a] + (asiIncrease[a] || 0) >= 20) : Boolean(featName));
 
   const confirm = () => {
@@ -89,6 +103,8 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
       hpGain: getHpGainForLevel(character, selectedClass, mods.CON),
       abilityIncrease: needsAsi && mode === 'asi' ? asiIncrease : undefined,
       feat: needsAsi && mode === 'feat' ? featName : undefined,
+      styleGain: gains.style > 0,
+      invocationGain: gains.invocations > 0,
       spellGain: Boolean(spellSummary && (spellSummary.cantrips > 0 || spellSummary.prepared > 0 || spellSummary.newLevel)),
     });
     reset();
@@ -180,6 +196,17 @@ export default function LevelUpModal({ isOpen, onClose, character, onLevelUp }: 
                     {spellSummary.newLevel > 0 && <li>Accesso agli incantesimi di {spellSummary.newLevel}° livello</li>}
                   </ul>
                   <p className="text-[10px] text-text-muted mt-2">Dopo la conferma si apre la scelta degli incantesimi, limitata alla tua lista e al tuo livello.</p>
+                </div>
+              )}
+
+              {(gains.style > 0 || gains.invocations > 0) && (
+                <div className="p-4 bg-card-bg border border-border rounded-lg">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">Scelte da fare</div>
+                  <ul className="text-sm text-text-primary list-disc pl-5 space-y-1">
+                    {gains.style > 0 && <li>+{gains.style} talento Stile di Combattimento</li>}
+                    {gains.invocations > 0 && <li>+{gains.invocations} Supplic{gains.invocations === 1 ? 'a Occulta' : 'he Occulte'} (totale {getInvocationsKnown(character) + gains.invocations})</li>}
+                  </ul>
+                  <p className="text-[10px] text-text-muted mt-2">Le scegli dalla scheda dopo la conferma, entro i limiti del manuale.</p>
                 </div>
               )}
 
