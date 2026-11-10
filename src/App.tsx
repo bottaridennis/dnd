@@ -8,6 +8,7 @@ import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
 import CampaignManager from './components/CampaignManager';
 import DiceTray from './components/DiceTray';
+const Dice3D = React.lazy(() => import('./components/Dice3D'));
 import { DiceProvider } from './contexts/DiceContext';
 import { Menu, Moon, Sun, Hexagon, X, Users, PlusCircle, LogOut, Hammer, Crown, ArrowLeft } from 'lucide-react';
 import { auth } from './firebase';
@@ -156,7 +157,7 @@ function AppContent() {
         {view === 'sheet' && <CharacterSheet onBack={() => setView('dashboard')} />}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
-      {view === 'sheet' && <div className="print:hidden"><DiceTray /></div>}
+      {view === 'sheet' && <div className="print:hidden"><DiceTray /><React.Suspense fallback={null}><Dice3D /></React.Suspense></div>}
     </div>
   );
 }
