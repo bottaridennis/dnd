@@ -5,9 +5,9 @@ import { useHomebrew } from '../hooks/useHomebrew';
 import { INVOCATIONS } from '../data/invocations';
 import { fixTextEncoding } from '../lib/utils';
 import { StepHeader, Counter, ToggleChip, OptionCard, Tag, EmptyState } from './ui';
-import { canCharacterUseSpell, CLASS_LABELS, getAvailableSpellLevels, getCharacterClassLevels, SCHOOL_LABELS, type SpellLike } from '../lib/spellEligibility';
+import { canCharacterUseSpell, CLASS_LABELS, getAvailableSpellLevels, getCharacterClassLevels, SCHOOL_LABELS } from '../lib/spellEligibility';
 import { checkFeatPrerequisites, checkInvocationPrerequisites } from '../lib/featEligibility';
-import { computeCharacterStats, getInvocationsKnown } from '../lib/characterRules';
+import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
 
 type LibraryTab = 'incantesimi' | 'talenti' | 'invocazioni';
 
@@ -24,9 +24,12 @@ export default function SpellsFeatsStep() {
   const casterClasses = Object.keys(classLevels).filter(id => id in CLASS_LABELS);
   const availableLevels = currentCharacter ? getAvailableSpellLevels(currentCharacter) : [0];
 
+  const budget = useMemo(() => currentCharacter ? getSpellBudget(currentCharacter, homebrew.spells) : null, [currentCharacter, homebrew.spells]);
+
+  /** Ammesso dal manuale (lista di classe e livello), indipendentemente dai limiti numerici */
   const isCompatible = (item: any) => {
     if (!currentCharacter) return false;
-    if (tab === 'incantesimi') return canCharacterUseSpell(item, currentCharacter);
+    if (tab === 'incantesimi') return budget ? budget.check(item).eligible : canCharacterUseSpell(item, currentCharacter);
     if (tab === 'talenti') return checkFeatPrerequisites(item.prerequisite, currentCharacter).ok;
     return checkInvocationPrerequisites(item.prerequisite, currentCharacter).ok;
   };
@@ -40,28 +43,41 @@ export default function SpellsFeatsStep() {
 
     return base
       .filter(item => !needle || item.name?.toLocaleLowerCase('it').includes(needle) || item.displayName?.toLocaleLowerCase('it').includes(needle) || item.school?.toLocaleLowerCase('it').includes(needle))
-      .filter(item => showAllSpells || isCompatible(item))
+      .filter(item => showAllSpells || isCompatible(item) || selected.has(item.name))
       .filter(item => tab !== 'incantesimi' || levelFilter === 'all' || item.level === levelFilter)
       .filter(item => !onlySelected || selected.has(item.name))
       .sort((a, b) => tab === 'incantesimi' ? (a.level ?? 0) - (b.level ?? 0) || (a.displayName || a.name).localeCompare(b.displayName || b.name, 'it') : (a.displayName || a.name).localeCompare(b.displayName || b.name, 'it'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCharacter, homebrew.spells, homebrew.feats, tab, search, showAllSpells, levelFilter, onlySelected]);
+  }, [currentCharacter, budget, homebrew.spells, homebrew.feats, tab, search, showAllSpells, levelFilter, onlySelected]);
 
   if (!currentCharacter) return null;
 
-  const stats = computeCharacterStats(currentCharacter);
-  const selectedSpells = (currentCharacter.spells || []).map(name => homebrew.spells.find(s => s.name === name));
-  const cantripCount = selectedSpells.filter(s => s?.level === 0).length;
-  const leveledCount = selectedSpells.filter(s => (s?.level ?? 1) > 0).length;
-  const maxCantrips = stats.spellcasting.reduce((acc, c) => acc + c.cantrips, 0);
-  const maxPrepared = stats.spellcasting.reduce((acc, c) => acc + c.prepared, 0);
+  const spellBudget = budget!;
+  const invocationBudget = getInvocationBudget(currentCharacter);
   const isWarlock = Boolean(getCharacterClassLevels(currentCharacter).warlock);
   const listName = tab === 'incantesimi' ? 'spells' : tab === 'talenti' ? 'feats' : 'invocations';
   const currentList: string[] = (currentCharacter as any)[listName] || [];
+
+  /** Può essere aggiunto ora? Gli elementi già scelti si possono sempre togliere. */
+  const availability = (item: any): { ok: boolean; reason?: string } => {
+    if (currentList.includes(item.name)) return { ok: true };
+    if (tab === 'incantesimi') return spellBudget.check(item);
+    if (tab === 'talenti') {
+      const res = checkFeatPrerequisites(item.prerequisite, currentCharacter);
+      return { ok: res.ok, reason: res.reasons.join(' · ') };
+    }
+    const res = checkInvocationPrerequisites(item.prerequisite, currentCharacter);
+    if (!res.ok) return { ok: false, reason: res.reasons.join(' · ') };
+    if (invocationBudget.full) return { ok: false, reason: 'Limite di suppliche raggiunto' };
+    return { ok: true };
+  };
+
   const toggleSelection = (item: any) => {
     const isSelected = currentList.includes(item.name);
+    if (!isSelected && !availability(item).ok) return;
     dispatch({ type:'UPDATE_CHARACTER', payload:{ [listName]:isSelected ? currentList.filter(name => name !== item.name) : [...currentList, item.name] } });
   };
+  const excess = new Set(tab === 'incantesimi' ? spellBudget.excess : []);
 
   const tabs = ([['incantesimi', 'Incantesimi'], ['talenti', 'Talenti'], ...(isWarlock ? [['invocazioni', 'Suppliche Occulte']] : [])] as [LibraryTab, string][]);
 
@@ -72,9 +88,9 @@ export default function SpellsFeatsStep() {
         title="Magie e talenti"
         description={casterClasses.length ? `Scegli trucchetti e incantesimi preparati dalla lista: ${casterClasses.map(id => `${CLASS_LABELS[id]} ${classLevels[id]}`).join(' · ')}.` : 'La tua classe non lancia incantesimi al 1° livello: puoi passare oltre o consultare i talenti.'}
         aside={<div className="flex flex-wrap gap-2">
-          {stats.spellcasting.length > 0 && <Counter value={cantripCount} max={maxCantrips} label="trucchetti" />}
-          {stats.spellcasting.length > 0 && <Counter value={leveledCount} max={maxPrepared} label="preparati" />}
-          {isWarlock && <Counter value={(currentCharacter.invocations || []).length} max={getInvocationsKnown(currentCharacter)} label="suppliche" />}
+          {spellBudget.cantrips.max > 0 && <Counter value={spellBudget.cantrips.used} max={spellBudget.cantrips.max} label="trucchetti" />}
+          {spellBudget.leveled.max > 0 && <Counter value={spellBudget.leveled.used} max={spellBudget.leveled.max} label="preparati" />}
+          {isWarlock && <Counter value={invocationBudget.used} max={invocationBudget.max} label="suppliche" />}
         </div>}
       />
 
@@ -97,34 +113,49 @@ export default function SpellsFeatsStep() {
           </select>
         )}
         <ToggleChip selected={onlySelected} onClick={() => setOnlySelected(v => !v)}>Solo scelti</ToggleChip>
-        <ToggleChip selected={showAllSpells} onClick={() => setShowAllSpells(v => !v)}><Filter className="w-3.5 h-3.5" /> Anche non disponibili</ToggleChip>
+        <ToggleChip selected={showAllSpells} onClick={() => setShowAllSpells(v => !v)}><Filter className="w-3.5 h-3.5" /> Mostra non ammessi</ToggleChip>
       </div>
+      {tab === 'incantesimi' && spellBudget.pools.length > 0 && (
+        <div className="text-xs text-text-muted flex flex-wrap gap-x-4 gap-y-1">
+          {spellBudget.pools.map(pool => (
+            <span key={pool.id} className={pool.used >= pool.capacity ? 'text-accent' : ''}>
+              {pool.label}: {pool.kind === 'cantrip' ? 'trucchetti' : `incantesimi fino al ${pool.maxLevel}° livello`} {pool.used}/{pool.capacity}
+            </span>
+          ))}
+        </div>
+      )}
+      {tab === 'incantesimi' && spellBudget.excess.length > 0 && (
+        <p className="text-sm text-danger border border-danger/40 bg-danger/10 px-3 py-2">
+          Hai scelto più incantesimi di quanti ne consenta il manuale o alcuni non sono più ammessi: rimuovi {spellBudget.excess.length === 1 ? 'quello evidenziato' : `i ${spellBudget.excess.length} evidenziati`} per continuare.
+        </p>
+      )}
       {tab === 'talenti' && <p className="text-sm text-text-muted">Al 1° livello ottieni solo il Talento d’Origine del background{currentCharacter.bonusOriginFeat ? ' e quello del tratto Versatile' : ''}: gli altri talenti arrivano salendo di livello.</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {filteredData.map((item: any, idx: number) => {
           const isSelected = currentList.includes(item.name);
-          const compatible = isCompatible(item as SpellLike);
-          const reasons = compatible ? [] : tab === 'incantesimi' ? ['Non disponibile per classe o livello'] : (tab === 'talenti' ? checkFeatPrerequisites(item.prerequisite, currentCharacter) : checkInvocationPrerequisites(item.prerequisite, currentCharacter)).reasons;
+          const check = availability(item);
+          const isExcess = excess.has(item.name);
           return (
             <OptionCard
               key={item.name + idx}
               selected={isSelected}
-              disabled={!compatible && !isSelected}
+              disabled={!check.ok}
               onClick={() => toggleSelection(item)}
               title={item.displayName || item.name}
               subtitle={item.level !== undefined ? `${item.level === 0 ? 'Trucchetto' : `Livello ${item.level}`} · ${SCHOOL_LABELS[item.school] || item.school || ''}` : item.prerequisite}
               meta={<>
                 {item.concentration && <Tag tone="accent">Concentrazione</Tag>}
                 {item.ritual && <Tag>Rituale</Tag>}
-                {!compatible && <Tag tone="danger">{reasons.join(' · ')}</Tag>}
+                {isExcess && <Tag tone="danger">In eccesso: tocca per rimuovere</Tag>}
+                {!check.ok && check.reason && <Tag tone="danger">{check.reason}</Tag>}
               </>}
             >
               <span className="line-clamp-3 block" dangerouslySetInnerHTML={{ __html: fixTextEncoding(item.description || 'Contenuto personalizzato.') }} />
             </OptionCard>
           );
         })}
-        {filteredData.length === 0 && <div className="col-span-full"><EmptyState icon={BookOpen} title="Nessun risultato">Prova a cambiare filtro o a mostrare anche gli elementi non disponibili.</EmptyState></div>}
+        {filteredData.length === 0 && <div className="col-span-full"><EmptyState icon={BookOpen} title="Nessun risultato">Prova a cambiare filtro o a mostrare anche gli elementi non ammessi.</EmptyState></div>}
       </div>
     </div>
   );

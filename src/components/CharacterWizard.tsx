@@ -33,6 +33,8 @@ import { getOriginChoiceRequirements } from './LanguageToolPicker';
 import { STANDARD_LANGUAGES } from '../data/languages';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
+import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
+import { useHomebrew } from '../hooks/useHomebrew';
 import StartingEquipment from './StartingEquipment';
 import SummaryStep from './SummaryStep';
 import { useSpeciesAutomation } from '../hooks/useSpeciesAutomation';
@@ -69,6 +71,7 @@ interface WizardProps {
 export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const { currentCharacter, dispatch } = useCharacter();
   const { user } = useAuth();
+  const homebrew = useHomebrew();
   
   // Automate species benefits
   useSpeciesAutomation();
@@ -114,6 +117,13 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         const req = getOriginChoiceRequirements(currentCharacter);
         if ((currentCharacter.languages || []).length !== req.languageCount) return `Scegli ${req.languageCount} lingue (${(currentCharacter.languages || []).length}/${req.languageCount}).`;
         if ((currentCharacter.toolProficiencies || []).length !== req.toolCount) return `Scegli gli strumenti: ${req.toolLabel}.`;
+        return null;
+      }
+      case 4: {
+        const budget = getSpellBudget(currentCharacter, homebrew.spells);
+        if (budget.excess.length) return `Troppi incantesimi o non ammessi: rimuovine ${budget.excess.length} (${budget.excess.join(', ')}).`;
+        const invocations = getInvocationBudget(currentCharacter);
+        if (invocations.over) return `Troppe Suppliche Occulte (${invocations.used}/${invocations.max}).`;
         return null;
       }
       default:
