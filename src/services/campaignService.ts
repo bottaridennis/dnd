@@ -16,13 +16,49 @@ export interface InitiativeEntry {
   maxHp?: number;
   ac?: number;
   note?: string;
+  /** PF temporanei (solo creature del Master) */
+  tempHp?: number;
+  /** Grado di sfida, per il calcolo dei PE */
+  cr?: string;
+  /** Condizioni applicate nel tracker; rounds = round rimanenti (null = finché non viene rimossa) */
+  conditions?: TrackedCondition[];
+  /** Creatura sconfitta: viene saltata nei turni */
+  defeated?: boolean;
 }
+
+export interface TrackedCondition { id: string; name: string; rounds: number | null }
+
+export interface EncounterMonster {
+  id: string;
+  name: string;
+  cr: string;
+  count: number;
+  hp: number;
+  ac: number;
+  initiativeBonus: number;
+  notes?: string;
+}
+
+export interface Encounter {
+  id: string;
+  name: string;
+  description?: string;
+  monsters: EncounterMonster[];
+  createdAt: number;
+}
+
+export interface CombatLogEntry { id: string; round: number; text: string; at: number }
 
 export interface InitiativeState {
   active: boolean;
   round: number;
   turn: number;
   entries: InitiativeEntry[];
+  /** Incontro preparato da cui è partito il combattimento */
+  encounterId?: string;
+  encounterName?: string;
+  log?: CombatLogEntry[];
+  startedAt?: number;
 }
 
 export interface Campaign {
@@ -32,6 +68,7 @@ export interface Campaign {
   dmName?: string;
   notes?: string;
   initiative: InitiativeState;
+  encounters?: Encounter[];
   createdAt?: any;
   updatedAt?: any;
 }
@@ -75,7 +112,9 @@ export const campaignService = {
   },
 
   async updateCampaign(id: string, updates: Partial<Campaign>) {
-    await updateDoc(doc(db, COLLECTION, id), { ...updates, updatedAt: serverTimestamp() });
+    // Firestore non accetta valori undefined: i dati della campagna sono JSON puro
+    const clean = JSON.parse(JSON.stringify(updates));
+    await updateDoc(doc(db, COLLECTION, id), { ...clean, updatedAt: serverTimestamp() });
   },
 
   async deleteCampaign(id: string) {

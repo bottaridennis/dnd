@@ -1,84 +1,251 @@
 rules_version = '2';
-
-// Regole di sicurezza per Forge (vedi security_spec.md).
-// Copia questo file in firestore.rules (o incollalo in Firebase Console → Firestore → Regole) e pubblicalo.
-//
-// - Ogni utente legge e scrive solo il proprio profilo, i propri personaggi e il proprio homebrew.
-// - Campagne: il documento ha come ID il codice d'invito; solo il Master lo modifica.
-//   Chi conosce il codice può leggerlo (serve per unirsi e vedere l'ordine d'iniziativa).
-// - Un giocatore collega un proprio personaggio scrivendo campaignId/campaignDmId sulla scheda:
-//   da quel momento il Master (campaignDmId) può LEGGERE quella scheda, mai modificarla.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    // ===============================================================
+    // Global Safety Net & Catch-All
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // ===============================================================
+    // Shared Helper Primitives
+    // ===============================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      // In D&D 2024 app, we allow all signed-in users
+      // without strictly requiring email verification for basic play.
+      return isSignedIn();
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[A-Za-z0-9_-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerified() &&
+             (exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // Il Master della campagna a cui il personaggio è collegato (sola lettura)
+    function isCampaignDm(data) {
+      return isVerified() && ('campaignDmId' in data) && data.campaignDmId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Validation Blueprints
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512));
     }
 
     function isValidCharacter(data) {
-      return data.userId is string
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
-        && data.level is int && data.level >= 1 && data.level <= 20
-        && data.classId is string && data.classId.size() <= 40
-        && data.speciesId is string && data.speciesId.size() <= 40
-        && data.backgroundId is string && data.backgroundId.size() <= 40
-        && data.abilityScores is map;
+      return data.keys().hasAll(['id', 'userId', 'name', 'level', 'classId', 'speciesId', 'backgroundId']) &&
+             isValidId(data.id) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.level is int && data.level >= 1 && data.level <= 20 &&
+             data.classId is string && data.classId.size() <= 64 &&
+             data.speciesId is string && data.speciesId.size() <= 64 &&
+             data.backgroundId is string && data.backgroundId.size() <= 64 &&
+             (!('subclassId' in data) || (data.subclassId is string)) &&
+             (!('speciesSubOption' in data) || (data.speciesSubOption is string)) &&
+             (!('originFeat' in data) || (data.originFeat is string)) &&
+             (!('bonusOriginFeat' in data) || (data.bonusOriginFeat is string)) &&
+             (!('alignment' in data) || (data.alignment is string)) &&
+             (!('appearance' in data) || (data.appearance is string)) &&
+             (!('description' in data) || (data.description is string)) &&
+             (!('trinket' in data) || (data.trinket is string)) &&
+             (!('portraitUrl' in data) || (data.portraitUrl is string && data.portraitUrl.size() <= 1000000)) &&
+             (!('boostMode' in data) || (data.boostMode is string)) &&
+             (!('abilityMethod' in data) || (data.abilityMethod is string)) &&
+             (!('concentratingOn' in data) || (data.concentratingOn is string && data.concentratingOn.size() <= 200)) &&
+             (!('hpMax' in data) || (data.hpMax is int)) &&
+             (!('hpMaxOverride' in data) || (data.hpMaxOverride is number)) &&
+             (!('hpCurrent' in data) || (data.hpCurrent is int)) &&
+             (!('hpTemp' in data) || (data.hpTemp is int)) &&
+             (!('acOverride' in data) || (data.acOverride is number)) &&
+             (!('speedOverride' in data) || (data.speedOverride is number)) &&
+             (!('darkvisionOverride' in data) || (data.darkvisionOverride is number)) &&
+             (!('proficiencyOverride' in data) || (data.proficiencyOverride is number)) &&
+             (!('exhaustion' in data) || (data.exhaustion is int)) &&
+             (!('abilityScores' in data) || (data.abilityScores is map)) &&
+             (!('abilityBonuses' in data) || (data.abilityBonuses is map)) &&
+             (!('currency' in data) || (data.currency is map)) &&
+             (!('classes' in data) || (data.classes is map)) &&
+             (!('resources' in data) || (data.resources is map)) &&
+             (!('classResourcesSpent' in data) || (data.classResourcesSpent is map)) &&
+             (!('hitDiceSpent' in data) || (data.hitDiceSpent is map)) &&
+             (!('deathSaves' in data) || (data.deathSaves is map)) &&
+             (!('weaponMasteries' in data) || (data.weaponMasteries is map)) &&
+             (!('companion' in data) || (data.companion is map)) &&
+             (!('selectedBoosts' in data) || (data.selectedBoosts is list)) &&
+             (!('skills' in data) || (data.skills is list)) &&
+             (!('proficientSkills' in data) || (data.proficientSkills is list)) &&
+             (!('speciesSkills' in data) || (data.speciesSkills is list)) &&
+             (!('expertiseSkills' in data) || (data.expertiseSkills is list)) &&
+             (!('languages' in data) || (data.languages is list)) &&
+             (!('toolProficiencies' in data) || (data.toolProficiencies is list)) &&
+             (!('resistances' in data) || (data.resistances is list)) &&
+             (!('immunities' in data) || (data.immunities is list)) &&
+             (!('vulnerabilities' in data) || (data.vulnerabilities is list)) &&
+             (!('features' in data) || (data.features is list)) &&
+             (!('spells' in data) || (data.spells is list)) &&
+             (!('feats' in data) || (data.feats is list)) &&
+             (!('invocations' in data) || (data.invocations is list)) &&
+             (!('equipment' in data) || (data.equipment is list)) &&
+             (!('inventoryItems' in data) || (data.inventoryItems is list)) &&
+             (!('containers' in data) || (data.containers is list)) &&
+             (!('activeSummons' in data) || (data.activeSummons is list)) &&
+             (!('innateSpells' in data) || (data.innateSpells is list)) &&
+             (!('conditions' in data) || (data.conditions is list)) &&
+             // Collegamento a una campagna: codice di 6 caratteri e id del Master
+             (!('campaignId' in data) || (data.campaignId is string && data.campaignId.size() <= 16)) &&
+             (!('campaignDmId' in data) || (data.campaignDmId is string && data.campaignDmId.size() <= 128)) &&
+             (!('campaignName' in data) || (data.campaignName is string && data.campaignName.size() <= 120));
     }
 
-    match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.uid == userId && !('role' in request.resource.data);
-      allow update: if isOwner(userId) && request.resource.data.uid == resource.data.uid && !('role' in request.resource.data);
-      allow delete: if false;
+    function isValidHomebrew(data) {
+      return data.keys().hasAll(['name', 'userId']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 5000));
+    }
 
-      match /{collection}/{itemId} {
-        allow read, delete: if isOwner(userId) && collection in ['homebrewSpells', 'homebrewWeapons', 'homebrewFeats'];
-        allow create, update: if isOwner(userId)
-          && collection in ['homebrewSpells', 'homebrewWeapons', 'homebrewFeats']
-          && request.resource.data.userId == userId
-          && request.resource.data.name is string
-          && request.resource.data.name.size() <= 120;
+    function isValidCampaign(data) {
+      return data.keys().hasAll(['id', 'name', 'dmId']) &&
+             data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+             data.dmId is string &&
+             (!('dmName' in data) || (data.dmName is string && data.dmName.size() <= 100)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 20000)) &&
+             (!('initiative' in data) || (data.initiative is map)) &&
+             (!('encounters' in data) || (data.encounters is list && data.encounters.size() <= 100));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      // 1. Path Variable Hardening
+      allow get: if isOwner(uid) || isAdmin();
+
+      // 2. Strict Schema Control
+      allow create: if isOwner(uid) && isValidUser(incoming());
+
+      // 3. Action-Based Update Pattern (Prevent role escalation)
+      allow update: if isOwner(uid) &&
+                      isValidUser(incoming()) &&
+                      incoming().uid == existing().uid &&
+                      (!('role' in incoming()) || (incoming().role == existing().role)) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+
+      allow delete: if isAdmin();
+
+      // Homebrew Subcollections
+      match /homebrewSpells/{id} { allow read, write: if isOwner(uid) || isAdmin(); }
+      match /homebrewWeapons/{id} { allow read, write: if isOwner(uid) || isAdmin(); }
+      match /homebrewFeats/{id} { allow read, write: if isOwner(uid) || isAdmin(); }
+
+      // Allow any subcollection under users for the owner
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(uid) || isAdmin();
       }
     }
 
     match /characters/{characterId} {
-      // Il proprietario, oppure il Master della campagna a cui il personaggio è stato collegato
-      allow read: if isSignedIn()
-        && (resource.data.userId == request.auth.uid
-            || ('campaignDmId' in resource.data && resource.data.campaignDmId == request.auth.uid));
-      allow create: if isValidId(characterId)
-        && isOwner(request.resource.data.userId)
-        && isValidCharacter(request.resource.data);
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && isValidCharacter(request.resource.data);
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // 1. Lettura: proprietario, admin oppure Master della campagna collegata (sola lettura)
+      allow get: if isVerified() && (existing().userId == request.auth.uid || isCampaignDm(existing()) || isAdmin());
+
+      // 2. Secure List Queries: i propri personaggi oppure quelli collegati alla propria campagna
+      allow list: if isVerified() &&
+                    (resource.data.userId == request.auth.uid || resource.data.campaignDmId == request.auth.uid);
+
+      // 3. Strict Schema Control & Relational Guard
+      allow create: if isValidId(characterId) &&
+                      isVerified() &&
+                      isValidCharacter(incoming()) &&
+                      incoming().id == characterId &&
+                      incoming().createdAt == request.time &&
+                      (exists(/databases/$(database)/documents/users/$(request.auth.uid)) || isAdmin());
+
+      // 4. Action-Based Update Pattern & Invariant Protection (solo il proprietario: il Master non scrive mai)
+      allow update: if isValidId(characterId) &&
+                      isVerified() &&
+                      existing().userId == request.auth.uid &&
+                      isValidCharacter(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().id == existing().id &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().updatedAt == request.time &&
+                      incoming().diff(existing()).affectedKeys().hasOnly([
+                        'name', 'level', 'classId', 'speciesId', 'backgroundId',
+                        'subclassId', 'speciesSubOption', 'originFeat', 'bonusOriginFeat', 'alignment',
+                        'appearance', 'description', 'trinket', 'portraitUrl',
+                        'hpMax', 'hpMaxOverride', 'hpCurrent', 'hpTemp', 'hitDiceSpent', 'deathSaves',
+                        'acOverride', 'speedOverride', 'darkvisionOverride', 'proficiencyOverride', 'exhaustion',
+                        'abilityScores', 'abilityBonuses', 'abilityMethod', 'boostMode', 'currency', 'classes',
+                        'resources', 'classResourcesSpent', 'concentratingOn',
+                        'weaponMasteries', 'companion', 'selectedBoosts', 'skills',
+                        'proficientSkills', 'speciesSkills', 'expertiseSkills', 'languages', 'toolProficiencies',
+                        'resistances', 'immunities', 'vulnerabilities',
+                        'features', 'spells', 'feats', 'invocations', 'equipment',
+                        'inventoryItems', 'containers', 'activeSummons', 'innateSpells',
+                        'conditions', 'campaignId', 'campaignDmId', 'campaignName', 'updatedAt'
+                      ]);
+
+      allow delete: if isVerified() && (existing().userId == request.auth.uid || isAdmin());
     }
 
+    // Campagne: l'ID del documento è il codice d'invito (6 caratteri).
+    // Chi conosce il codice può leggerla (per unirsi e vedere l'ordine d'iniziativa); solo il Master la modifica.
     match /campaigns/{campaignId} {
-      // Lettura del singolo documento per chi conosce il codice; elenco solo delle proprie campagne
-      allow get: if isSignedIn();
-      allow list: if isSignedIn() && resource.data.dmId == request.auth.uid;
-      allow create: if isSignedIn()
-        && campaignId.matches('^[A-Z0-9]{6}$')
-        && request.resource.data.dmId == request.auth.uid
-        && request.resource.data.id == campaignId
-        && request.resource.data.name is string && request.resource.data.name.size() <= 120;
-      allow update: if isSignedIn()
-        && resource.data.dmId == request.auth.uid
-        && request.resource.data.dmId == resource.data.dmId
-        && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && resource.data.dmId == request.auth.uid;
+      allow get: if isVerified();
+      allow list: if isVerified() && resource.data.dmId == request.auth.uid;
+
+      allow create: if isVerified() &&
+                      campaignId.matches('^[A-Z0-9]{6}$') &&
+                      isValidCampaign(incoming()) &&
+                      incoming().id == campaignId &&
+                      incoming().dmId == request.auth.uid;
+
+      allow update: if isVerified() &&
+                      existing().dmId == request.auth.uid &&
+                      isValidCampaign(incoming()) &&
+                      incoming().id == existing().id &&
+                      incoming().dmId == existing().dmId &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'dmName', 'notes', 'initiative', 'encounters', 'updatedAt']);
+
+      allow delete: if isVerified() && (existing().dmId == request.auth.uid || isAdmin());
+    }
+
+    // Admin access collection
+    match /admins/{uid} {
+      allow read: if isAdmin();
+      allow write: if false; // Only manageable via Admin SDK or Console
     }
   }
 }

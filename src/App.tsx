@@ -7,19 +7,21 @@ import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
 import CampaignManager from './components/CampaignManager';
+import EncounterPage from './components/EncounterPage';
 import DiceTray from './components/DiceTray';
 const Dice3D = React.lazy(() => import('./components/Dice3D'));
 import { DiceProvider } from './contexts/DiceContext';
-import { Menu, Moon, Sun, Hexagon, X, Users, PlusCircle, LogOut, Hammer, Crown, ArrowLeft } from 'lucide-react';
+import { Menu, Moon, Sun, Hexagon, X, Users, PlusCircle, LogOut, Hammer, Crown, ArrowLeft, Swords } from 'lucide-react';
 import { auth } from './firebase';
 import { userService } from './services/userService';
 import { AnimatePresence, motion } from 'motion/react';
 
-type View = 'dashboard' | 'wizard' | 'sheet' | 'homebrew' | 'campaigns';
+type View = 'dashboard' | 'wizard' | 'sheet' | 'homebrew' | 'campaigns' | 'encounters';
 
 const NAV: { id: View; label: string; Icon: typeof Users }[] = [
   { id: 'dashboard', label: 'Personaggi', Icon: Users },
   { id: 'campaigns', label: 'Campagne', Icon: Crown },
+  { id: 'encounters', label: 'Incontri', Icon: Swords },
   { id: 'homebrew', label: 'Homebrew', Icon: Hammer },
 ];
 
@@ -28,6 +30,7 @@ function AppContent() {
   const { dispatch } = useCharacter();
   const [view, setView] = useState<View>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [encounterCampaignId, setEncounterCampaignId] = useState<string | null>(null);
 
   // Garantisce l'esistenza del profilo utente (richiesto dalle regole di sicurezza)
   useEffect(() => {
@@ -153,11 +156,12 @@ function AppContent() {
       <main className="flex-1 w-full relative">
         {view === 'wizard' && <CharacterWizard onComplete={() => setView('dashboard')} onCancel={() => setView('dashboard')} />}
         {view === 'homebrew' && <HomebrewCreator />}
-        {view === 'campaigns' && <CampaignManager />}
+        {view === 'campaigns' && <CampaignManager onOpenEncounters={id => { setEncounterCampaignId(id); setView('encounters'); }} />}
+        {view === 'encounters' && <EncounterPage initialCampaignId={encounterCampaignId} />}
         {view === 'sheet' && <CharacterSheet onBack={() => setView('dashboard')} />}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
-      {view === 'sheet' && <div className="print:hidden"><DiceTray /><React.Suspense fallback={null}><Dice3D /></React.Suspense></div>}
+      {(view === 'sheet' || view === 'encounters') && <div className="print:hidden"><DiceTray /><React.Suspense fallback={null}><Dice3D /></React.Suspense></div>}
     </div>
   );
 }

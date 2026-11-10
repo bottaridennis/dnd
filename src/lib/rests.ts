@@ -43,8 +43,4 @@ export function getLongRestUpdates(character: CharacterData): Partial<CharacterD
   };
 }
 
-export function rollDie(sides: number): number {
-  const buffer = new Uint32Array(1);
-  crypto.getRandomValues(buffer);
-  return (buffer[0] % sides) + 1;
-}
+export { rollDie } from './random';
