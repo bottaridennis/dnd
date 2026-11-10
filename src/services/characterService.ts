@@ -9,11 +9,11 @@ import {
   query, 
   where,
   onSnapshot,
-  Timestamp,
-  serverTimestamp
+  serverTimestamp,
+  deleteField
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { CharacterData, InventoryItem } from '../contexts/CharacterContext';
+import { CharacterData } from '../contexts/CharacterContext';
 
 export enum OperationType {
   CREATE = 'create',
@@ -113,6 +113,10 @@ export const characterService = {
         ...updates,
         updatedAt: serverTimestamp()
       });
+      // Un valore undefined di primo livello indica la rimozione del campo (es. override azzerati)
+      Object.keys(updates).forEach(key => {
+        if ((updates as any)[key] === undefined) data[key] = deleteField();
+      });
       await updateDoc(doc(db, COLLECTION_NAME, characterId), data);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
@@ -149,50 +153,5 @@ export const characterService = {
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
     });
-  },
-
-  async addStandardItemToInventory(characterId: string, item: any, containerId: string | null = null) {
-    const path = `${COLLECTION_NAME}/${characterId}`;
-    try {
-      const docRef = doc(db, COLLECTION_NAME, characterId);
-      const characterDoc = await getDoc(docRef);
-      if (!characterDoc.exists()) throw new Error('Character not found');
-
-      const data = characterDoc.data() as CharacterData;
-      const inventoryItems = data.inventoryItems || [];
-      
-      // Handle quantity in name (e.g. "Daga (2)")
-      let itemName = item.name;
-      let quantity = 1;
-      const quantityMatch = itemName.match(/\((\d+)\)$/);
-      if (quantityMatch) {
-        quantity = parseInt(quantityMatch[1]);
-        itemName = itemName.replace(/\s*\(\d+\)$/, '').trim();
-      }
-
-      const newItem: InventoryItem = {
-        id: crypto.randomUUID(),
-        name: itemName,
-        weight: item.weight || 0,
-        quantity: quantity,
-        isAttuned: false,
-        isMagical: false,
-        isEquipped: false,
-        containerId: containerId,
-        // Weapon details
-        damage: item.damage,
-        damageType: item.damageType,
-        properties: item.properties,
-        mastery: item.mastery
-      };
-
-      await updateDoc(docRef, {
-        inventoryItems: [...inventoryItems, newItem],
-        updatedAt: Timestamp.now()
-      });
-      return newItem;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
-    }
   }
 };

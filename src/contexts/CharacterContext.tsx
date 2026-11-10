@@ -19,6 +19,8 @@ export interface InventoryItem {
   damageType?: string;
   properties?: string[];
   mastery?: string;
+  /** Bonus magico (es. +1) applicato a CA (armature/scudi) o a colpire e danni (armi) */
+  magicBonus?: number;
 }
 
 export interface ContainerData {
@@ -42,7 +44,19 @@ export interface CharacterData {
   selectedBoosts: Ability[];
   originFeat: string;
   skills: string[]; // These are for old format, we keep it for backward compat if needed
-  proficientSkills: string[]; // Explicit skill selections
+  proficientSkills: string[]; // Explicit skill selections (classe + specie)
+  /** Abilità scelte tramite la specie (Umano: Abile; Elfo: Sensi Acuti) */
+  speciesSkills?: string[];
+  /** Abilità con Maestria (bonus di competenza raddoppiato) */
+  expertiseSkills?: string[];
+  /** Modalità di distribuzione dei bonus del background */
+  boostMode?: '2/1' | '1/1/1';
+  /** Metodo di generazione dei punteggi usato nella creazione */
+  abilityMethod?: 'standard' | 'pointbuy' | 'manual';
+  /** Incrementi successivi (Aumento dei Punteggi di Caratteristica, talenti) */
+  abilityBonuses?: Partial<Record<Ability, number>>;
+  /** Talento d'Origine aggiuntivo (tratto Versatile dell'Umano) */
+  bonusOriginFeat?: string;
   resistances: string[];
   immunities: string[];
   vulnerabilities: string[];
@@ -59,6 +73,10 @@ export interface CharacterData {
   trinket: string;
   hpCurrent: number;
   hpTemp: number;
+  hpMaxOverride?: number;
+  /** Dadi Vita spesi, indicizzati per taglia del dado (es. { 8: 2 }) */
+  hitDiceSpent?: Record<string, number>;
+  deathSaves?: { successes: number; failures: number };
   acOverride?: number;
   speedOverride?: number;
   darkvisionOverride?: number;
@@ -96,6 +114,8 @@ export interface CharacterData {
 interface UserState {
   characters: CharacterData[];
   currentCharacterId: string | null;
+  /** Personaggio in creazione non ancora salvato su Firestore */
+  draftId: string | null;
   loading: boolean;
 }
 
@@ -105,7 +125,8 @@ type CharacterAction =
   | { type: 'UPDATE_CHARACTER'; payload: Partial<CharacterData> }
   | { type: 'DELETE_CHARACTER'; payload: string }
   | { type: 'SELECT_CHARACTER'; payload: string }
-  | { type: 'RESET_WIZARD' };
+  | { type: 'RESET_WIZARD' }
+  | { type: 'DISCARD_DRAFT' };
 
 const initialCharacter: CharacterData = {
   id: '',
@@ -118,9 +139,15 @@ const initialCharacter: CharacterData = {
   backgroundId: '',
   abilityScores: { STR: 8, DEX: 8, CON: 8, INT: 8, WIS: 8, CHA: 8 },
   selectedBoosts: [],
+  boostMode: '2/1',
+  abilityMethod: 'pointbuy',
+  abilityBonuses: {},
   originFeat: '',
+  bonusOriginFeat: '',
   skills: [],
   proficientSkills: [],
+  speciesSkills: [],
+  expertiseSkills: [],
   resistances: [],
   immunities: [],
   vulnerabilities: [],
@@ -137,6 +164,8 @@ const initialCharacter: CharacterData = {
   trinket: '',
   hpCurrent: 0,
   hpTemp: 0,
+  hitDiceSpent: {},
+  deathSaves: { successes: 0, failures: 0 },
   acOverride: undefined,
   speedOverride: undefined,
   proficiencyOverride: undefined,
@@ -167,6 +196,7 @@ const initialCharacter: CharacterData = {
 const initialState: UserState = {
   characters: [],
   currentCharacterId: null,
+  draftId: null,
   loading: true,
 };
 
@@ -180,20 +210,14 @@ function characterReducer(state: UserState, action: CharacterAction): UserState 
   switch (action.type) {
     case 'SET_CHARACTERS': {
       const dbCharacters = action.payload;
-      // Preserve the current transient character being created if it's not in DB yet
-      if (state.currentCharacterId && !dbCharacters.some(c => c.id === state.currentCharacterId)) {
-        const transientChar = state.characters.find(c => c.id === state.currentCharacterId);
-        if (transientChar) {
-           return {
-             ...state,
-             characters: [...dbCharacters, transientChar],
-             loading: false
-           };
-        }
-      }
+      const draftSaved = state.draftId !== null && dbCharacters.some(c => c.id === state.draftId);
+      const draftId = draftSaved ? null : state.draftId;
+      // Mantiene la bozza in creazione finché non viene salvata
+      const draft = draftId ? state.characters.find(c => c.id === draftId) : undefined;
       return {
         ...state,
-        characters: dbCharacters,
+        characters: draft ? [...dbCharacters, draft] : dbCharacters,
+        draftId,
         loading: false,
       };
     }
@@ -202,6 +226,7 @@ function characterReducer(state: UserState, action: CharacterAction): UserState 
         ...state,
         characters: [...state.characters, action.payload],
         currentCharacterId: action.payload.id,
+        draftId: action.payload.id,
       };
     case 'UPDATE_CHARACTER':
       return {
@@ -221,11 +246,26 @@ function characterReducer(state: UserState, action: CharacterAction): UserState 
         ...state,
         currentCharacterId: action.payload,
       };
-    case 'RESET_WIZARD':
+    case 'DISCARD_DRAFT': {
+      // Rimuove la bozza creata dal wizard se non è mai stata salvata su Firestore
+      if (!state.draftId) return { ...state, currentCharacterId: null };
+      return {
+        ...state,
+        characters: state.characters.filter(c => c.id !== state.draftId),
+        currentCharacterId: null,
+        draftId: null,
+      };
+    }
+    case 'RESET_WIZARD': {
+       // Una nuova creazione scarta eventuali bozze precedenti non salvate
+       const characters = state.draftId ? state.characters.filter(c => c.id !== state.draftId) : state.characters;
        return {
          ...state,
-         currentCharacterId: null
+         characters,
+         currentCharacterId: null,
+         draftId: null,
        };
+    }
     default:
       return state;
   }

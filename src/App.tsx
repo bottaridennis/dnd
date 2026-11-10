@@ -7,8 +7,7 @@ import Login from './components/Login';
 import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
 import { Wand2, Menu, Moon, Sun, Feather, X, Users, PlusCircle, LogOut, Hammer } from 'lucide-react';
-import { db, auth } from './firebase';
-import { collection, getDocsFromServer, limit, query } from 'firebase/firestore';
+import { auth } from './firebase';
 import { userService } from './services/userService';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -18,26 +17,10 @@ function AppContent() {
   const [view, setView] = useState<'dashboard' | 'wizard' | 'sheet' | 'homebrew'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Test Firestore Connection & Ensure User Profile
+  // Garantisce l'esistenza del profilo utente (richiesto dalle regole di sicurezza)
   useEffect(() => {
-    async function init() {
-      if (user) {
-        try {
-          await userService.ensureUserProfile(user);
-        } catch (e) {
-          console.error("Failed to ensure user profile:", e);
-        }
-      }
-      
-      try {
-        await getDocsFromServer(query(collection(db, 'characters'), limit(1)));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Firestore Connection Error: Please check your Firebase configuration or network.");
-        }
-      }
-    }
-    init();
+    if (!user) return;
+    userService.ensureUserProfile(user).catch(e => console.error("Failed to ensure user profile:", e));
   }, [user]);
 
   if (loading) {
@@ -61,6 +44,7 @@ function AppContent() {
     if (viewName === 'wizard') {
       handleNewCharacter();
     } else {
+      if (view === 'wizard') dispatch({ type: 'DISCARD_DRAFT' });
       setView(viewName);
       setIsMobileMenuOpen(false);
     }
@@ -86,7 +70,7 @@ function AppContent() {
              </button>
              <div 
                className="flex items-center gap-3 cursor-pointer group"
-               onClick={() => setView('dashboard')}
+               onClick={() => navigateTo('dashboard')}
              >
                <div className="brand-mark">
                  <Feather className="w-5 h-5" />
@@ -99,13 +83,13 @@ function AppContent() {
              
              <nav className="hidden lg:flex items-center gap-7 ml-8 border-l border-border pl-8">
                 <button 
-                  onClick={() => setView('dashboard')} 
+                  onClick={() => navigateTo('dashboard')} 
                   className={`py-2 text-[9px] font-extrabold uppercase tracking-[.18em] border-b transition-colors ${view === 'dashboard' ? 'text-accent border-accent' : 'text-text-muted border-transparent hover:text-text-primary'}`}
                 >
                   Compagnia
                 </button>
                 <button 
-                  onClick={() => setView('homebrew')} 
+                  onClick={() => navigateTo('homebrew')} 
                   className={`py-2 text-[9px] font-extrabold uppercase tracking-[.18em] border-b transition-colors ${view === 'homebrew' ? 'text-accent border-accent' : 'text-text-muted border-transparent hover:text-text-primary'}`}
                 >
                   Forgia Homebrew
@@ -215,7 +199,8 @@ function AppContent() {
 
 function ThemeToggle() {
   const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('forge-theme');
+    let saved: string | null = null;
+    try { saved = localStorage.getItem('forge-theme'); } catch { /* storage non disponibile */ }
     return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
@@ -225,7 +210,7 @@ function ThemeToggle() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('forge-theme', isDark ? 'dark' : 'light');
+    try { localStorage.setItem('forge-theme', isDark ? 'dark' : 'light'); } catch { /* storage non disponibile */ }
   }, [isDark]);
 
   return (

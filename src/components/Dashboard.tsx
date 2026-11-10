@@ -1,6 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { characterService } from '../services/characterService';
+import { classesData, speciesData } from '../data/rules2024';
+import { getClassLevels, getTotalLevel } from '../lib/characterRules';
+
+const classLabel = (char: Parameters<typeof getClassLevels>[0]) =>
+  Object.entries(getClassLevels(char)).map(([id, data]) => `${classesData.find(c => c.id === id)?.name || id} ${data.level}`).join(' / ');
+const speciesLabel = (id?: string) => speciesData.find(s => s.id === id)?.name || id || '';
+const timestamp = (value: any): number => (value?.toMillis ? value.toMillis() : typeof value?.seconds === 'number' ? value.seconds * 1000 : 0);
 import { AlertTriangle, ArrowUpRight, BookOpen, Plus, Search, Trash2, User, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -14,12 +21,13 @@ export default function Dashboard({ onNewCharacter,onOpenSheet }:DashboardProps)
   const [sort,setSort] = useState<'recent'|'level'|'name'>('recent');
   const visibleCharacters = useMemo(() => {
     const needle=query.trim().toLocaleLowerCase('it');
-    const filtered=characters.filter(char => [char.name,char.classId,char.speciesId].some(v => v?.toLocaleLowerCase('it').includes(needle)));
-    return [...filtered].sort((a,b) => sort==='level'?(b.level||0)-(a.level||0):sort==='name'?(a.name||'').localeCompare(b.name||'','it'):0);
-  },[characters,query,sort]);
-  const totalLevels=characters.reduce((sum,char)=>sum+(char.level||0),0);
+    const saved=characters.filter(char => char.id !== state.draftId);
+    const filtered=saved.filter(char => [char.name,classLabel(char),speciesLabel(char.speciesId)].some(v => v?.toLocaleLowerCase('it').includes(needle)));
+    return [...filtered].sort((a,b) => sort==='level'?getTotalLevel(b)-getTotalLevel(a):sort==='name'?(a.name||'').localeCompare(b.name||'','it'):timestamp(b.updatedAt)-timestamp(a.updatedAt));
+  },[characters,query,sort,state.draftId]);
+  const totalLevels=visibleCharacters.reduce((sum,char)=>sum+getTotalLevel(char),0);
   const handleSelect=(id:string)=>{ dispatch({ type:'SELECT_CHARACTER',payload:id }); onOpenSheet(id); };
-  const confirmDelete=async()=>{ if(!deleteConfirmId)return; try { await characterService.deleteCharacter(deleteConfirmId); setDeleteConfirmId(null); } catch(error){ console.error('Delete failed:',error); } };
+  const confirmDelete=async()=>{ if(!deleteConfirmId)return; try { await characterService.deleteCharacter(deleteConfirmId); dispatch({ type:'DELETE_CHARACTER',payload:deleteConfirmId }); setDeleteConfirmId(null); } catch(error){ console.error('Delete failed:',error); } };
 
   return (
     <div className="min-h-[calc(100vh-72px)] px-5 py-8 md:px-10 lg:px-14 md:py-12">
@@ -38,7 +46,7 @@ export default function Dashboard({ onNewCharacter,onOpenSheet }:DashboardProps)
         <header className="grid lg:grid-cols-[1fr_auto] gap-10 items-end pb-10 border-b border-border">
           <div><p className="eyebrow mb-5">Volume II · Compagnia</p><h1 className="font-serif text-6xl md:text-8xl leading-[.85] tracking-[-.055em]">Le storie<br/><em className="text-accent font-normal">in cammino.</em></h1></div>
           <div className="grid grid-cols-2 gap-8 lg:min-w-72">
-            <div className="border-l border-border pl-5"><strong className="font-serif text-5xl font-normal">{String(characters.length).padStart(2,'0')}</strong><p className="eyebrow mt-2 !text-[8px]">Eroi custoditi</p></div>
+            <div className="border-l border-border pl-5"><strong className="font-serif text-5xl font-normal">{String(visibleCharacters.length).padStart(2,'0')}</strong><p className="eyebrow mt-2 !text-[8px]">Eroi custoditi</p></div>
             <div className="border-l border-border pl-5"><strong className="font-serif text-5xl font-normal">{String(totalLevels).padStart(2,'0')}</strong><p className="eyebrow mt-2 !text-[8px]">Livelli vissuti</p></div>
           </div>
         </header>
@@ -62,7 +70,7 @@ export default function Dashboard({ onNewCharacter,onOpenSheet }:DashboardProps)
                 <button onClick={e=>{e.stopPropagation();setDeleteConfirmId(char.id)}} aria-label={`Elimina ${char.name}`} className="absolute right-5 top-5 w-9 h-9 grid place-items-center bg-card-bg text-text-muted hover:text-danger opacity-100 md:opacity-0 group-hover:opacity-100 transition"><Trash2 className="w-4 h-4"/></button>
               </div>
               <div className="p-7 flex-1 flex flex-col justify-between">
-                <div><div className="flex items-start justify-between gap-4"><h2 className="font-serif text-4xl leading-none">{char.name||'Senza nome'}</h2><span className="font-serif text-2xl text-accent">L{char.level}</span></div><p className="mt-4 text-[10px] font-bold uppercase tracking-[.15em] text-text-muted">{char.speciesId} · {char.classId}</p><p className="mt-3 text-sm text-text-muted line-clamp-2">{char.description||char.alignment||'Una storia ancora tutta da raccontare.'}</p></div>
+                <div><div className="flex items-start justify-between gap-4"><h2 className="font-serif text-4xl leading-none">{char.name||'Senza nome'}</h2><span className="font-serif text-2xl text-accent">L{getTotalLevel(char)}</span></div><p className="mt-4 text-[10px] font-bold uppercase tracking-[.15em] text-text-muted">{speciesLabel(char.speciesId)} · {classLabel(char)}</p><p className="mt-3 text-sm text-text-muted line-clamp-2">{char.description||char.alignment||'Una storia ancora tutta da raccontare.'}</p></div>
                 <div className="flex items-center justify-between pt-5 mt-5 border-t border-border"><span className="eyebrow !text-[8px]">Apri la scheda</span><ArrowUpRight className="w-4 h-4 text-accent group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"/></div>
               </div>
             </motion.article>

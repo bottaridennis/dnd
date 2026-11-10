@@ -33,6 +33,8 @@ export interface SummonTemplate {
   hpFormula?: (level: number) => number;
   attackFormula?: (mod: number) => number;
   damageBonusFormula?: (level: number) => number;
+  /** Livello minimo dell'incantesimo di evocazione */
+  minLevel?: number;
 }
 
 export const SUMMONS_DATA: SummonTemplate[] = [
@@ -114,6 +116,7 @@ export const SUMMONS_DATA: SummonTemplate[] = [
     name: 'Spirito Elementale',
     type: 'Elementale',
     category: 'Scaling',
+    minLevel: 4,
     icon: Flame,
     speed: '9m (Varia)',
     str: 18, dex: 15, con: 17, int: 4, wis: 10, cha: 16,
@@ -130,6 +133,7 @@ export const SUMMONS_DATA: SummonTemplate[] = [
     name: 'Spirito Fatato',
     type: 'Folletto',
     category: 'Scaling',
+    minLevel: 3,
     icon: Star,
     speed: '12m',
     str: 13, dex: 16, con: 14, int: 14, wis: 11, cha: 16,
@@ -138,7 +142,7 @@ export const SUMMONS_DATA: SummonTemplate[] = [
     attackFormula: (mod) => mod,
     damageBonusFormula: (level) => 3 + level,
     actions: [
-        { name: 'Spada Corta', desc: 'Attacco da Mischia: {attack}, 1d6 + 3 + {damageBonus} danni di forza.' }
+        { name: 'Spada Corta Fatata', desc: 'Attacco da Mischia: {attack}, 1d6 + {damageBonus} danni Perforanti + 1d6 danni di Forza.' }
     ]
   },
   {
@@ -146,15 +150,16 @@ export const SUMMONS_DATA: SummonTemplate[] = [
     name: 'Spirito Immondo',
     type: 'Immondo',
     category: 'Scaling',
+    minLevel: 6,
     icon: FiendIcon,
-    speed: '9m, volo 18m (Demon)',
+    speed: '12m, scalare 12m (Demone)',
     str: 13, dex: 16, con: 15, int: 10, wis: 10, cha: 16,
-    acFormula: (level) => 11 + level,
-    hpFormula: (level) => 40 + (15 * Math.max(0, level - 5)),
+    acFormula: (level) => 12 + level,
+    hpFormula: (level) => 50 + (15 * Math.max(0, level - 6)),
     attackFormula: (mod) => mod,
     damageBonusFormula: (level) => 3 + level,
     actions: [
-        { name: 'Morso Infernale', desc: 'Attacco da Mischia: {attack}, 1d10 + 3 + {damageBonus} danni necrotici.' }
+        { name: 'Morso (Demone)', desc: 'Attacco da Mischia: {attack}, 1d12 + {damageBonus} danni Necrotici.' }
     ]
   }
 ];
