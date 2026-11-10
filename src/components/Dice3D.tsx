@@ -154,7 +154,7 @@ function buildDie(spec: DieSpec, color: THREE.Color) {
 }
 
 export default function Dice3D() {
-  const { animating, finishAnimation } = useDice();
+  const { animating, finishAnimation, reportDice3dFailure } = useDice();
   const mountRef = useRef<HTMLDivElement>(null);
   const [total, setTotal] = useState<{ id: string; value?: number; label: string } | null>(null);
   const [active, setActive] = useState(false);
@@ -167,11 +167,17 @@ export default function Dice3D() {
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+      if (!renderer.getContext() || renderer.getContext().isContextLost()) throw new Error('WebGL non disponibile');
     } catch {
-      finishAnimation(entry.id); // WebGL non disponibile: si mostra solo il risultato
+      // WebGL non disponibile: si mostra solo il risultato nel vassoio
+      reportDice3dFailure();
+      finishAnimation(entry.id);
       return;
     }
+    // Con "Riduci movimento" i dadi compaiono già al loro posto, senza volare né rotolare
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const duration = reduced ? 450 : DURATION;
     const mount = mountRef.current;
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -208,10 +214,10 @@ export default function Dice3D() {
       const rowCount = Math.min(cols, specs.length - row * cols);
       const target = new THREE.Vector3((col - (rowCount - 1) / 2) * 2.6 * scale + (Math.random() - 0.5) * 0.5, -row * 2.6 * scale + (Math.random() - 0.5) * 0.4, 0);
       // Partenza dall'angolo del vassoio (in basso a destra), con un po' di dispersione
-      const start = new THREE.Vector3(visibleW / 2 + 2 + Math.random() * 2, -visibleH / 2 - 1 - Math.random() * 2, 3);
+      const start = reduced ? target.clone() : new THREE.Vector3(visibleW / 2 + 2 + Math.random() * 2, -visibleH / 2 - 1 - Math.random() * 2, 3);
       const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-      const spin = Math.PI * (6 + Math.random() * 4);
-      const delay = i * 45;
+      const spin = reduced ? 0.35 : Math.PI * (6 + Math.random() * 4);
+      const delay = reduced ? 0 : i * 45;
       const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
       shadow.position.z = -1.2 * scale;
       scene.add(shadow);
@@ -230,11 +236,11 @@ export default function Dice3D() {
       if (stopped) return;
       const elapsed = now - startTime;
       dice.forEach(d => {
-        const t = Math.min(1, Math.max(0, (elapsed - d.delay) / DURATION));
+        const t = Math.min(1, Math.max(0, (elapsed - d.delay) / duration));
         const e = easeOut(t);
         d.mesh.position.lerpVectors(d.start, d.target, e);
         // Rimbalzi che si smorzano: l'altezza è resa con lo spostamento in Z (verso la camera)
-        const bounce = Math.abs(Math.sin(t * Math.PI * 3)) * Math.pow(1 - t, 2) * 3.5;
+        const bounce = reduced ? 0 : Math.abs(Math.sin(t * Math.PI * 3)) * Math.pow(1 - t, 2) * 3.5;
         d.mesh.position.z = bounce;
         tmpQ.setFromAxisAngle(d.axis, d.spin * (1 - e));
         d.mesh.quaternion.copy(d.finalQuat).multiply(tmpQ);
@@ -245,7 +251,7 @@ export default function Dice3D() {
       });
       renderer.render(scene, camera);
       const lastDelay = dice[dice.length - 1].delay;
-      if (elapsed < DURATION + lastDelay) frame = requestAnimationFrame(animate);
+      if (elapsed < duration + lastDelay) frame = requestAnimationFrame(animate);
       else {
         finished = true;
         setTotal({ id: entry.id, value: entry.total, label: entry.label });
@@ -264,6 +270,8 @@ export default function Dice3D() {
         d.shadow.geometry.dispose();
         (d.shadow.material as THREE.Material).dispose();
       });
+      // Su iOS Safari i contesti WebGL sono pochi: va rilasciato esplicitamente, altrimenti dopo qualche tiro i dadi non compaiono più
+      renderer.forceContextLoss();
       renderer.dispose();
       renderer.domElement.remove();
       setTotal(cur => (cur?.id === entry.id ? null : cur));
@@ -278,7 +286,7 @@ export default function Dice3D() {
       // A fine corsa i dadi restano visibili per HOLD ms (li rimuove il timer); se arriva un nuovo tiro prima, si chiude subito
       if (!stopped && !finished) cleanup();
     };
-  }, [animating, finishAnimation]);
+  }, [animating, finishAnimation, reportDice3dFailure]);
 
   return (
     <div ref={mountRef} className="fixed inset-0 z-[90] pointer-events-none print:hidden" aria-hidden="true">
