@@ -8,7 +8,8 @@ import { subclassesData } from '../data/subclasses';
 import { INVOCATIONS } from '../data/invocations';
 import { getClassFeaturesUpTo } from '../data/classFeatures';
 import { getSubclassFeaturesUpTo, getSubclassSpells } from '../data/subclassFeatures';
-import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
+import { getSpellBudget } from '../lib/spellBudget';
+import { getFeatBudget, getInvocationBudget } from '../lib/featBudget';
 import { ALL_TOOLS, RARE_LANGUAGES, STANDARD_LANGUAGES } from '../data/languages';
 import { 
   Shield, Heart, Zap, Eye, User, Scroll, 
@@ -138,6 +139,8 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
     setIsLevelUpOpen(false);
     // Nuovi trucchetti/incantesimi dal manuale: apri subito la scelta
     if (choice.spellGain || choice.feat?.startsWith('Iniziato alla Magia')) setFeatureModal({ isOpen: true, tab: 'spells' });
+    else if (choice.styleGain) setFeatureModal({ isOpen: true, tab: 'talenti' });
+    else if (choice.invocationGain) setFeatureModal({ isOpen: true, tab: 'invocazioni' });
   };
 
   const handleLevelDown = () => {
@@ -203,21 +206,14 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
         const res = spellBudget.check(item);
         return { ok: res.eligible, reasons: [res.reason || 'Non ammesso per classe o livello'] };
       }
-      return featureModal.tab === 'talenti'
-        ? checkFeatPrerequisites(item.prerequisite, currentCharacter)
-        : checkInvocationPrerequisites(item.prerequisite, currentCharacter);
+      const res = featureModal.tab === 'talenti' ? featBudget.check(item) : invocationBudget.check(item);
+      return { ok: res.eligible, reasons: [res.reason || 'Non ammesso'] };
     };
     /** Se l'elemento si può aggiungere ora (manuale + limiti). Quelli già scelti si possono sempre togliere. */
     const availability = (item: any, isSelected: boolean): { ok: boolean; reasons: string[] } => {
       if (isSelected) return { ok: true, reasons: [] };
-      if (featureModal.tab === 'spells') {
-        const res = spellBudget.check(item);
-        return { ok: res.ok, reasons: res.reason ? [res.reason] : [] };
-      }
-      const res = eligibility(item);
-      if (!res.ok) return res;
-      if (featureModal.tab === 'invocazioni' && invocationBudget.full) return { ok: false, reasons: ['Limite di suppliche raggiunto'] };
-      return { ok: true, reasons: [] };
+      const res = featureModal.tab === 'spells' ? spellBudget.check(item) : featureModal.tab === 'talenti' ? featBudget.check(item) : invocationBudget.check(item);
+      return { ok: res.ok, reasons: res.reason ? [res.reason] : [] };
     };
     const filteredData = base
       .filter((item: any) => (item.name || '').toLowerCase().includes(featureSearch.toLowerCase()) || (item.displayName && item.displayName.toLowerCase().includes(featureSearch.toLowerCase())))
@@ -239,7 +235,13 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
          </div>
           <div className="p-4 border-b border-border bg-panel-bg shrink-0 space-y-3">
              {featureModal.tab === 'spells' && renderSpellBudget()}
-             {featureModal.tab === 'invocazioni' && <div className={`max-w-3xl mx-auto text-[10px] font-black uppercase tracking-widest ${invocationBudget.over ? 'text-danger' : 'text-text-muted'}`}>Suppliche {invocationBudget.used}/{invocationBudget.max}</div>}
+             {featureModal.tab === 'invocazioni' && (
+               <div className="max-w-3xl mx-auto space-y-2">
+                 <div className={`text-[10px] font-black uppercase tracking-widest ${invocationBudget.excess.length ? 'text-danger' : 'text-text-muted'}`}>Suppliche {invocationBudget.used}/{invocationBudget.max}</div>
+                 {invocationBudget.excess.length > 0 && <p className="text-xs text-danger border border-danger/40 bg-danger/10 px-3 py-2">Hai suppliche in eccesso o che non rispettano più i prerequisiti: rimuovi quelle evidenziate prima di aggiungerne altre.</p>}
+               </div>
+             )}
+             {featureModal.tab === 'talenti' && renderFeatBudget()}
              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-3xl mx-auto">
              <div className="relative flex-1">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
@@ -270,7 +272,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                  const currentList = (currentCharacter as any)[listName] || [];
                  const isSelected = currentList.includes(item.name);
                  const check = availability(item, isSelected);
-                 const isExcess = featureModal.tab === 'spells' && spellBudget.excess.includes(item.name);
+                 const isExcess = (featureModal.tab === 'spells' ? spellBudget.excess : featureModal.tab === 'talenti' ? featBudget.excess : invocationBudget.excess).includes(item.name);
 
                  return (
                    <button
@@ -359,7 +361,20 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   const invocationsKnown = getInvocationsKnown(currentCharacter);
   const subclassSpells = Array.from(new Set(Object.values(classLevels).flatMap(c => getSubclassSpells(c.subclass, c.level))));
   const spellBudget = getSpellBudget(currentCharacter, homebrew.spells);
-  const invocationBudget = getInvocationBudget(currentCharacter);
+  const invocationBudget = getInvocationBudget(currentCharacter, INVOCATIONS);
+  const featBudget = getFeatBudget(currentCharacter, homebrew.feats);
+  const featBudgetLabel = [
+    `Talenti ${featBudget.slots.general.used}/${featBudget.slots.general.max}`,
+    featBudget.slots.style.max > 0 ? `Stili di Combattimento ${featBudget.slots.style.used}/${featBudget.slots.style.max}` : '',
+    featBudget.slots.boon.max > 0 ? `Benedizioni Epiche ${featBudget.slots.boon.used}/${featBudget.slots.boon.max}` : '',
+    featBudget.asiTaken > 0 ? `Aumenti di caratteristica presi: ${featBudget.asiTaken}` : '',
+  ].filter(Boolean).join(' · ');
+  const renderFeatBudget = () => (
+    <div className="max-w-3xl mx-auto space-y-2">
+      <div className={`text-[10px] font-black uppercase tracking-widest ${featBudget.excess.length ? 'text-danger' : 'text-text-muted'}`}>{featBudgetLabel}</div>
+      {featBudget.excess.length > 0 && <p className="text-xs text-danger border border-danger/40 bg-danger/10 px-3 py-2">Hai più talenti di quanti ne consenta il manuale (o alcuni non rispettano più i prerequisiti): rimuovi quelli evidenziati prima di aggiungerne altri.</p>}
+    </div>
+  );
   const renderSpellBudget = () => spellBudget.isCaster ? (
     <div className="max-w-3xl mx-auto space-y-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-widest text-text-muted">
@@ -514,13 +529,15 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
 
   const renderFeatRow = (name: string, kind: 'feat' | 'invocation', onRemove?: () => void) => {
     const details = kind === 'feat' ? getFeatDetails(name) : getInvocationDetails(name);
+    const isExcess = (kind === 'feat' ? featBudget.excess : invocationBudget.excess).includes(name);
     return (
-      <div key={`${kind}-${name}`} className={`bg-card-bg border rounded p-4 flex justify-between items-center group ${kind === 'invocation' ? 'border-accent/10 border-dashed' : 'border-border'}`}>
+      <div key={`${kind}-${name}`} className={`bg-card-bg border rounded p-4 flex justify-between items-center group ${isExcess ? 'border-danger' : kind === 'invocation' ? 'border-accent/10 border-dashed' : 'border-border'}`}>
         <div className="flex items-center gap-3">
           <div className={`w-1.5 h-1.5 rounded-full ${kind === 'invocation' ? 'bg-purple-500' : 'bg-accent'}`} />
           <div className="flex flex-col">
             <span className="font-bold text-sm tracking-normal">{details?.name || name}</span>
             {kind === 'invocation' && <span className="text-[9px] font-black uppercase text-text-muted tracking-widest">Supplica Occulta</span>}
+            {isExcess && <span className="text-[9px] font-black uppercase text-danger">Oltre il limite del manuale o prerequisiti non rispettati</span>}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -553,7 +570,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-2">
-          <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Talenti</h4>
+          <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Talenti <span className={`text-[10px] normal-case tracking-normal font-semibold ${featBudget.excess.length ? 'text-danger' : 'text-accent'}`}>{featBudgetLabel}</span></h4>
           <button onClick={() => setFeatureModal({ isOpen: true, tab: 'talenti' })} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-accent transition-colors">
             <Plus className="w-4 h-4" /> Aggiungi
           </button>
@@ -567,7 +584,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
       {(classLevels.warlock || currentCharacter.invocations.length > 0) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-2">
-            <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Suppliche Occulte <span className={currentCharacter.invocations.length > invocationsKnown ? 'text-danger' : 'text-accent'}>{currentCharacter.invocations.length}/{invocationsKnown}</span></h4>
+            <h4 className="text-sm font-black uppercase text-text-muted tracking-widest">Suppliche Occulte <span className={invocationBudget.excess.length ? 'text-danger' : 'text-accent'}>{currentCharacter.invocations.length}/{invocationsKnown}</span></h4>
             <button onClick={() => setFeatureModal({ isOpen: true, tab: 'invocazioni' })} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-accent transition-colors">
               <Plus className="w-4 h-4" /> Aggiungi
             </button>

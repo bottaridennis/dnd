@@ -7,7 +7,8 @@ import { fixTextEncoding } from '../lib/utils';
 import { StepHeader, Counter, ToggleChip, OptionCard, Tag, EmptyState } from './ui';
 import { canCharacterUseSpell, CLASS_LABELS, getAvailableSpellLevels, getCharacterClassLevels, SCHOOL_LABELS } from '../lib/spellEligibility';
 import { checkFeatPrerequisites, checkInvocationPrerequisites } from '../lib/featEligibility';
-import { getInvocationBudget, getSpellBudget } from '../lib/spellBudget';
+import { getSpellBudget } from '../lib/spellBudget';
+import { getFeatBudget, getInvocationBudget } from '../lib/featBudget';
 
 type LibraryTab = 'incantesimi' | 'talenti' | 'invocazioni';
 
@@ -30,7 +31,7 @@ export default function SpellsFeatsStep() {
   const isCompatible = (item: any) => {
     if (!currentCharacter) return false;
     if (tab === 'incantesimi') return budget ? budget.check(item).eligible : canCharacterUseSpell(item, currentCharacter);
-    if (tab === 'talenti') return checkFeatPrerequisites(item.prerequisite, currentCharacter).ok;
+    if (tab === 'talenti') return getFeatBudget(currentCharacter, homebrew.feats).check(item).eligible;
     return checkInvocationPrerequisites(item.prerequisite, currentCharacter).ok;
   };
 
@@ -53,7 +54,8 @@ export default function SpellsFeatsStep() {
   if (!currentCharacter) return null;
 
   const spellBudget = budget!;
-  const invocationBudget = getInvocationBudget(currentCharacter);
+  const invocationBudget = getInvocationBudget(currentCharacter, INVOCATIONS);
+  const featBudget = getFeatBudget(currentCharacter, homebrew.feats);
   const isWarlock = Boolean(getCharacterClassLevels(currentCharacter).warlock);
   const listName = tab === 'incantesimi' ? 'spells' : tab === 'talenti' ? 'feats' : 'invocations';
   const currentList: string[] = (currentCharacter as any)[listName] || [];
@@ -62,14 +64,8 @@ export default function SpellsFeatsStep() {
   const availability = (item: any): { ok: boolean; reason?: string } => {
     if (currentList.includes(item.name)) return { ok: true };
     if (tab === 'incantesimi') return spellBudget.check(item);
-    if (tab === 'talenti') {
-      const res = checkFeatPrerequisites(item.prerequisite, currentCharacter);
-      return { ok: res.ok, reason: res.reasons.join(' · ') };
-    }
-    const res = checkInvocationPrerequisites(item.prerequisite, currentCharacter);
-    if (!res.ok) return { ok: false, reason: res.reasons.join(' · ') };
-    if (invocationBudget.full) return { ok: false, reason: 'Limite di suppliche raggiunto' };
-    return { ok: true };
+    if (tab === 'talenti') return featBudget.check(item);
+    return invocationBudget.check(item);
   };
 
   const toggleSelection = (item: any) => {
@@ -77,7 +73,8 @@ export default function SpellsFeatsStep() {
     if (!isSelected && !availability(item).ok) return;
     dispatch({ type:'UPDATE_CHARACTER', payload:{ [listName]:isSelected ? currentList.filter(name => name !== item.name) : [...currentList, item.name] } });
   };
-  const excess = new Set(tab === 'incantesimi' ? spellBudget.excess : []);
+  const excess = new Set(tab === 'incantesimi' ? spellBudget.excess : tab === 'talenti' ? featBudget.excess : invocationBudget.excess);
+  const featSlots = featBudget.slots;
 
   const tabs = ([['incantesimi', 'Incantesimi'], ['talenti', 'Talenti'], ...(isWarlock ? [['invocazioni', 'Suppliche Occulte']] : [])] as [LibraryTab, string][]);
 
@@ -90,6 +87,7 @@ export default function SpellsFeatsStep() {
         aside={<div className="flex flex-wrap gap-2">
           {spellBudget.cantrips.max > 0 && <Counter value={spellBudget.cantrips.used} max={spellBudget.cantrips.max} label="trucchetti" />}
           {spellBudget.leveled.max > 0 && <Counter value={spellBudget.leveled.used} max={spellBudget.leveled.max} label="preparati" />}
+          {featSlots.style.max > 0 && <Counter value={featSlots.style.used} max={featSlots.style.max} label="stili" />}
           {isWarlock && <Counter value={invocationBudget.used} max={invocationBudget.max} label="suppliche" />}
         </div>}
       />
@@ -129,7 +127,12 @@ export default function SpellsFeatsStep() {
           Hai scelto più incantesimi di quanti ne consenta il manuale o alcuni non sono più ammessi: rimuovi {spellBudget.excess.length === 1 ? 'quello evidenziato' : `i ${spellBudget.excess.length} evidenziati`} per continuare.
         </p>
       )}
-      {tab === 'talenti' && <p className="text-sm text-text-muted">Al 1° livello ottieni solo il Talento d’Origine del background{currentCharacter.bonusOriginFeat ? ' e quello del tratto Versatile' : ''}: gli altri talenti arrivano salendo di livello.</p>}
+      {tab === 'talenti' && <p className="text-sm text-text-muted">Al 1° livello ottieni solo il Talento d’Origine del background{currentCharacter.bonusOriginFeat ? ' e quello del tratto Versatile' : ''}{featSlots.style.max > 0 ? `, più ${featSlots.style.max === 1 ? 'un talento' : `${featSlots.style.max} talenti`} Stile di Combattimento da scegliere qui (${featSlots.style.used}/${featSlots.style.max})` : ''}: gli altri talenti arrivano salendo di livello.</p>}
+      {tab !== 'incantesimi' && excess.size > 0 && (
+        <p className="text-sm text-danger border border-danger/40 bg-danger/10 px-3 py-2">
+          {tab === 'talenti' ? 'Hai più talenti di quanti ne consenta il manuale o alcuni non rispettano più i prerequisiti' : 'Hai più suppliche di quante ne consenta il manuale o alcune non rispettano più i prerequisiti'}: rimuovi {excess.size === 1 ? 'la scelta evidenziata' : `le ${excess.size} scelte evidenziate`} per continuare.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {filteredData.map((item: any, idx: number) => {
