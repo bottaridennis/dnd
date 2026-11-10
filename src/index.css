@@ -160,5 +160,16 @@
   .print-h { font-family:var(--font-serif); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; border-bottom:1.5px solid #c8102e; margin-bottom:4px; }
 }
 
+/*
+ * Su iPhone/iPad Safari ingrandisce la pagina quando si tocca un campo con testo < 16px.
+ * Sui dispositivi touch i campi piccoli vengono portati a 16px (quelli già più grandi restano invariati),
+ * senza bloccare lo zoom manuale.
+ */
+@media (pointer: coarse), (hover: none) {
+  :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([class*="text-lg"]):not([class*="text-xl"]):not([class*="text-2xl"]):not([class*="text-3xl"]):not([class*="text-4xl"]):not([class*="text-5xl"]) {
+    font-size: 16px !important;
+  }
+}
+
 @layer utilities { .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar { scrollbar-width:none; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
