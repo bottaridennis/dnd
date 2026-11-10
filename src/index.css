@@ -172,5 +172,17 @@
   .heraldic-shield { clip-path:polygon(0 0,100% 0,100% 62%,50% 100%,0 62%); }
 }
 
+/* Stampa / PDF: pagina chiara e compatta */
+@media print {
+  @page { size: A4; margin: 10mm; }
+  :root, .dark { --color-bg:#fff; --color-card-bg:#fff; --color-panel-bg:#fff; --color-text-primary:#000; --color-text-muted:#333; color-scheme:light; }
+  html, body { background:#fff !important; background-image:none !important; color:#000; font-size:11px; }
+  body::before { display:none; }
+  .print-sheet { font-family:var(--font-sans); }
+  .print-box { border:1.5px solid #000; padding:4px 2px; }
+  .print-label { font-family:var(--font-serif); font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+  .print-h { font-family:var(--font-serif); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; border-bottom:1px solid #000; margin-bottom:4px; }
+}
+
 @layer utilities { .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar { scrollbar-width:none; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }

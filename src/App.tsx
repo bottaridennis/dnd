@@ -60,7 +60,7 @@ function AppContent() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Sticky Top Header resembling D&D Beyond WotC Style */}
-      <header className="sticky top-0 z-50 app-header">
+      <header className="sticky top-0 z-50 app-header print:hidden">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-4">
              <button 
@@ -182,7 +182,7 @@ function AppContent() {
         {view === 'sheet' && (
            <div className="relative pt-4">
              {/* Mobile Back Button */}
-             <div className="md:hidden px-4 mb-4">
+             <div className="md:hidden px-4 mb-4 print:hidden">
                <button 
                  onClick={() => setView('dashboard')}
                  className="w-full py-2 bg-panel-bg border border-border text-text-primary rounded text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 transition-transform"
@@ -195,7 +195,7 @@ function AppContent() {
         )}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
-      {view === 'sheet' && <DiceTray />}
+      {view === 'sheet' && <div className="print:hidden"><DiceTray /></div>}
     </div>
   );
 }

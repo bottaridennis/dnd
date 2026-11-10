@@ -55,6 +55,10 @@ export interface CharacterData {
   abilityMethod?: 'standard' | 'pointbuy' | 'manual';
   /** Incrementi successivi (Aumento dei Punteggi di Caratteristica, talenti) */
   abilityBonuses?: Partial<Record<Ability, number>>;
+  /** Lingue scelte (il Comune e quelle di classe vengono aggiunte automaticamente) */
+  languages?: string[];
+  /** Strumenti scelti (oltre a quelli fissi di background e classe) */
+  toolProficiencies?: string[];
   /** Talento d'Origine aggiuntivo (tratto Versatile dell'Umano) */
   bonusOriginFeat?: string;
   resistances: string[];

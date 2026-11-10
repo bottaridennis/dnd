@@ -6,6 +6,8 @@ import { characterService } from '../services/characterService';
 import { classesData, speciesData, backgroundsData, ALL_SKILLS, ORIGIN_FEATS } from '../data/rules2024';
 import { ChevronRight, ChevronLeft, Save, Loader2, Dices } from 'lucide-react';
 import AbilityScoresStep, { validateAbilityScores } from './AbilityScoresStep';
+import { getOriginChoiceRequirements } from './LanguageToolPicker';
+import { STANDARD_LANGUAGES } from '../data/languages';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
 import StartingEquipment from './StartingEquipment';
@@ -84,8 +86,13 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         if (boosts.length !== required || boosts.some(b => !allowed.includes(b))) return `Assegna i bonus del background (${boosts.length}/${required}).`;
         return validateAbilityScores(currentCharacter.abilityMethod || 'pointbuy', currentCharacter.abilityScores);
       }
-      case 3:
-        return currentCharacter.name?.trim() ? null : 'Dai un nome al personaggio.';
+      case 3: {
+        if (!currentCharacter.name?.trim()) return 'Dai un nome al personaggio.';
+        const req = getOriginChoiceRequirements(currentCharacter);
+        if ((currentCharacter.languages || []).length !== req.languageCount) return `Scegli ${req.languageCount} lingue (${(currentCharacter.languages || []).length}/${req.languageCount}).`;
+        if ((currentCharacter.toolProficiencies || []).length !== req.toolCount) return `Scegli gli strumenti: ${req.toolLabel}.`;
+        return null;
+      }
       default:
         return null;
     }
@@ -160,6 +167,9 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     const inventoryItems = [...(classOption?.items || []), ...(bgOption?.items || [])].map(item => processStartingItem(item));
     const gold = (classOption?.gold || 0) + (bgOption?.gold || 0);
     const derived = getSpeciesDerived(randomSpecies.id, subOptionId);
+    const originReq = getOriginChoiceRequirements({ classId: randomClass.id, level: 1, backgroundId: randomBackground.id });
+    const languages = shuffle(STANDARD_LANGUAGES.filter(l => !originReq.fixedLanguages.includes(l))).slice(0, originReq.languageCount);
+    const toolProficiencies = shuffle(originReq.toolOptions.filter(t => !originReq.fixedTools.includes(t))).slice(0, originReq.toolCount);
 
     dispatch({
       type: 'UPDATE_CHARACTER',
@@ -177,6 +187,9 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         selectedBoosts: boosts,
         proficientSkills: classSkills,
         speciesSkills,
+        languages,
+        toolProficiencies,
+        classes: { [randomClass.id]: { level: 1 } },
         features: derived.traits,
         innateSpells: derived.spells,
         resistances: derived.resistances,
@@ -251,7 +264,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               {classesData.map(cls => (
                 <button
                   key={cls.id}
-                  onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {} } })}
+                  onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {}, toolProficiencies: [], languages: [] } })}
                   className={`group p-8 rounded border text-left transition-all duration-300 ${
                     currentCharacter.classId === cls.id 
                       ? 'border-accent bg-accent/5 ring-1 ring-accent/20' 
@@ -427,6 +440,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                                 backgroundId: bg.id,
                                 selectedBoosts: [],
                                 originFeat: bg.feat,
+                                toolProficiencies: [],
                                 proficientSkills: (currentCharacter.proficientSkills || []).filter(s => !bg.skills.includes(s)),
                                 speciesSkills: (currentCharacter.speciesSkills || []).filter(s => !bg.skills.includes(s)),
                             }

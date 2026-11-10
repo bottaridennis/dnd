@@ -7,15 +7,18 @@ import { classesData, speciesData, backgroundsData } from '../data/rules2024';
 import { subclassesData } from '../data/subclasses';
 import { INVOCATIONS } from '../data/invocations';
 import { getClassFeaturesUpTo } from '../data/classFeatures';
+import { getSubclassFeaturesUpTo, getSubclassSpells } from '../data/subclassFeatures';
+import { ALL_TOOLS, RARE_LANGUAGES, STANDARD_LANGUAGES } from '../data/languages';
 import { 
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords
+  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords, Printer, Download
 } from 'lucide-react';
+import PrintSheet from './PrintSheet';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
 import { canCharacterUseSpell, getAvailableSpellLevels, SCHOOL_LABELS } from '../lib/spellEligibility';
-import { ABILITY_NAMES, getClassLevels, getInvocationsKnown, getTotalLevel, type ClassLevelMap } from '../lib/characterRules';
+import { ABILITY_NAMES, getClassLevels, getInvocationsKnown, getProficiencySummary, getTotalLevel, type ClassLevelMap } from '../lib/characterRules';
 import { checkFeatPrerequisites, checkInvocationPrerequisites } from '../lib/featEligibility';
 import { applySpeciesChange } from '../lib/species';
 import { motion, AnimatePresence } from 'motion/react';
@@ -51,6 +54,8 @@ export default function CharacterSheet() {
   const [featureSearch, setFeatureSearch] = useState('');
   const [featureLevelFilter, setFeatureLevelFilter] = useState<'all' | number>('all');
   const [showIneligible, setShowIneligible] = useState(false);
+  const [newLanguage, setNewLanguage] = useState('');
+  const [newTool, setNewTool] = useState('');
   const [isSummonsOpen, setIsSummonsOpen] = useState(false);
   const [isLevelUpOpen, setIsLevelUpOpen] = useState(false);
 
@@ -143,6 +148,17 @@ export default function CharacterSheet() {
     else newClasses[target] = { ...newClasses[target], level: newClasses[target].level - 1 };
     const nextLevel = Object.values(newClasses).reduce((acc, c) => acc + c.level, 0);
     handleUpdate({ level: nextLevel, classes: newClasses });
+  };
+
+  const exportJson = () => {
+    const { userId, createdAt, updatedAt, ...data } = currentCharacter;
+    const blob = new Blob([JSON.stringify({ format: 'forge-character', version: 1, character: data }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(currentCharacter.name || 'personaggio').replace(/[^\p{L}\p{N}_-]+/gu, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleGlobalSave = async () => {
@@ -319,6 +335,13 @@ export default function CharacterSheet() {
   const maxCantrips = math.spellcasting.reduce((acc, c) => acc + c.cantrips, 0);
   const maxPrepared = math.spellcasting.reduce((acc, c) => acc + c.prepared, 0);
   const invocationsKnown = getInvocationsKnown(currentCharacter);
+  const subclassSpells = Array.from(new Set(Object.values(classLevels).flatMap(c => getSubclassSpells(c.subclass, c.level))));
+  const proficiencies = getProficiencySummary(currentCharacter);
+  const editList = (field: 'languages' | 'toolProficiencies', value: string, add: boolean) => {
+    const list = currentCharacter[field] || [];
+    const next = add ? Array.from(new Set([...list, value.trim()])).filter(Boolean) : list.filter(v => v !== value);
+    handleUpdate({ [field]: next });
+  };
   const speciesTraits = (charSpecies?.traits || []);
 
   const renderSkills = () => (
@@ -404,6 +427,25 @@ export default function CharacterSheet() {
           </div>
         )) : <div className="col-span-full py-10 text-center text-text-muted italic text-sm">Nessun incantesimo.</div>}
       </div>
+      {subclassSpells.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-[10px] font-black uppercase text-text-muted tracking-widest border-b border-border pb-1">Sempre preparati (sottoclasse) · non contano nel limite</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {subclassSpells.map(name => {
+              const details = getSpellDetails(name);
+              return (
+                <div key={name} className="bg-card-bg border border-accent/40 rounded p-3 flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-xs">{details?.displayName || name} <span className="text-[9px] text-text-muted uppercase">{spellLevelLabel(details?.level)}</span></span>
+                    {details && <SpellCastControls spellName={name} spell={details} stats={math} />}
+                  </div>
+                  {details && <button onClick={() => setSelectedItem(details)} className="text-text-muted hover:text-accent" aria-label="Dettagli"><Info className="w-4 h-4" /></button>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {(currentCharacter.innateSpells || []).length > 0 && (
         <div className="space-y-3">
           <h4 className="text-[10px] font-black uppercase text-text-muted tracking-widest border-b border-border pb-1">Incantesimi della specie</h4>
@@ -499,8 +541,11 @@ export default function CharacterSheet() {
             <div key={classId} className="bg-card-bg border border-border rounded p-4">
               <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">{classesData.find(c => c.id === classId)?.name} {data.level}{data.subclass ? ` · ${data.subclass}` : ''}</div>
               <ul className="space-y-1 text-xs">
-                {getClassFeaturesUpTo(classId, data.level).map((f, idx) => (
+                {getClassFeaturesUpTo(classId, data.level).filter(f => f.name !== 'Privilegio di Sottoclasse' || !data.subclass).map((f, idx) => (
                   <li key={idx} className="flex gap-2"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name === 'Sottoclasse' ? `Sottoclasse${data.subclass ? `: ${data.subclass}` : ' (da scegliere)'}` : f.name}</span></li>
+                ))}
+                {getSubclassFeaturesUpTo(data.subclass, data.level).map((f, idx) => (
+                  <li key={`sub-${idx}`} className="flex gap-2 text-accent"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name}</span></li>
                 ))}
               </ul>
             </div>
@@ -572,9 +617,19 @@ export default function CharacterSheet() {
 
   return (
     <>
-      <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500">
+      <div className="min-h-screen bg-bg text-text-primary p-6 md:p-10 space-y-8 animate-in fade-in duration-500 print:hidden">
       {/* Global Edit Toggle */}
-      <div className="flex justify-end sticky top-20 z-40 px-4 md:px-0">
+      <div className="flex justify-end gap-2 sticky top-20 z-40 px-4 md:px-0">
+        {!isEditing && (
+          <>
+            <button onClick={exportJson} className="secondary-action !bg-card-bg flex items-center gap-2" title="Scarica un backup del personaggio in formato JSON">
+              <Download className="w-4 h-4" /> <span className="hidden sm:inline">Backup</span>
+            </button>
+            <button onClick={() => window.print()} className="secondary-action !bg-card-bg flex items-center gap-2" title="Stampa o salva come PDF">
+              <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Stampa / PDF</span>
+            </button>
+          </>
+        )}
         <button
           onClick={() => isEditing ? handleGlobalSave() : setIsEditing(true)}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-105 active:scale-95 ${
@@ -997,6 +1052,40 @@ export default function CharacterSheet() {
                 </div>
               )}
            </div>
+
+           {/* Competenze e Lingue */}
+           <div className="bg-panel-bg border border-border rounded-lg p-4 shadow-sm space-y-3 text-xs">
+              <div className="text-[10px] font-black uppercase text-text-muted tracking-widest">Competenze e Lingue</div>
+              <div><span className="text-text-muted">Armature:</span> {proficiencies.armor.length ? proficiencies.armor.join(', ') : 'nessuna'}</div>
+              <div><span className="text-text-muted">Armi:</span> {proficiencies.weapons.join(', ')}</div>
+              {(['toolProficiencies', 'languages'] as const).map(field => {
+                const shown = field === 'languages' ? proficiencies.languages : proficiencies.tools;
+                const own = currentCharacter[field] || [];
+                const value = field === 'languages' ? newLanguage : newTool;
+                const setValue = field === 'languages' ? setNewLanguage : setNewTool;
+                return (
+                  <div key={field} className="space-y-1.5">
+                    <div className="text-text-muted">{field === 'languages' ? 'Lingue:' : 'Strumenti:'}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {shown.length === 0 && <span className="italic text-text-muted">nessuno</span>}
+                      {shown.map(item => (
+                        <span key={item} className="px-2 py-0.5 border border-gold/60 bg-card-bg flex items-center gap-1">
+                          {item}
+                          {isEditing && own.includes(item) && <button onClick={() => editList(field, item, false)} className="text-text-muted hover:text-danger" aria-label={`Rimuovi ${item}`}><X className="w-3 h-3" /></button>}
+                        </span>
+                      ))}
+                    </div>
+                    {isEditing && (
+                      <div className="flex gap-1">
+                        <input list={`${field}-options`} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && value.trim()) { editList(field, value, true); setValue(''); } }} placeholder="Aggiungi…" className="flex-1 min-w-0 bg-bg border border-border px-2 py-1" />
+                        <datalist id={`${field}-options`}>{(field === 'languages' ? [...STANDARD_LANGUAGES, ...RARE_LANGUAGES] : ALL_TOOLS).map(o => <option key={o} value={o} />)}</datalist>
+                        <button onClick={() => { if (value.trim()) { editList(field, value, true); setValue(''); } }} className="px-2 border border-gold" aria-label="Aggiungi"><Plus className="w-3 h-3" /></button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+           </div>
         </div>
 
         {/* Dynamic Content Area */}
@@ -1075,6 +1164,8 @@ export default function CharacterSheet() {
         </div>
       </div>
     </div>
+
+ <PrintSheet character={currentCharacter} stats={math} findSpell={getSpellDetails} />
 
     <SummonsManager 
       isOpen={isSummonsOpen} 

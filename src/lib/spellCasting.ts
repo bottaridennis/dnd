@@ -27,7 +27,7 @@ export function getSpellMechanics(spell: { description?: string; higherLevelSlot
   const save = lower.match(/tiro salvezza su (forza|destrezza|costituzione|intelligenza|saggezza|carisma)/);
   if (save) result.save = SAVE_ABILITIES[save[1]];
 
-  const heal = text.match(/Punti Ferita pari a (\d+)d(\d+)(\s*\+\s*il tuo modificatore)?/i);
+  const heal = text.match(/Punti Ferita pari a (\d+)d(\d+)(\s*(?:\+|più)\s*il tuo modificatore)?/i);
   const damage = text.match(/(\d+)d(\d+)(?:\s*\+\s*(\d+))?\s+danni\s+(?:da\s+|di\s+)?([A-Za-zÀ-ÿ]+)/i);
   if (heal && (!damage || (heal.index ?? 0) < (damage.index ?? 0))) {
     result.effect = { kind: 'healing', count: Number(heal[1]), sides: Number(heal[2]), flat: 0, addModifier: Boolean(heal[3]) };

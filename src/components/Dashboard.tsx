@@ -15,7 +15,9 @@ const toRoman = (value: number): string => {
   return out;
 };
 const timestamp = (value: any): number => (value?.toMillis ? value.toMillis() : typeof value?.seconds === 'number' ? value.seconds * 1000 : 0);
-import { AlertTriangle, ArrowUpRight, BookOpen, Plus, Search, Shield, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BookOpen, Plus, Search, Shield, Trash2, Upload, X } from 'lucide-react';
+import { initialCharacter, type CharacterData } from '../contexts/CharacterContext';
+import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'motion/react';
 
 interface DashboardProps { onNewCharacter:() => void; onOpenSheet:(id:string) => void; }
@@ -34,6 +36,22 @@ export default function Dashboard({ onNewCharacter,onOpenSheet }:DashboardProps)
   },[characters,query,sort,state.draftId]);
   const totalLevels=visibleCharacters.reduce((sum,char)=>sum+getTotalLevel(char),0);
   const handleSelect=(id:string)=>{ dispatch({ type:'SELECT_CHARACTER',payload:id }); onOpenSheet(id); };
+  const { user } = useAuth();
+  const [importMessage,setImportMessage] = useState<string|null>(null);
+  const importJson=async(file:File)=>{
+    try {
+      const parsed=JSON.parse(await file.text());
+      const data=(parsed?.format==='forge-character'?parsed.character:parsed) as Partial<CharacterData>;
+      if(!data||typeof data!=='object'||!data.name||!data.classId||!data.abilityScores) throw new Error('Il file non contiene un personaggio valido.');
+      const { createdAt, updatedAt, userId, ...rest } = data as any;
+      const character:CharacterData={ ...initialCharacter, ...rest, id:crypto.randomUUID(), userId:user?.uid };
+      await characterService.saveCharacter(character);
+      setImportMessage(`${character.name} è stato aggiunto alla compagnia.`);
+    } catch(error){
+      console.error('Import failed:',error);
+      setImportMessage(error instanceof Error && !error.message.startsWith('{')?error.message:'Importazione non riuscita: controlla il file.');
+    }
+  };
   const confirmDelete=async()=>{ if(!deleteConfirmId)return; try { await characterService.deleteCharacter(deleteConfirmId); dispatch({ type:'DELETE_CHARACTER',payload:deleteConfirmId }); setDeleteConfirmId(null); } catch(error){ console.error('Delete failed:',error); } };
 
   return (
@@ -62,9 +80,14 @@ export default function Dashboard({ onNewCharacter,onOpenSheet }:DashboardProps)
         <section className="py-7 flex flex-col md:flex-row gap-5 md:items-center">
           <label className="field-shell flex-1"><Search className="w-4 h-4 text-accent"/><input value={query} onChange={e=>setQuery(e.target.value)} className="w-full bg-transparent py-3 outline-none text-sm" placeholder="Cerca nell’archivio…" aria-label="Cerca personaggi"/></label>
           <select value={sort} onChange={e=>setSort(e.target.value as typeof sort)} className="bg-transparent border-b border-gold py-3 pr-8 text-xs uppercase tracking-widest font-bold" aria-label="Ordina personaggi"><option value="recent">Più recenti</option><option value="level">Per livello</option><option value="name">Per nome</option></select>
+          <label className="secondary-action !py-3 flex items-center justify-center gap-2 cursor-pointer" title="Importa un personaggio da un backup JSON">
+            <Upload className="w-4 h-4"/> Importa
+            <input type="file" accept="application/json,.json" className="sr-only" onChange={e=>{const f=e.target.files?.[0]; if(f) importJson(f); e.target.value='';}}/>
+          </label>
           <button onClick={onNewCharacter} className="primary-action px-6 py-3 flex items-center justify-center gap-2"><Plus className="w-4 h-4"/> Nuovo eroe</button>
         </section>
 
+        {importMessage&&<div className="mt-4 flex items-center justify-between gap-3 border border-gold bg-card-bg px-4 py-2 text-sm"><span>{importMessage}</span><button onClick={()=>setImportMessage(null)} aria-label="Chiudi messaggio"><X className="w-4 h-4"/></button></div>}
         <section className="grid md:grid-cols-2 xl:grid-cols-3 gap-7 mt-9">
           <button onClick={onNewCharacter} className="group surface-card ornate-corners !bg-transparent border-dashed min-h-[430px] p-8 text-left flex flex-col justify-between hover:!bg-card-bg transition-colors">
             <div className="brand-mark !w-14 !h-14 group-hover:scale-105 transition-transform"><Plus className="w-5 h-5"/></div>

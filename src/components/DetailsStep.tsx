@@ -2,6 +2,7 @@
 import React from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { Type, Palette, AlignLeft, Info, Camera } from 'lucide-react';
+import LanguageToolPicker from './LanguageToolPicker';
 
 const InputField = ({ label, icon: Icon, value, field, placeholder, area = false, handleChange, type = "text" }: any) => (
   <div className="space-y-2">
@@ -154,6 +155,7 @@ export default function DetailsStep() {
             />
          </div>
       </div>
+      <LanguageToolPicker />
     </div>
   );
 }
