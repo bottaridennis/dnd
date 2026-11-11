@@ -79,7 +79,7 @@ export default function SpellsFeatsStep() {
   const tabs = ([['incantesimi', 'Incantesimi'], ['talenti', 'Talenti'], ...(isWarlock ? [['invocazioni', 'Suppliche Occulte']] : [])] as [LibraryTab, string][]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-guide="spells">
       <StepHeader
         eyebrow="Capitolo 5"
         title="Magie e talenti"

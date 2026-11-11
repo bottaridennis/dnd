@@ -174,3 +174,12 @@
 
 @layer utilities { .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar { scrollbar-width:none; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
+
+/* Guida della creazione: evidenzia la sezione da completare */
+@keyframes guide-flash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  20%, 60% { box-shadow: 0 0 0 3px var(--color-accent), 0 0 24px 4px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+}
+.guide-flash { animation: guide-flash 2.2s ease-in-out; border-radius: var(--radius-lg, 6px); }
+@media (prefers-reduced-motion: reduce) { .guide-flash { animation: none; box-shadow: 0 0 0 3px var(--color-accent); } }
+

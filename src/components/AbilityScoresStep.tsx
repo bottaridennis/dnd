@@ -99,7 +99,7 @@ export default function AbilityScoresStep() {
         aside={method === 'pointbuy' ? <Counter value={pointsUsed} max={POINT_BUY_BUDGET} label="punti spesi" /> : undefined}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2" role="radiogroup" aria-label="Metodo di generazione">
+      <div data-guide="scores" className="grid grid-cols-1 md:grid-cols-3 gap-2 scroll-mt-40" role="radiogroup" aria-label="Metodo di generazione">
         {([
           ['standard', 'Serie standard', '15, 14, 13, 12, 10, 8 da assegnare'],
           ['pointbuy', 'Acquisto a punti', '27 punti, valori da 8 a 15'],
@@ -123,7 +123,7 @@ export default function AbilityScoresStep() {
       )}
       {error && <p className="text-sm text-danger font-bold" role="alert">{error}</p>}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div data-guide="boosts" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 scroll-mt-40">
         {ABILITIES.map((ability) => {
           const base = scores[ability];
           const final = finalScores[ability];

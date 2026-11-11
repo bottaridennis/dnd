@@ -50,9 +50,9 @@ export default function DetailsStep() {
       <StepHeader eyebrow="Capitolo 4" title="Dettagli" description="Dai un volto e una voce al tuo eroe, poi scegli lingue e strumenti." />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-        <Section title="Identità" icon={BookUser} bodyClassName="p-4 space-y-4">
+        <Section guide="identity" title="Identità" icon={BookUser} bodyClassName="p-4 space-y-4">
           <Field label="Nome del personaggio *" icon={Type}>
-            <input value={currentCharacter.name || ''} onChange={e => set('name', e.target.value)} placeholder="Es. Valerius Fiammacupa" className={`${inputClass} text-lg font-bold`} autoFocus />
+            <input value={currentCharacter.name || ''} onChange={e => set('name', e.target.value)} placeholder="Es. Valerius Fiammacupa" className={`${inputClass} text-lg font-bold`} />
           </Field>
           <div>
             <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-text-muted font-serif mb-1.5">Allineamento</span>
