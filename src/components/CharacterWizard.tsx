@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { characterService } from '../services/characterService';
 import { classesData, speciesData, backgroundsData, ALL_SKILLS, ORIGIN_FEATS } from '../data/rules2024';
 import {
-  ChevronRight, ChevronLeft, Save, Loader2, Dices, Check, Target, Users, ScrollText, Sword, Axe, Music, Sun, Leaf, Hand, ShieldPlus, Crosshair, VenetianMask, Flame, Eye, BookOpen,
+  ChevronRight, ChevronLeft, Save, Loader2, Dices, Check, Target, Users, ScrollText, Sword, Axe, Music, Sun, Leaf, Hand, ShieldPlus, Crosshair, VenetianMask, Flame, Eye, BookOpen, X,
 } from 'lucide-react';
 import { Section, OptionCard, Tag, ToggleChip, StepHeader, Counter } from './ui';
 
@@ -13,6 +13,9 @@ const CLASS_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   barbarian: Axe, bard: Music, cleric: Sun, druid: Leaf, fighter: Sword, monk: Hand,
   paladin: ShieldPlus, ranger: Crosshair, rogue: VenetianMask, sorcerer: Flame, warlock: Eye, wizard: BookOpen,
 };
+
+/** Classi più semplici da giocare per chi inizia */
+const BEGINNER_CLASSES = new Set(['fighter', 'barbarian', 'rogue']);
 
 const CLASS_BLURBS: Record<string, string> = {
   barbarian: 'Guerriero primordiale che combatte in preda all’Ira.',
@@ -28,7 +31,7 @@ const CLASS_BLURBS: Record<string, string> = {
   warlock: 'Incantatore che ha stretto un patto con un’entità.',
   wizard: 'Studioso della magia arcana con un libro di incantesimi.',
 };
-import AbilityScoresStep, { validateAbilityScores } from './AbilityScoresStep';
+import AbilityScoresStep, { pointBuyCost, validateAbilityScores } from './AbilityScoresStep';
 import { getOriginChoiceRequirements } from './LanguageToolPicker';
 import { STANDARD_LANGUAGES } from '../data/languages';
 import DetailsStep from './DetailsStep';
@@ -42,7 +45,7 @@ import SummaryStep from './SummaryStep';
 import { useSpeciesAutomation } from '../hooks/useSpeciesAutomation';
 import { abilityMap } from '../lib/utils';
 import { processStartingItem } from '../data/weaponsData';
-import { computeHpMax, getFinalScores, getModifiers, STANDARD_ARRAY, ABILITIES } from '../lib/characterRules';
+import { computeHpMax, getFinalScores, getModifiers, STANDARD_ARRAY, ABILITIES, ABILITY_NAMES, POINT_BUY_BUDGET } from '../lib/characterRules';
 import { getSpeciesDerived } from '../lib/species';
 
 const shuffle = <T,>(list: T[]): T[] => {
@@ -87,62 +90,129 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     return (currentCharacter?.proficientSkills || []).filter(s => !bgSkills.includes(s));
   };
 
-  /** Messaggio che spiega cosa manca per proseguire (null = si può proseguire). */
-  const stepIssue = (): string | null => {
-    if (!currentCharacter) return 'Caricamento…';
+  /**
+   * Cosa serve per completare il passo corrente, in ordine. Ogni voce indica la sezione della pagina
+   * (data-guide) dove si completa, così la guida può portarci l'utente.
+   * optional = consiglio che non blocca.
+   */
+  interface Requirement { id: string; label: string; done: boolean; help: string; optional?: boolean }
+  const stepRequirements = (): Requirement[] => {
+    if (!currentCharacter) return [];
     const charClass = classesData.find(c => c.id === currentCharacter.classId);
     switch (currentStep) {
       case 0: {
-        if (!charClass) return 'Scegli una classe.';
-        if (getClassSkillPicks().length !== charClass.skillChoices) return `Scegli ${charClass.skillChoices} abilità di classe.`;
-        return null;
+        const picks = getClassSkillPicks().length;
+        return [
+          { id: 'class', label: 'Scegli una classe', done: Boolean(charClass), help: 'Tocca una delle carte qui sotto: la classe decide come combatti e che magie usi. Nel dubbio, il Guerriero è il più semplice.' },
+          ...(charClass ? [{ id: 'class-skills', label: `Scegli ${charClass.skillChoices} abilità (${picks}/${charClass.skillChoices})`, done: picks === charClass.skillChoices, help: `Tocca ${charClass.skillChoices} abilità nell’elenco “Competenze di classe”: sono le cose in cui il tuo eroe è bravo.` }] : []),
+        ];
       }
       case 1: {
-        if (!currentCharacter.speciesId) return 'Scegli una specie.';
         const species = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
-        if (species?.subOptions && !species.subOptions.some((o: any) => o.id === currentCharacter.speciesSubOption)) return 'Scegli il lignaggio della specie.';
-        if (species?.skillChoices && (currentCharacter.speciesSkills || []).length !== species.skillChoices) return 'Scegli l’abilità concessa dalla specie.';
-        if (species?.id === 'human' && !currentCharacter.bonusOriginFeat) return 'Scegli il Talento d’Origine del tratto Versatile.';
-        if (!currentCharacter.backgroundId) return 'Scegli un background.';
-        if (charClass && getClassSkillPicks().length !== charClass.skillChoices) return `Il background copre una tua abilità di classe: scegline un’altra (${getClassSkillPicks().length}/${charClass.skillChoices}).`;
-        return null;
+        const list: Requirement[] = [{ id: 'species', label: 'Scegli una specie', done: Boolean(species), help: 'Tocca una specie nel riquadro “Specie” (umano, elfo, nano…).' }];
+        if (species?.subOptions) list.push({ id: 'lineage', label: 'Scegli il lignaggio', done: species.subOptions.some((o: any) => o.id === currentCharacter.speciesSubOption), help: `${species.name}: scegli una delle varianti sotto “Lignaggio”.` });
+        if (species?.skillChoices) list.push({ id: 'species-skill', label: 'Scegli l’abilità della specie', done: (currentCharacter.speciesSkills || []).length === species.skillChoices, help: 'La tua specie ti regala un’abilità: tocca quella che preferisci.' });
+        if (species?.id === 'human') list.push({ id: 'versatile', label: 'Scegli il talento “Versatile”', done: Boolean(currentCharacter.bonusOriginFeat), help: 'Gli umani ottengono un Talento d’Origine in più: scegline uno (Allerta e Duro sono ottimi per iniziare).' });
+        list.push({ id: 'background', label: 'Scegli un background', done: Boolean(currentCharacter.backgroundId), help: 'Tocca un background nel riquadro “Background”: è il mestiere del tuo eroe prima dell’avventura.' });
+        if (charClass && currentCharacter.backgroundId) {
+          const picks = getClassSkillPicks().length;
+          if (picks !== charClass.skillChoices) list.push({ id: 'class-skills', label: `Sostituisci un’abilità di classe (${picks}/${charClass.skillChoices})`, done: false, help: 'Il background ti dà già un’abilità che avevi scelto con la classe: scegline un’altra nel riquadro “Competenze di classe”.' });
+        }
+        return list;
       }
       case 2: {
         const boosts = currentCharacter.selectedBoosts || [];
         const required = currentCharacter.boostMode === '1/1/1' ? 3 : 2;
         const allowed = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.boosts || [];
-        if (boosts.length !== required || boosts.some(b => !allowed.includes(b))) return `Assegna i bonus del background (${boosts.length}/${required}).`;
-        return validateAbilityScores(currentCharacter.abilityMethod || 'pointbuy', currentCharacter.abilityScores);
+        const scoreIssue = validateAbilityScores(currentCharacter.abilityMethod || 'pointbuy', currentCharacter.abilityScores);
+        const method = currentCharacter.abilityMethod || 'pointbuy';
+        const spent = method === 'pointbuy' ? pointBuyCost(currentCharacter.abilityScores) : 0;
+        const allowedNames = allowed.map(a => ABILITY_NAMES[a]).join(', ');
+        return [
+          { id: 'scores', label: 'Imposta i punteggi', done: !scoreIssue, help: scoreIssue || 'Scegli un metodo e imposta i sei punteggi.' },
+          ...(method === 'pointbuy' ? [{ id: 'boosts', label: `Spendi i punti (${spent}/${POINT_BUY_BUDGET})`, done: spent >= POINT_BUY_BUDGET, optional: true, help: `Usa le frecce ▲ sotto le caratteristiche per spendere tutti i ${POINT_BUY_BUDGET} punti. Alza soprattutto quella principale della tua classe. Più semplice: scegli “Serie standard”.` }] : []),
+          { id: 'boosts', label: `Assegna i bonus del background (${boosts.length}/${required})`, done: boosts.length === required && boosts.every(b => allowed.includes(b)), help: required === 2
+            ? `Tocca “Applica bonus” sotto la caratteristica che vuoi aumentare di +2, poi sotto quella da +1. Puoi scegliere tra: ${allowedNames}.`
+            : `Tocca “Applica bonus” sotto ${allowedNames}: ognuna riceve +1.` },
+        ];
       }
       case 3: {
-        if (!currentCharacter.name?.trim()) return 'Dai un nome al personaggio.';
         const req = getOriginChoiceRequirements(currentCharacter);
-        if ((currentCharacter.languages || []).length !== req.languageCount) return `Scegli ${req.languageCount} lingue (${(currentCharacter.languages || []).length}/${req.languageCount}).`;
-        if ((currentCharacter.toolProficiencies || []).length !== req.toolCount) return `Scegli gli strumenti: ${req.toolLabel}.`;
-        return null;
+        const langs = (currentCharacter.languages || []).length;
+        const tools = (currentCharacter.toolProficiencies || []).length;
+        return [
+          { id: 'identity', label: 'Dai un nome al personaggio', done: Boolean(currentCharacter.name?.trim()), help: 'Scrivi il nome del tuo eroe nel campo “Nome del personaggio”.' },
+          ...(req.languageCount > 0 ? [{ id: 'languages', label: `Scegli ${req.languageCount} lingue (${langs}/${req.languageCount})`, done: langs === req.languageCount, help: `Tocca ${req.languageCount} lingue nel riquadro “Lingue”. Le più utili: Elfico, Nanico, Gigante.` }] : []),
+          ...(req.toolCount > 0 ? [{ id: 'tools', label: `Scegli gli strumenti (${tools}/${req.toolCount})`, done: tools === req.toolCount, help: `Nel riquadro “Strumenti” scegli ${req.toolLabel}.` }] : []),
+        ];
       }
       case 4: {
         const budget = getSpellBudget(currentCharacter, homebrew.spells);
-        if (budget.excess.length) return `Troppi incantesimi o non ammessi: rimuovine ${budget.excess.length} (${budget.excess.join(', ')}).`;
         const feats = getFeatBudget(currentCharacter, homebrew.feats);
-        if (feats.excess.length) return `Talenti non ammessi dal manuale: rimuovi ${feats.excess.join(', ')}.`;
         const invocations = getInvocationBudget(currentCharacter, INVOCATIONS);
-        if (invocations.excess.length) return `Suppliche Occulte in eccesso o non ammesse: rimuovi ${invocations.excess.join(', ')}.`;
-        return null;
+        const list: Requirement[] = [];
+        if (budget.excess.length) list.push({ id: 'spells', label: `Togli ${budget.excess.length} incantesim${budget.excess.length === 1 ? 'o' : 'i'} di troppo`, done: false, help: `Hai scelto più incantesimi di quelli permessi: tocca quelli evidenziati in rosso per toglierli (${budget.excess.join(', ')}).` });
+        if (feats.excess.length) list.push({ id: 'spells', label: 'Togli i talenti non permessi', done: false, help: `Nella scheda “Talenti” togli: ${feats.excess.join(', ')}.` });
+        if (invocations.excess.length) list.push({ id: 'spells', label: 'Togli le suppliche in eccesso', done: false, help: `Nella scheda “Suppliche Occulte” togli: ${invocations.excess.join(', ')}.` });
+        if (budget.cantrips.max > 0) list.push({ id: 'spells', label: `Trucchetti (${budget.cantrips.used}/${budget.cantrips.max})`, done: budget.cantrips.used >= budget.cantrips.max, optional: true, help: `Consigliato: scegli ${budget.cantrips.max} trucchetti, le magie che puoi usare senza limiti.` });
+        if (budget.leveled.max > 0) list.push({ id: 'spells', label: `Incantesimi preparati (${budget.leveled.used}/${budget.leveled.max})`, done: budget.leveled.used >= budget.leveled.max, optional: true, help: `Consigliato: scegli ${budget.leveled.max} incantesimi di 1° livello da preparare.` });
+        if (invocations.max > 0) list.push({ id: 'spells', label: `Suppliche Occulte (${invocations.used}/${invocations.max})`, done: invocations.used >= invocations.max, optional: true, help: 'Consigliato: nella scheda “Suppliche Occulte” scegli i poteri del tuo patto.' });
+        return list;
       }
       default:
-        return null;
+        return [];
     }
   };
+
+  const requirements = stepRequirements();
+  const firstMissing = requirements.find(r => !r.done && !r.optional);
+  /** Messaggio che spiega cosa manca per proseguire (null = si può proseguire). */
+  const stepIssue = (): string | null => (currentCharacter ? (firstMissing ? firstMissing.help : null) : 'Caricamento…');
+
+  /** Porta l'utente alla sezione da completare e la evidenzia. */
+  const guideTo = (target: string, behavior: ScrollBehavior = 'smooth') => {
+    const el = document.querySelector<HTMLElement>(`[data-guide="${target}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior, block: 'start' });
+    el.classList.remove('guide-flash');
+    void el.offsetWidth; // riavvia l'animazione
+    el.classList.add('guide-flash');
+    window.setTimeout(() => el.classList.remove('guide-flash'), 2200);
+  };
+  // Dopo un tentativo di proseguire, l'avviso resta visibile e segue la prossima cosa da fare
+  const [showBlocked, setShowBlocked] = useState(false);
+  const blockedNotice = showBlocked && firstMissing ? firstMissing.help : null;
 
   const canProceed = (): boolean => stepIssue() === null;
 
   const nextStep = () => {
     if (canProceed()) {
+      setShowBlocked(false);
       setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
+      return;
+    }
+    // Invece di un pulsante spento: si spiega cosa manca e si porta l'utente lì
+    if (firstMissing) {
+      setShowBlocked(true);
+      guideTo(firstMissing.id);
     }
   };
-  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
+
+  // Ogni passo si apre dall'inizio della pagina
+  React.useEffect(() => { window.scrollTo({ top: 0 }); setShowBlocked(false); }, [currentStep]);
+
+  // Completata una scelta, se la prossima da fare è più in basso la si porta in vista
+  const lastTarget = React.useRef<{ step: number; id?: string }>({ step: -1 });
+  React.useEffect(() => {
+    const prev = lastTarget.current;
+    lastTarget.current = { step: currentStep, id: firstMissing?.id };
+    if (prev.step !== currentStep || !firstMissing || prev.id === firstMissing.id) return;
+    // Mai spostare la pagina mentre si sta scrivendo
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
+    const el = document.querySelector<HTMLElement>(`[data-guide="${firstMissing.id}"]`);
+    if (el && el.getBoundingClientRect().top > window.innerHeight * 0.6) window.setTimeout(() => guideTo(firstMissing.id), 150);
+  });
+  const prevStep = () => { setShowBlocked(false); setCurrentStep(prev => Math.max(prev - 1, 0)); };
 
   // Initialize a character if none exists
   React.useEffect(() => {
@@ -247,7 +317,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     const picks = getClassSkillPicks();
     const limitReached = picks.length >= charClass.skillChoices;
     return (
-      <Section title={`Competenze di classe · ${charClass.name}`} icon={Target} actions={<Counter value={picks.length} max={charClass.skillChoices} label="scelte" />}>
+      <Section guide="class-skills" title={`Competenze di classe · ${charClass.name}`} icon={Target} actions={<Counter value={picks.length} max={charClass.skillChoices} label="scelte" />}>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {charClass.skillOptions.map(skill => {
             const isSelected = picks.includes(skill);
@@ -286,7 +356,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         return (
           <div className="space-y-6">
             <StepHeader eyebrow="Capitolo 1" title="Scegli la classe" description="La classe definisce il tuo ruolo nel gruppo: come combatti, quale magia usi e quali competenze ottieni." />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div data-guide="class" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 scroll-mt-40">
               {classesData.map(cls => {
                 const Icon = CLASS_ICONS[cls.id] || Sword;
                 const primary = cls.multiclassReq;
@@ -298,6 +368,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                     title={<span className="flex items-center gap-2"><Icon className="w-5 h-5 text-accent shrink-0" />{cls.name}</span>}
                     subtitle={CLASS_BLURBS[cls.id]}
                     meta={<>
+                      {BEGINNER_CLASSES.has(cls.id) && <Tag tone="accent">Facile per iniziare</Tag>}
                       <Tag tone="accent">d{cls.hitDie}</Tag>
                       <Tag title="Caratteristica principale">{primary.map(a => abilityMap[a] || a).join(cls.multiclassAny ? ' o ' : ' + ')}</Tag>
                       <Tag title="Tiri salvezza">TS {cls.saves.map(a => abilityMap[a] || a).join(', ')}</Tag>
@@ -315,7 +386,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           <div className="space-y-8">
             <StepHeader eyebrow="Capitolo 2" title="Origine" description="Specie e background: da dove vieni e cosa facevi prima dell'avventura. Il background assegna aumenti di caratteristica, abilità e un Talento d'Origine." />
 
-            <Section title="Specie" icon={Users} bodyClassName="p-4 space-y-4">
+            <Section guide="species" title="Specie" icon={Users} bodyClassName="p-4 space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
                 {speciesData.map((sp: any) => (
                   <OptionCard
@@ -337,7 +408,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               )}
 
               {currentSpecies?.subOptions && (
-                <div>
+                <div data-guide="lineage" className="scroll-mt-40">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs uppercase font-bold tracking-widest font-serif">Lignaggio</div>
                     {!currentCharacter.speciesSubOption && <Tag tone="danger">Da scegliere</Tag>}
@@ -367,7 +438,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                 const picks = currentCharacter.speciesSkills || [];
                 const taken = [...getBgSkills(), ...getClassSkillPicks()];
                 return (
-                  <div>
+                  <div data-guide="species-skill" className="scroll-mt-40">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-xs uppercase font-bold tracking-widest font-serif">{currentSpecies.id === 'human' ? 'Abile: una competenza a scelta' : 'Sensi Acuti: una competenza'}</div>
                       <Counter value={picks.length} max={currentSpecies.skillChoices} label="scelte" />
@@ -389,7 +460,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               })()}
 
               {currentCharacter.speciesId === 'human' && (
-                <div>
+                <div data-guide="versatile" className="scroll-mt-40">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs uppercase font-bold tracking-widest font-serif">Versatile: Talento d’Origine</div>
                     {!currentCharacter.bonusOriginFeat && <Tag tone="danger">Da scegliere</Tag>}
@@ -403,7 +474,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               )}
             </Section>
 
-            <Section title="Background" icon={ScrollText}>
+            <Section guide="background" title="Background" icon={ScrollText}>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 {backgroundsData.map(bg => (
                   <OptionCard
@@ -454,7 +525,6 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     }
   };
 
-  const issue = stepIssue();
   const isLast = currentStep === STEPS.length - 1;
 
   return (
@@ -470,8 +540,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
               return (
                 <li key={step} className="shrink-0">
                   <button
-                    onClick={() => reachable && setCurrentStep(idx)}
-                    disabled={!reachable}
+                    onClick={() => (reachable ? setCurrentStep(idx) : nextStep())}
+                    title={reachable ? undefined : 'Completa prima il passo corrente'}
                     aria-current={active ? 'step' : undefined}
                     className={`relative flex items-center gap-2 px-3 py-4 text-xs font-serif font-bold uppercase tracking-wider whitespace-nowrap transition-colors
                       ${active ? 'text-text-primary' : done ? 'text-text-muted hover:text-text-primary' : 'text-text-muted/50'}`}
@@ -493,23 +563,49 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         </div>
       </div>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 py-8">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-6">
+        {requirements.length > 0 && (
+          <nav aria-label="Cosa fare in questo passo" className={`border-l-4 px-4 py-3 ${firstMissing ? 'border-accent bg-accent/5' : 'border-success bg-success/5'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs uppercase font-black tracking-widest font-serif">{firstMissing ? 'Cosa fare in questo passo' : 'Passo completato'}</p>
+              {!firstMissing && <span className="text-xs text-success font-bold">Premi “{isLast ? 'Crea personaggio' : 'Continua'}” in basso per andare avanti</span>}
+            </div>
+            <ol className="mt-2 flex flex-wrap gap-2">
+              {requirements.map((r, i) => (
+                <li key={`${r.id}-${i}`}>
+                  <button onClick={() => guideTo(r.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm border rounded-[var(--radius-sm)] text-left ${r.done ? 'border-success/50 text-success' : r === firstMissing ? 'border-accent bg-accent text-bg font-bold' : r.optional ? 'border-dashed border-border text-text-muted' : 'border-border text-text-primary'}`}>
+                    {r.done ? <Check className="w-4 h-4 shrink-0" /> : <span className="w-4 h-4 grid place-items-center text-[10px] font-black border border-current rounded-full shrink-0">{i + 1}</span>}
+                    {r.label}{r.optional && !r.done ? <span className="text-[10px] uppercase">· consigliato</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ol>
+            {firstMissing && <p className="text-sm text-text-muted mt-2">{firstMissing.help}</p>}
+          </nav>
+        )}
         {renderStep()}
       </main>
 
       {/* Navigazione */}
       <footer className="sticky bottom-0 z-30 bg-card-bg/95 backdrop-blur border-t border-border">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center gap-3">
-          <button onClick={() => { dispatch({ type: 'DISCARD_DRAFT' }); onCancel(); }} className="text-xs uppercase font-bold tracking-wider text-text-muted hover:text-danger font-serif">Annulla</button>
-          <button onClick={handleRandomize} className="secondary-action flex items-center gap-2" title="Genera un personaggio casuale completo"><Dices className="w-4 h-4" /> Casuale</button>
-          <div className="flex-1 min-w-[160px] text-right">
-            {issue && <span className="text-xs text-danger font-bold" role="status">{issue}</span>}
+        {blockedNotice && (
+          <div role="alert" className="max-w-6xl mx-auto px-4 md:px-8 pt-3">
+            <div className="flex items-start gap-2 border border-accent bg-accent/10 px-3 py-2 text-sm">
+              <ChevronRight className="w-4 h-4 text-accent shrink-0 mt-0.5 rotate-[-90deg]" />
+              <span><strong>Prima di continuare:</strong> {blockedNotice}</span>
+              <button onClick={() => setShowBlocked(false)} className="ml-auto text-text-muted shrink-0" aria-label="Chiudi">×</button>
+            </div>
           </div>
-          <button onClick={prevStep} disabled={currentStep === 0} className="secondary-action flex items-center gap-1 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> Indietro</button>
+        )}
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex items-center gap-2 sm:gap-3">
+          <button onClick={() => { dispatch({ type: 'DISCARD_DRAFT' }); onCancel(); }} className="p-2 sm:p-0 text-xs uppercase font-bold tracking-wider text-text-muted hover:text-danger font-serif" aria-label="Annulla la creazione" title="Annulla la creazione"><X className="w-5 h-5 sm:hidden" /><span className="hidden sm:inline">Annulla</span></button>
+          <button onClick={handleRandomize} className="secondary-action !px-2.5 sm:!px-4 flex items-center gap-2" title="Genera un personaggio casuale completo" aria-label="Personaggio casuale"><Dices className="w-4 h-4" /><span className="hidden sm:inline">Casuale</span></button>
+          <div className="flex-1" />
+          <button onClick={prevStep} disabled={currentStep === 0} className="secondary-action !px-2.5 sm:!px-4 flex items-center gap-1 disabled:opacity-30" aria-label="Indietro"><ChevronLeft className="w-4 h-4" /><span className="hidden sm:inline">Indietro</span></button>
           <button
             onClick={isLast ? handleFinish : nextStep}
-            disabled={isSaving || !canProceed()}
-            className="primary-action px-6 py-2.5 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={isSaving}
+            className={`primary-action px-5 sm:px-6 py-2.5 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${canProceed() ? '' : 'opacity-60'}`}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : isLast ? <Save className="w-4 h-4" /> : null}
             {isLast ? 'Crea personaggio' : 'Continua'}

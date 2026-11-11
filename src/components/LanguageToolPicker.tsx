@@ -46,7 +46,7 @@ export default function LanguageToolPicker() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Section title="Lingue" icon={Languages} actions={<Counter value={languages.length} max={req.languageCount} label="a scelta" />} bodyClassName="p-4 space-y-3">
+      <Section guide="languages" title="Lingue" icon={Languages} actions={<Counter value={languages.length} max={req.languageCount} label="a scelta" />} bodyClassName="p-4 space-y-3">
         <p className="text-sm text-text-muted">Conosci già: <strong className="text-text-primary">{req.fixedLanguages.join(', ')}</strong>. Scegli tra le lingue standard; le rare con il permesso del Master.</p>
         <div className="flex flex-wrap gap-2">
           {STANDARD_LANGUAGES.filter(l => !req.fixedLanguages.includes(l)).map(l => chip(l, languages.includes(l), !languages.includes(l) && languages.length >= req.languageCount, () => toggle('languages', l, req.languageCount)))}
@@ -59,7 +59,7 @@ export default function LanguageToolPicker() {
         </details>
       </Section>
 
-      <Section title="Strumenti" icon={Wrench} actions={req.toolCount > 0 ? <Counter value={tools.length} max={req.toolCount} label="a scelta" /> : undefined} bodyClassName="p-4 space-y-3">
+      <Section guide="tools" title="Strumenti" icon={Wrench} actions={req.toolCount > 0 ? <Counter value={tools.length} max={req.toolCount} label="a scelta" /> : undefined} bodyClassName="p-4 space-y-3">
         <p className="text-sm text-text-muted">
           {req.fixedTools.length ? <>Già ottenuti: <strong className="text-text-primary">{req.fixedTools.join(', ')}</strong>. </> : null}
           {req.toolCount > 0 ? `Scegli ${req.toolLabel}.` : 'Nessuna scelta richiesta.'}

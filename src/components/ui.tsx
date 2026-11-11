@@ -7,9 +7,11 @@ type IconType = React.ComponentType<{ className?: string }>;
 
 export const Section: React.FC<{
   title: React.ReactNode; icon?: IconType; actions?: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string; id?: string;
-}> = ({ title, icon: Icon, actions, children, className = '', bodyClassName = 'p-4', id }) => {
+  /** Punto di arrivo della guida della creazione (data-guide) */
+  guide?: string;
+}> = ({ title, icon: Icon, actions, children, className = '', bodyClassName = 'p-4', id, guide }) => {
   return (
-    <section className={`sheet-section ${className}`} aria-labelledby={id}>
+    <section className={`sheet-section scroll-mt-40 ${className}`} aria-labelledby={id} data-guide={guide}>
       <div className="sheet-section-title">
         {Icon && <Icon className="w-3.5 h-3.5" />}
         <span id={id} className="truncate">{title}</span>
