@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore, type Firestore } from 'firebase/firestore';
 
 /**
  * Firebase Configuration
@@ -30,5 +30,17 @@ if (!firebaseConfig.apiKey && import.meta.env.MODE !== 'test') {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, databaseId);
+/**
+ * Cache locale persistente: personaggi, campagne e homebrew già aperti restano consultabili senza rete
+ * e le modifiche fatte offline vengono inviate al ritorno della connessione.
+ */
+function createDb(): Firestore {
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }, databaseId);
+  } catch (error) {
+    console.warn('Cache offline non disponibile, uso la sola memoria:', error);
+    return getFirestore(app, databaseId);
+  }
+}
+export const db = createDb();
 export const googleProvider = new GoogleAuthProvider();

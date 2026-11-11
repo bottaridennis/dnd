@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Crown, LogOut, Swords } from 'lucide-react';
+import { Crown, LogOut, Swords, Tv } from 'lucide-react';
+import { screenUrl } from '../services/screenService';
 import { useCharacter } from '../contexts/CharacterContext';
 import { campaignService, normalizeCode, type Campaign } from '../services/campaignService';
 
@@ -58,6 +59,7 @@ export default function CampaignJoin() {
               </div>
               <button onClick={leave} className="p-1.5 text-text-muted hover:text-danger" aria-label="Esci dalla campagna" title="Esci dalla campagna"><LogOut className="w-4 h-4" /></button>
             </div>
+            <a href={screenUrl(campaignId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-text-muted hover:text-accent"><Tv className="w-3.5 h-3.5" /> Schermo del tavolo</a>
             {initiative?.active && (
               <div className={`border px-3 py-2 ${myTurn ? 'border-accent bg-accent/10' : 'border-border'}`}>
                 <div className="text-[10px] uppercase tracking-widest text-text-muted flex items-center gap-1"><Swords className="w-3 h-3" /> Combattimento · round {initiative.round}</div>

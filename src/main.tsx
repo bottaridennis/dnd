@@ -25,6 +25,20 @@ if (window.matchMedia?.('(pointer: coarse)').matches) {
   document.addEventListener('change', e => { if ((e.target as HTMLElement)?.tagName === 'SELECT') realign(); });
 }
 
+// App installabile e offline (solo nella build pubblicata: in sviluppo il service worker darebbe file vecchi)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+      .then(() => navigator.serviceWorker.ready)
+      .then(reg => {
+        // File già caricati in questa visita (prima che il service worker fosse attivo): li mette in cache per l'uso offline
+        const urls = performance.getEntriesByType('resource').map(e => e.name);
+        reg.active?.postMessage({ type: 'cache-urls', urls });
+      })
+      .catch(err => console.warn('Service worker non registrato:', err));
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

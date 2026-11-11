@@ -41,6 +41,9 @@ export function buildEncounterState(encounter: Encounter, party: PartyMember[]):
       ac: m.ac,
       cr: m.cr,
       ...(m.notes ? { note: m.notes } : {}),
+      ...(m.monsterId ? { monsterId: m.monsterId } : {}),
+      ...(m.legendaryUses ? { legendary: { max: m.legendaryUses, used: 0 } } : {}),
+      ...(m.hidden ? { hidden: true } : {}),
     }));
   });
   const state: InitiativeState = {
@@ -95,6 +98,9 @@ export function nextTurn(state: InitiativeState): InitiativeState {
     if (isActive(entries[turn])) break;
   }
   if (round !== state.round) next = withLog({ ...next, round }, `Round ${round}`);
+  // All'inizio del proprio turno la creatura recupera le azioni leggendarie
+  const starting = next.entries[turn];
+  if (starting?.legendary?.used) next = { ...next, entries: next.entries.map((e, i) => (i === turn ? { ...e, legendary: { ...e.legendary!, used: 0 } } : e)) };
   next = { ...next, turn, round };
   return withLog(next, `Turno di ${entries[turn].name}`);
 }

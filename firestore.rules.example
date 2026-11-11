@@ -242,6 +242,25 @@ service cloud.firestore {
       allow delete: if isVerified() && (existing().dmId == request.auth.uid || isAdmin());
     }
 
+    // Schermo del tavolo: copia filtrata del combattimento, leggibile senza accesso da chi ha il link
+    // (TV, tablet, telefoni). Solo il Master della campagna la scrive.
+    function isCampaignOwner(campaignId) {
+      return isVerified() &&
+             exists(/databases/$(database)/documents/campaigns/$(campaignId)) &&
+             get(/databases/$(database)/documents/campaigns/$(campaignId)).data.dmId == request.auth.uid;
+    }
+
+    match /campaignScreens/{campaignId} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isCampaignOwner(campaignId) &&
+                              incoming().campaignId == campaignId &&
+                              incoming().dmId == request.auth.uid &&
+                              incoming().keys().hasOnly(['campaignId', 'dmId', 'campaignName', 'encounterName', 'active', 'round', 'currentId', 'entries', 'updatedAt']) &&
+                              incoming().entries is list && incoming().entries.size() <= 100;
+      allow delete: if isCampaignOwner(campaignId);
+    }
+
     // Admin access collection
     match /admins/{uid} {
       allow read: if isAdmin();

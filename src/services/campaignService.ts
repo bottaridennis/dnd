@@ -24,6 +24,12 @@ export interface InitiativeEntry {
   conditions?: TrackedCondition[];
   /** Creatura sconfitta: viene saltata nei turni */
   defeated?: boolean;
+  /** Mostro del bestiario (SRD o personalizzato) da cui deriva la creatura */
+  monsterId?: string;
+  /** Nascosta ai giocatori sullo schermo del tavolo */
+  hidden?: boolean;
+  /** Azioni leggendarie: usi per round e usi spesi (si recuperano all'inizio del suo turno) */
+  legendary?: { max: number; used: number };
 }
 
 export interface TrackedCondition { id: string; name: string; rounds: number | null }
@@ -37,6 +43,11 @@ export interface EncounterMonster {
   ac: number;
   initiativeBonus: number;
   notes?: string;
+  monsterId?: string;
+  /** Usi delle azioni leggendarie per round (0 = nessuna) */
+  legendaryUses?: number;
+  /** La creatura parte nascosta sullo schermo del tavolo */
+  hidden?: boolean;
 }
 
 export interface Encounter {

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { InstallButton } from './AppStatus';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, ChevronRight, Crown, Plus, Search, Shield, Trash2, Upload, Users, X } from 'lucide-react';
 import { useCharacter, initialCharacter, type CharacterData } from '../contexts/CharacterContext';
@@ -104,6 +105,7 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
             <Upload className="w-4 h-4" /> Importa
             <input type="file" accept="application/json,.json" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
           </label>
+          <InstallButton className="secondary-action !py-2.5 flex items-center justify-center gap-2 [&>svg]:w-4 [&>svg]:h-4" />
           <button onClick={onNewCharacter} className="primary-action px-5 py-2.5 flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Crea personaggio</button>
         </section>
 

@@ -2,7 +2,8 @@
 import React from 'react';
 import { useCharacter } from '../contexts/CharacterContext';
 import { characterService } from '../services/characterService';
-import { AlertCircle, Skull, Zap, EyeOff, ShieldOff, Activity } from 'lucide-react';
+import { AlertCircle, Skull, Zap, EyeOff, ShieldOff, Activity, BookOpen } from 'lucide-react';
+import { useRules } from '../contexts/RulesContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 const CONDITIONS = [
@@ -24,6 +25,7 @@ const CONDITIONS = [
 
 export default function ConditionTracker() {
   const { currentCharacter, dispatch } = useCharacter();
+  const { openRules, ruleHint } = useRules();
 
   if (!currentCharacter) return null;
 
@@ -96,6 +98,7 @@ export default function ConditionTracker() {
            </p>
         </div>
 
+        <button onClick={() => openRules({ category: 'Condizioni' })} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-accent mb-2"><BookOpen className="w-3.5 h-3.5" /> Cosa fanno le condizioni</button>
         {/* Lista Condizioni */}
         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
           {CONDITIONS.map((cond) => {
@@ -105,6 +108,8 @@ export default function ConditionTracker() {
               <button
                 key={cond.id}
                 onClick={() => toggleCondition(cond.id)}
+                onContextMenu={e => { e.preventDefault(); openRules({ name: cond.name }); }}
+                title={ruleHint(cond.name)}
                 className={`flex items-center gap-2 p-2.5 rounded border transition-all text-left ${
                   isActive 
                     ? 'bg-accent text-bg border-accent shadow-sm' 

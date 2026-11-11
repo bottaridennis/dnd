@@ -1,7 +1,7 @@
 /**
  * Dati per costruire e valutare gli incontri.
  * - PE per Grado di Sfida (GS) e budget di PE per personaggio dalla DMG 2024 (difficoltà Bassa / Moderata / Alta).
- * - Mostri di base con statistiche SRD 5.1 (CC-BY-4.0), modificabili liberamente nell'editor.
+ * I mostri sono nel Bestiario (src/lib/bestiary.ts, dati SRD 5.2).
  */
 
 export const CR_OPTIONS = ['0', '1/8', '1/4', '1/2', ...Array.from({ length: 30 }, (_, i) => String(i + 1))];
@@ -48,30 +48,6 @@ export function rateEncounter(xp: number, budget: { low: number; moderate: numbe
   return 'trivial';
 }
 
-export interface MonsterPreset { name: string; cr: string; hp: number; ac: number; initiativeBonus: number; type: string }
-
-export const MONSTER_PRESETS: MonsterPreset[] = [
-  { name: 'Bandito', cr: '1/8', hp: 11, ac: 12, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Coboldo', cr: '1/8', hp: 5, ac: 12, initiativeBonus: 2, type: 'Umanoide' },
-  { name: 'Cultista', cr: '1/8', hp: 9, ac: 12, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Guardia', cr: '1/8', hp: 11, ac: 16, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Goblin', cr: '1/4', hp: 7, ac: 15, initiativeBonus: 2, type: 'Umanoide' },
-  { name: 'Lupo', cr: '1/4', hp: 11, ac: 13, initiativeBonus: 2, type: 'Bestia' },
-  { name: 'Scheletro', cr: '1/4', hp: 13, ac: 13, initiativeBonus: 2, type: 'Non morto' },
-  { name: 'Zombi', cr: '1/4', hp: 22, ac: 8, initiativeBonus: -2, type: 'Non morto' },
-  { name: 'Gnoll', cr: '1/2', hp: 22, ac: 15, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Hobgoblin', cr: '1/2', hp: 11, ac: 18, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Orco', cr: '1/2', hp: 15, ac: 13, initiativeBonus: 1, type: 'Umanoide' },
-  { name: 'Bugbear', cr: '1', hp: 27, ac: 16, initiativeBonus: 2, type: 'Umanoide' },
-  { name: 'Lupo Crudele', cr: '1', hp: 37, ac: 14, initiativeBonus: 2, type: 'Bestia' },
-  { name: 'Orso Bruno', cr: '1', hp: 34, ac: 11, initiativeBonus: 0, type: 'Bestia' },
-  { name: 'Ragno Gigante', cr: '1', hp: 26, ac: 14, initiativeBonus: 3, type: 'Bestia' },
-  { name: 'Capitano dei Banditi', cr: '2', hp: 65, ac: 15, initiativeBonus: 3, type: 'Umanoide' },
-  { name: 'Ogre', cr: '2', hp: 59, ac: 11, initiativeBonus: -1, type: 'Gigante' },
-  { name: 'Orsogufo', cr: '3', hp: 59, ac: 13, initiativeBonus: 1, type: 'Mostruosità' },
-  { name: 'Troll', cr: '5', hp: 84, ac: 15, initiativeBonus: 1, type: 'Gigante' },
-  { name: 'Drago Verde Giovane', cr: '8', hp: 136, ac: 18, initiativeBonus: 1, type: 'Drago' },
-];
 
 /** Condizioni del PHB 2024 applicabili nel tracker. */
 export const TRACKER_CONDITIONS = [
