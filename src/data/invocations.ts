@@ -20,7 +20,7 @@ export const INVOCATIONS = [
   {
     "name": "Vista del Diavolo",
     "prerequisite": "Prerequisito: Warlock di livello 2+",
-    "description": "Puoi vedere normalmente in Penombra e Oscurità — sia magiche sia non magiche — entro <strong>36,6\r\n                    metri</strong> da te.\r\n                <br>",
+    "description": "Puoi vedere normalmente in Penombra e Oscurità — sia magiche sia non magiche — entro <strong>36 metri</strong> da te.\r\n                <br>",
     "repeatable": false
   },
   {
@@ -43,8 +43,8 @@ export const INVOCATIONS = [
   },
   {
     "name": "Lancia Eldritch",
-    "prerequisite": "Prerequisito: Warlock di livello 2+, un trucchetto da Warlock che infligge danni con\r                 gittata di 3+ metri",
-    "description": "Scegli uno dei tuoi trucchetti da Warlock conosciuti che infligge danni e ha una gittata di almeno\r\n                <strong>3 metri</strong>.\r\n                Quando lanci quell’incantesimo, la sua gittata aumenta di un numero di metri pari a <strong>9,144 × il\r\n                    tuo livello da Warlock</strong>.\r\n                <br><strong>Ripetibile</strong>. Puoi ottenere questa invocazione più volte. Ogni volta, scegli un\r\n                trucchetto idoneo diverso.\r\n                <br>",
+    "prerequisite": "Prerequisito: Warlock di livello 2+, un trucchetto da Warlock che infligge danni con gittata di 3+ metri",
+    "description": "Scegli uno dei tuoi trucchetti da Warlock conosciuti che infligge danni e ha una gittata di almeno\r\n                <strong>3 metri</strong>.\r\n                Quando lanci quell’incantesimo, la sua gittata aumenta di <strong>9 metri × il tuo livello da Warlock</strong>.\r\n                <br><strong>Ripetibile</strong>. Puoi ottenere questa invocazione più volte. Ogni volta, scegli un\r\n                trucchetto idoneo diverso.\r\n                <br>",
     "repeatable": true
   },
   {
@@ -74,7 +74,7 @@ export const INVOCATIONS = [
   {
     "name": "Investitura del Maestro della Catena",
     "prerequisite": "Prerequisito: Warlock di livello 5+, invocazione Patto della Catena",
-    "description": "Quando lanci <em>Trova Famiglio</em>, infondi nel famiglio evocato una misura del tuo potere eldritch,\r\n                garantendogli i benefici seguenti.\r\n                <br><strong>Aereo o Acquatico</strong>. Il famiglio ottiene una Velocità di Volare oppure una Velocità\r\n                di Nuotare (a tua scelta) di <strong>12,2 metri</strong>.\r\n                <br><strong>Attacco Rapido</strong>. Come Azione Bonus, puoi comandare al famiglio di effettuare\r\n                l’azione Attaccare.\r\n                <br><strong>Danni Necrotici o Radiosi</strong>. Ogni volta che il famiglio infligge danni Contundenti,\r\n                Perforanti o Taglienti, puoi far sì che infligga invece danni Necrotici o Radiosi (a tua scelta).\r\n                <br><strong>La tua CD</strong>. Se il famiglio costringe una creatura a effettuare un tiro salvezza, usa\r\n                la tua CD per i tiri salvezza degli incantesimi.\r\n                <br><strong>Resistenza</strong>. Quando il famiglio subisce danni, puoi usare una Reazione per\r\n                concedergli Resistenza contro quel danno.\r\n                <br>",
+    "description": "Quando lanci <em>Trova Famiglio</em>, infondi nel famiglio evocato una misura del tuo potere eldritch,\r\n                garantendogli i benefici seguenti.\r\n                <br><strong>Aereo o Acquatico</strong>. Il famiglio ottiene una Velocità di Volare oppure una Velocità\r\n                di Nuotare (a tua scelta) di <strong>12 metri</strong>.\r\n                <br><strong>Attacco Rapido</strong>. Come Azione Bonus, puoi comandare al famiglio di effettuare\r\n                l’azione Attaccare.\r\n                <br><strong>Danni Necrotici o Radiosi</strong>. Ogni volta che il famiglio infligge danni Contundenti,\r\n                Perforanti o Taglienti, puoi far sì che infligga invece danni Necrotici o Radiosi (a tua scelta).\r\n                <br><strong>La tua CD</strong>. Se il famiglio costringe una creatura a effettuare un tiro salvezza, usa\r\n                la tua CD per i tiri salvezza degli incantesimi.\r\n                <br><strong>Resistenza</strong>. Quando il famiglio subisce danni, puoi usare una Reazione per\r\n                concedergli Resistenza contro quel danno.\r\n                <br>",
     "repeatable": false
   },
   {
@@ -139,7 +139,7 @@ export const INVOCATIONS = [
   },
   {
     "name": "Dardo Repulsivo",
-    "prerequisite": "Prerequisito: Warlock di livello 2+, un trucchetto da Warlock che infligge danni con\r                 tiro per colpire",
+    "prerequisite": "Prerequisito: Warlock di livello 2+, un trucchetto da Warlock che infligge danni con tiro per colpire",
     "description": "Scegli uno dei tuoi trucchetti da Warlock conosciuti che richiede un tiro per colpire. Quando colpisci\r\n                una creatura <strong>Grande</strong> o più piccola con quel trucchetto,\r\n                puoi spingere la creatura fino a <strong>3 metri</strong> in linea retta, allontanandola da te.\r\n                <br><strong>Ripetibile</strong>. Puoi ottenere questa invocazione più volte. Ogni volta, scegli un\r\n                trucchetto idoneo diverso.\r\n                <br>",
     "repeatable": true
   },
@@ -164,7 +164,7 @@ export const INVOCATIONS = [
   {
     "name": "Vista della Strega",
     "prerequisite": "Prerequisito: Warlock di livello 15+",
-    "description": "Ottieni Truesight con una portata di <strong>9,1 metri</strong>.\r\n                <br>",
+    "description": "Ottieni Truesight con una portata di <strong>9 metri</strong>.\r\n                <br>",
     "repeatable": false
   }
 ];

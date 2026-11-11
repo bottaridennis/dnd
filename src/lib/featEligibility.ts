@@ -1,6 +1,23 @@
 import type { Ability, CharacterData } from '../contexts/CharacterContext';
 import { getClassLevels, getFinalScores, getTotalLevel, hasFeat } from './characterRules';
 import { classesData } from '../data/rules2024';
+import { RAW_SPELLS } from '../data/spells';
+import { getSpellMechanics } from './spellCasting';
+
+/** Trucchetti da Warlock conosciuti dal personaggio che infliggono danni (con eventuali requisiti aggiuntivi). */
+function hasWarlockDamageCantrip(character: CharacterData, need: { attack?: boolean; minRange?: boolean }): boolean {
+  const known = new Set(character.spells || []);
+  return (RAW_SPELLS as { name: string; displayName?: string; level: number; classes?: string[]; range?: string; description?: string }[]).some(spell => {
+    if (spell.level !== 0 || !spell.classes?.includes('warlock')) return false;
+    if (!known.has(spell.displayName || spell.name) && !known.has(spell.name)) return false;
+    const mech = getSpellMechanics(spell);
+    if (mech.effect?.kind !== 'damage') return false;
+    if (need.attack && !mech.attack) return false;
+    // "gittata di 3+ metri": esclusi gli incantesimi a contatto o centrati su di sé
+    if (need.minRange && !/metri|chilometri/.test(spell.range || '')) return false;
+    return true;
+  });
+}
 
 const ABILITY_WORDS: Record<string, Ability> = {
   forza: 'STR', destrezza: 'DEX', costituzione: 'CON', intelligenza: 'INT', saggezza: 'WIS', carisma: 'CHA',
@@ -62,6 +79,13 @@ export function checkInvocationPrerequisites(prerequisite: string | undefined, c
   const text = (prerequisite || '').replace(/\s+/g, ' ');
   const levelMatch = text.match(/Warlock di livello (\d+)\+/);
   if (levelMatch && warlockLevel < Number(levelMatch[1])) reasons.push(`Richiede Warlock di livello ${levelMatch[1]}+`);
+  if (/trucchetto da Warlock che infligge danni/i.test(text)) {
+    const attack = /tiro per colpire/i.test(text);
+    const minRange = /gittata di 3\+ metri/i.test(text);
+    if (!hasWarlockDamageCantrip(character, { attack, minRange })) {
+      reasons.push(attack ? 'Richiede un trucchetto da Warlock che infligge danni con tiro per colpire' : minRange ? 'Richiede un trucchetto da Warlock che infligge danni con gittata di almeno 3 metri' : 'Richiede un trucchetto da Warlock che infligge danni');
+    }
+  }
   const invMatch = text.match(/invocazione ([^,]+)/);
   if (invMatch && !(character.invocations || []).some(i => i.toLocaleLowerCase('it') === invMatch[1].trim().toLocaleLowerCase('it'))) {
     reasons.push(`Richiede la supplica ${invMatch[1].trim()}`);
