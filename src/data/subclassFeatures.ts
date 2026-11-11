@@ -97,7 +97,7 @@ export const SUBCLASS_DATA: Record<string, SubclassInfo> = {
   // Stregone
   'Stregoneria Aberrante': {
     features: { 3: ['Incantesimi Psionici', 'Parlare Telepatico'], 6: ['Difese Psioniche', 'Stregoneria Psionica'], 14: ['Rivelazione nella Carne'], 18: ['Implosione Distorcente'] },
-    spells: { 3: ['Arms of Hadar', 'Calm Emotions', 'Detect Thoughts', 'Dissonant Whispers', 'Mind Sliver'], 5: ['Hunger of Hadar', 'Sending'], 7: ["Evard's Black Tentacles", 'Summon Aberration'], 9: ["Rary's Telepathic Bond", 'Telekinesis'] },
+    spells: { 3: ['Arms of Hadar', 'Calm Emotions', 'Detect Thoughts', 'Dissonant Whispers', 'Mind Sliver'], 5: ['Hunger of Hadar', 'Sending'], 7: ['Black Tentacles', 'Summon Aberration'], 9: ['Telepathic Bond', 'Telekinesis'] },
   },
   'Stregoneria Meccanica': {
     features: { 3: ['Incantesimi Meccanici', "Ripristinare l'Equilibrio"], 6: ['Bastione della Legge'], 14: ["Trance dell'Ordine"], 18: ['Cavalcata Meccanica'] },
@@ -123,7 +123,7 @@ export const SUBCLASS_DATA: Record<string, SubclassInfo> = {
   },
   'Patrono del Grande Antico': {
     features: { 3: ['Mente Risvegliata', 'Incantesimi Psichici', 'Incantesimi del Patrono'], 6: ['Combattente Chiaroveggente'], 10: ['Scudo Mentale'], 14: ['Creare Servitore'] },
-    spells: { 3: ['Detect Thoughts', 'Dissonant Whispers', 'Phantasmal Force', "Tasha's Hideous Laughter"], 5: ['Clairvoyance', 'Hunger of Hadar'], 7: ['Confusion', 'Summon Aberration'], 9: ['Modify Memory', 'Telekinesis'] },
+    spells: { 3: ['Detect Thoughts', 'Dissonant Whispers', 'Phantasmal Force', 'Hideous Laughter'], 5: ['Clairvoyance', 'Hunger of Hadar'], 7: ['Confusion', 'Summon Aberration'], 9: ['Modify Memory', 'Telekinesis'] },
   },
   // Mago
   'Abiuratore': { features: { 3: ["Studioso dell'Abiurazione", 'Interdizione Arcana'], 6: ['Interdizione Proiettata'], 10: ['Rompincantesimi'], 14: ['Resistenza agli Incantesimi'] } },

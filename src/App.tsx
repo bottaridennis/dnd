@@ -8,24 +8,48 @@ import CharacterSheet from './components/CharacterSheet';
 import HomebrewCreator from './components/HomebrewCreator';
 import CampaignManager from './components/CampaignManager';
 import EncounterPage from './components/EncounterPage';
+import BestiaryPage from './components/BestiaryPage';
+import PlayerScreen from './components/PlayerScreen';
+import { InstallButton, OfflineBanner } from './components/AppStatus';
+import './lib/pwa';
 import DiceTray from './components/DiceTray';
 const Dice3D = React.lazy(() => import('./components/Dice3D'));
 import { DiceProvider } from './contexts/DiceContext';
-import { Menu, Moon, Sun, Hexagon, X, Users, PlusCircle, LogOut, Hammer, Crown, ArrowLeft, Swords } from 'lucide-react';
+import { RulesProvider, useRules } from './contexts/RulesContext';
+import { Menu, Moon, Sun, Hexagon, X, Users, PlusCircle, LogOut, Hammer, Crown, ArrowLeft, Swords, Skull, BookOpen } from 'lucide-react';
 import { auth } from './firebase';
 import { userService } from './services/userService';
 import { AnimatePresence, motion } from 'motion/react';
 
-type View = 'dashboard' | 'wizard' | 'sheet' | 'homebrew' | 'campaigns' | 'encounters';
+type View = 'dashboard' | 'wizard' | 'sheet' | 'homebrew' | 'campaigns' | 'encounters' | 'bestiary';
 
 const NAV: { id: View; label: string; Icon: typeof Users }[] = [
   { id: 'dashboard', label: 'Personaggi', Icon: Users },
   { id: 'campaigns', label: 'Campagne', Icon: Crown },
   { id: 'encounters', label: 'Incontri', Icon: Swords },
+  { id: 'bestiary', label: 'Bestiario', Icon: Skull },
   { id: 'homebrew', label: 'Homebrew', Icon: Hammer },
 ];
 
+/** Codice dello schermo del tavolo dal link pubblico #/tavolo/CODICE */
+function useScreenCode() {
+  const read = () => window.location.hash.match(/^#\/tavolo\/([A-Z0-9]{4,8})/i)?.[1]?.toUpperCase() || null;
+  const [code, setCode] = useState(read);
+  useEffect(() => {
+    const onHash = () => setCode(read());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return code;
+}
+
 function AppContent() {
+  const screenCode = useScreenCode();
+  if (screenCode) return <PlayerScreen code={screenCode} />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const { user, loading } = useAuth();
   const { dispatch } = useCharacter();
   const [view, setView] = useState<View>('dashboard');
@@ -89,7 +113,7 @@ function AppContent() {
               <span className="brand-mark"><Hexagon className="w-5 h-5" /></span>
               <span className="leading-none text-left">
                 <span className="block text-xl brand-title text-white">Forge</span>
-                <span className="text-[10px] text-white/60 uppercase font-bold tracking-[0.2em]">Character Companion · 2024</span>
+                <span className="hidden sm:inline text-[10px] text-white/60 uppercase font-bold tracking-[0.2em]">Character Companion · 2024</span>
               </span>
             </button>
             <nav className="hidden lg:flex items-stretch gap-7 ml-8 h-full" aria-label="Navigazione principale">
@@ -108,6 +132,7 @@ function AppContent() {
               </button>
             )}
             <button onClick={handleNewCharacter} className="hidden sm:flex primary-action px-4 py-2 items-center gap-2"><PlusCircle className="w-4 h-4" /> Crea personaggio</button>
+            <RulesButton />
             <ThemeToggle />
             <img src={avatar} alt="" className="hidden md:block w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
           </div>
@@ -143,6 +168,7 @@ function AppContent() {
                 <button onClick={handleNewCharacter} className="flex items-center gap-3 px-4 py-3 text-left uppercase font-bold tracking-wider text-sm text-white/70 hover:bg-white/5 border-l-4 border-transparent">
                   <PlusCircle className="w-5 h-5" /> Crea personaggio
                 </button>
+                <InstallButton onDone={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-left uppercase font-bold tracking-wider text-sm text-white/70 hover:bg-white/5 border-l-4 border-transparent" />
               </nav>
               <div className="p-3 border-t border-white/10">
                 <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-left uppercase font-bold tracking-wider text-sm text-[#ff6b75] hover:bg-white/5">
@@ -160,11 +186,22 @@ function AppContent() {
         {view === 'homebrew' && <HomebrewCreator />}
         {view === 'campaigns' && <CampaignManager onOpenEncounters={id => { setEncounterCampaignId(id); setView('encounters'); }} />}
         {view === 'encounters' && <EncounterPage initialCampaignId={encounterCampaignId} />}
+        {view === 'bestiary' && <BestiaryPage />}
         {view === 'sheet' && <CharacterSheet onBack={() => setView('dashboard')} />}
         {view === 'dashboard' && <Dashboard onNewCharacter={handleNewCharacter} onOpenSheet={() => setView('sheet')} />}
       </main>
-      {(view === 'sheet' || view === 'encounters') && <div className="print:hidden"><DiceTray /><React.Suspense fallback={null}><Dice3D /></React.Suspense></div>}
+      <OfflineBanner />
+      {(view === 'sheet' || view === 'encounters' || view === 'bestiary') && <div className="print:hidden"><DiceTray /><React.Suspense fallback={null}><Dice3D /></React.Suspense></div>}
     </div>
+  );
+}
+
+function RulesButton() {
+  const { openRules } = useRules();
+  return (
+    <button onClick={() => openRules()} className="p-2 text-white/70 hover:text-white transition-colors rounded-full hover:bg-white/10" title="Regole: condizioni, azioni, combattimento" aria-label="Apri il compendio delle regole">
+      <BookOpen className="w-5 h-5" />
+    </button>
   );
 }
 
@@ -200,9 +237,11 @@ export default function App() {
     <AuthProvider>
       <CharacterProvider>
         <DiceProvider>
-          <div className="min-h-screen bg-bg text-text-primary font-sans selection:bg-primary/30 transition-colors duration-300">
-            <AppContent />
-          </div>
+          <RulesProvider>
+            <div className="min-h-screen bg-bg text-text-primary font-sans selection:bg-primary/30 transition-colors duration-300">
+              <AppContent />
+            </div>
+          </RulesProvider>
         </DiceProvider>
       </CharacterProvider>
     </AuthProvider>

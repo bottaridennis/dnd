@@ -2,15 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Swords, Plus, Trash2, Copy, Play, ChevronRight, ChevronLeft, Dices, Skull, Shield, Heart, Users, Crown, ScrollText,
-  Search, Flag, X, RotateCcw, Pencil, Sparkles, Clock, Trophy, ShieldPlus, Undo2,
+  Search, Flag, X, RotateCcw, Pencil, Sparkles, Clock, Trophy, ShieldPlus, Undo2, Eye, EyeOff, Tv, BookOpen, Crown as CrownIcon, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import type { CharacterData } from '../contexts/CharacterContext';
 import { campaignService, EMPTY_INITIATIVE, type Campaign, type Encounter, type EncounterMonster, type InitiativeEntry, type InitiativeState } from '../services/campaignService';
 import { computeCharacterStats, getTotalLevel, type CharacterStats } from '../lib/characterRules';
 import {
-  CR_OPTIONS, DIFFICULTY_LABEL, MONSTER_PRESETS, TRACKER_CONDITIONS, XP_BY_CR, encounterXp, partyBudget, rateEncounter, type Difficulty,
+  CR_OPTIONS, DIFFICULTY_LABEL, TRACKER_CONDITIONS, XP_BY_CR, encounterXp, partyBudget, rateEncounter, type Difficulty,
 } from '../data/encounters';
+import { useBestiary } from '../hooks/useBestiary';
+import { crValue, initiativeBonusOf, type Monster } from '../lib/bestiary';
+import { buildScreenState, screenService, screenUrl, type PcInfo } from '../services/screenService';
+import MonsterStatBlock from './MonsterStatBlock';
+import { useRules } from '../contexts/RulesContext';
 import {
   addCondition, buildEncounterState, combatSummary, damageEntry, healEntry, insertEntries, nextTurn, previousTurn, removeCondition,
   removeEntry, resort, rollMissingInitiative, startCombat, updateEntry, withLog,
@@ -211,8 +216,18 @@ function EncounterEditor({ initial, budget, partySize, onCancel, onSave }: {
 }) {
   const [draft, setDraft] = useState<Encounter>(initial);
   const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState<Monster | null>(null);
+  const bestiary = useBestiary();
   const xp = encounterXp(draft.monsters);
-  const presets = MONSTER_PRESETS.filter(p => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()) || p.type.toLowerCase().includes(search.trim().toLowerCase()));
+  const needle = search.trim().toLocaleLowerCase('it');
+  const presets = bestiary.monsters
+    .filter(p => !needle || p.name.toLocaleLowerCase('it').includes(needle) || p.type.toLocaleLowerCase('it').includes(needle) || p.nameEn?.toLowerCase().includes(needle) || `gs ${p.cr}` === needle)
+    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)) || crValue(a.cr) - crValue(b.cr) || a.name.localeCompare(b.name, 'it'))
+    .slice(0, 80);
+  const fromMonster = (p: Monster): Omit<EncounterMonster, 'id' | 'count'> => ({
+    name: p.name, cr: p.cr, hp: p.hp, ac: p.ac, initiativeBonus: initiativeBonusOf(p), monsterId: p.id,
+    ...(p.legendary?.uses ? { legendaryUses: p.legendary.uses } : {}),
+  });
 
   const setMonster = (id: string, patch: Partial<EncounterMonster>) => setDraft(d => ({ ...d, monsters: d.monsters.map(m => (m.id === id ? { ...m, ...patch } : m)) }));
   const addMonster = (m: Omit<EncounterMonster, 'id' | 'count'>) => setDraft(d => {
@@ -235,19 +250,23 @@ function EncounterEditor({ initial, budget, partySize, onCancel, onSave }: {
               <table className="w-full text-sm min-w-[620px]">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-text-muted font-serif text-left">
-                    <th className="px-3 py-2">Nome</th><th className="px-2">GS</th><th className="px-2">N°</th><th className="px-2">PF</th><th className="px-2">CA</th><th className="px-2">Iniz.</th><th className="px-2 text-right">PE</th><th />
+                    <th className="px-3 py-2">Nome</th><th className="px-2">GS</th><th className="px-2">N°</th><th className="px-2">PF</th><th className="px-2">CA</th><th className="px-2">Iniz.</th><th className="px-2 text-right">PE</th><th className="px-2" title="Visibile sullo schermo del tavolo">Schermo</th><th />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {draft.monsters.map(m => (
                     <tr key={m.id}>
-                      <td className="px-3 py-2"><input value={m.name} onChange={e => setMonster(m.id, { name: e.target.value })} className={`${inputClass} w-full font-bold`} aria-label="Nome creatura" /></td>
+                      <td className="px-3 py-2"><div className="flex items-center gap-1">
+                        <input value={m.name} onChange={e => setMonster(m.id, { name: e.target.value })} className={`${inputClass} w-full font-bold`} aria-label="Nome creatura" />
+                        {m.monsterId && bestiary.get(m.monsterId) && <button onClick={() => setPreview(bestiary.get(m.monsterId) || null)} className="p-1.5 text-text-muted hover:text-accent shrink-0" title="Blocco statistiche" aria-label={`Statistiche di ${m.name}`}><BookOpen className="w-4 h-4" /></button>}
+                      </div></td>
                       <td className="px-2"><select value={m.cr} onChange={e => setMonster(m.id, { cr: e.target.value })} className={inputClass} aria-label="Grado di sfida">{CR_OPTIONS.map(c => <option key={c}>{c}</option>)}</select></td>
                       <td className="px-2"><input type="number" min={1} max={30} value={m.count} onChange={e => setMonster(m.id, { count: Math.max(1, parseInt(e.target.value) || 1) })} className={`${inputClass} w-14 text-center`} aria-label="Quantità" /></td>
                       <td className="px-2"><input type="number" min={1} value={m.hp} onChange={e => setMonster(m.id, { hp: Math.max(1, parseInt(e.target.value) || 1) })} className={`${inputClass} w-16 text-center`} aria-label="PF" /></td>
                       <td className="px-2"><input type="number" min={1} value={m.ac} onChange={e => setMonster(m.id, { ac: Math.max(1, parseInt(e.target.value) || 1) })} className={`${inputClass} w-14 text-center`} aria-label="CA" /></td>
                       <td className="px-2"><input type="number" value={m.initiativeBonus} onChange={e => setMonster(m.id, { initiativeBonus: parseInt(e.target.value) || 0 })} className={`${inputClass} w-14 text-center`} aria-label="Bonus iniziativa" /></td>
                       <td className="px-2 text-right text-text-muted whitespace-nowrap">{(XP_BY_CR[m.cr] ?? 0) * m.count}</td>
+                      <td className="px-2 text-center"><button onClick={() => setMonster(m.id, { hidden: !m.hidden })} className={`p-1.5 ${m.hidden ? 'text-text-muted' : 'text-accent'}`} title={m.hidden ? 'Nascosta: la riveli tu durante il combattimento' : 'Visibile sullo schermo del tavolo'} aria-label={m.hidden ? `Rendi visibile ${m.name}` : `Nascondi ${m.name}`}>{m.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></td>
                       <td className="px-2"><button onClick={() => setDraft(d => ({ ...d, monsters: d.monsters.filter(x => x.id !== m.id) }))} className="p-1.5 text-text-muted hover:text-danger" aria-label={`Rimuovi ${m.name}`}><Trash2 className="w-4 h-4" /></button></td>
                     </tr>
                   ))}
@@ -270,20 +289,24 @@ function EncounterEditor({ initial, budget, partySize, onCancel, onSave }: {
         </div>
       </div>
 
-      <Section title="Creature di base" icon={Sparkles} className="lg:sticky lg:top-24" bodyClassName="p-3 space-y-2">
-        <label className="field-shell"><Search className="w-4 h-4 text-text-muted" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome o tipo" className="w-full bg-transparent py-2 outline-none" aria-label="Cerca creature" /></label>
+      <Section title="Bestiario" icon={Sparkles} className="lg:sticky lg:top-24" bodyClassName="p-3 space-y-2">
+        <label className="field-shell"><Search className="w-4 h-4 text-text-muted" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, tipo o “gs 5”" className="w-full bg-transparent py-2 outline-none" aria-label="Cerca creature" /></label>
+        {bestiary.loading && <p className="text-xs text-text-muted">Caricamento del bestiario…</p>}
+        {bestiary.error && <p className="text-xs text-danger">{bestiary.error}</p>}
         <ul className="max-h-[55vh] overflow-y-auto space-y-1.5 pr-1">
           {presets.map(p => (
-            <li key={p.name}>
-              <button onClick={() => addMonster({ name: p.name, cr: p.cr, hp: p.hp, ac: p.ac, initiativeBonus: p.initiativeBonus })} className="w-full flex items-center justify-between gap-2 text-left bg-card-bg border border-border hover:border-accent px-3 py-2 rounded-[var(--radius-sm)] group">
-                <span className="min-w-0"><span className="block font-bold truncate">{p.name}</span><span className="block text-[11px] text-text-muted">{p.type} · GS {p.cr} · PF {p.hp} · CA {p.ac}</span></span>
+            <li key={p.id} className="flex gap-1">
+              <button onClick={() => addMonster(fromMonster(p))} className="flex-1 min-w-0 flex items-center justify-between gap-2 text-left bg-card-bg border border-border hover:border-accent px-3 py-2 rounded-[var(--radius-sm)] group">
+                <span className="min-w-0"><span className="block font-bold truncate">{p.name}{p.custom && <span className="ml-1 text-[10px] text-accent uppercase">mio</span>}</span><span className="block text-[11px] text-text-muted truncate">{p.type} · GS {p.cr} · PF {p.hp} · CA {p.ac}{p.legendary ? ' · leggendario' : ''}</span></span>
                 <Plus className="w-4 h-4 text-text-muted group-hover:text-accent shrink-0" />
               </button>
+              <button onClick={() => setPreview(p)} className="px-2 border border-border hover:border-accent text-text-muted hover:text-accent rounded-[var(--radius-sm)]" aria-label={`Statistiche di ${p.name}`} title="Blocco statistiche"><BookOpen className="w-4 h-4" /></button>
             </li>
           ))}
         </ul>
-        <p className="text-[11px] text-text-muted">Statistiche di base (SRD 5.1), modificabili nella tabella.</p>
+        <p className="text-[11px] text-text-muted">Mostri SRD 5.2 e le tue creature del Bestiario; PF, CA e iniziativa restano modificabili nella tabella.</p>
       </Section>
+      <AnimatePresence>{preview && <StatBlockModal monster={preview} onClose={() => setPreview(null)} />}</AnimatePresence>
     </div>
   );
 }
@@ -299,6 +322,27 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
   const [quick, setQuick] = useState({ name: '', bonus: '0', hp: '', ac: '', cr: '1/4' });
 
   const save = (next: InitiativeState) => campaignService.updateCampaign(campaign.id, { initiative: next }).catch(console.error);
+  const bestiary = useBestiary();
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const [screenOpen, setScreenOpen] = useState(false);
+
+  // Schermo del tavolo: pubblica una copia filtrata a ogni cambiamento (solo se cambia davvero)
+  const screenPayload = useMemo(() => {
+    const pcs: Record<string, PcInfo> = Object.fromEntries(party.map(c => [c.id, { hp: Math.min(c.hpCurrent, stats[c.id]?.hpMax ?? c.hpCurrent), max: stats[c.id]?.hpMax ?? c.hpCurrent, conditions: c.conditions || [] }]));
+    return buildScreenState(campaign, state, pcs, c => PC_CONDITION_LABELS[c] || c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.id, campaign.name, campaign.dmId, JSON.stringify(campaign.initiative), party, stats]);
+  const lastPublished = React.useRef('');
+  useEffect(() => {
+    const { updatedAt, ...comparable } = screenPayload;
+    const key = JSON.stringify(comparable);
+    if (key === lastPublished.current) return;
+    const t = window.setTimeout(() => {
+      lastPublished.current = key;
+      screenService.publish({ ...comparable, updatedAt }).catch(e => console.warn('Schermo del tavolo non aggiornato:', e));
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [screenPayload]);
 
   // Scorciatoie: N / → turno successivo, P / ← precedente (se non si sta scrivendo)
   useEffect(() => {
@@ -322,12 +366,15 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
   };
 
   const addQuick = () => {
-    const bonus = parseInt(quick.bonus, 10) || 0;
-    const hp = parseInt(quick.hp, 10);
-    const ac = parseInt(quick.ac, 10);
+    const known = bestiary.monsters.find(m => m.name.toLocaleLowerCase('it') === quick.name.trim().toLocaleLowerCase('it'));
+    const bonus = known && quick.bonus === '0' ? initiativeBonusOf(known) : parseInt(quick.bonus, 10) || 0;
+    const hp = quick.hp ? parseInt(quick.hp, 10) : known?.hp ?? NaN;
+    const ac = quick.ac ? parseInt(quick.ac, 10) : known?.ac ?? NaN;
     const entry: InitiativeEntry = {
-      id: newId(), kind: 'npc', name: quick.name.trim() || 'Creatura', initiative: rollDie(20) + bonus, initiativeBonus: bonus, cr: quick.cr,
+      id: newId(), kind: 'npc', name: quick.name.trim() || 'Creatura', initiative: rollDie(20) + bonus, initiativeBonus: bonus, cr: known?.cr ?? quick.cr,
       ...(Number.isFinite(hp) ? { hp, maxHp: hp } : {}), ...(Number.isFinite(ac) ? { ac } : {}),
+      ...(known ? { monsterId: known.id } : {}),
+      ...(known?.legendary?.uses ? { legendary: { max: known.legendary.uses, used: 0 } } : {}),
     };
     save(withLog(insertEntries(state, [entry]), `Entra in combattimento: ${entry.name} (iniziativa ${entry.initiative})`));
     setQuick({ name: '', bonus: '0', hp: '', ac: '', cr: quick.cr });
@@ -364,6 +411,8 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
         <div className="flex flex-wrap items-center gap-2 ml-auto">
           {missing > 0 && <button onClick={() => save(rollMissingInitiative(state))} className="secondary-action flex items-center gap-1.5"><Dices className="w-4 h-4" /> Tira iniziative ({missing})</button>}
           <button onClick={addParty} className="secondary-action flex items-center gap-1.5" title="Aggiungi i personaggi mancanti"><Users className="w-4 h-4" /> Gruppo</button>
+          <button onClick={() => setScreenOpen(true)} className="secondary-action flex items-center gap-1.5" title="Link per la TV o i telefoni dei giocatori"><Tv className="w-4 h-4" /> Schermo</button>
+          {state.entries.some(e => e.hidden) && <button onClick={() => save(withLog({ ...state, entries: state.entries.map(e => (e.hidden ? { ...e, hidden: false } : e)) }, 'Il Master rivela tutte le creature'))} className="secondary-action flex items-center gap-1.5"><Eye className="w-4 h-4" /> Rivela tutti</button>}
           {!state.active ? (
             <button onClick={() => save(startCombat(missing ? rollMissingInitiative(state) : state))} className="primary-action px-5 py-2.5 flex items-center gap-2"><Play className="w-4 h-4" /> Inizia il combattimento</button>
           ) : (
@@ -398,6 +447,9 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
                   onRemove={() => save(removeEntry(state, e.id))}
                   onAddCondition={() => setConditionFor(e.id)}
                   onRemoveCondition={cid => save(removeCondition(state, e.id, cid))}
+                  onToggleHidden={() => save(withLog(updateEntry(state, e.id, { hidden: !e.hidden }), e.hidden ? `Appare: ${e.name}` : `${e.name} è nascosto ai giocatori`))}
+                  onOpenSheet={e.monsterId && bestiary.get(e.monsterId) ? () => setSheetFor(e.id) : undefined}
+                  onLegendary={e.legendary ? used => save(updateEntry(state, e.id, { legendary: { ...e.legendary!, used } })) : undefined}
                 />
               ))}
             </ol>
@@ -406,7 +458,9 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
 
         <aside className="space-y-4 lg:sticky lg:top-24">
           <Section title="Aggiungi creatura" icon={Plus} bodyClassName="p-3 space-y-2">
-            <input value={quick.name} onChange={e => setQuick({ ...quick, name: e.target.value })} onKeyDown={e => e.key === 'Enter' && addQuick()} placeholder="Nome (es. Rinforzi goblin)" className={`${inputClass} w-full`} aria-label="Nome creatura" />
+            <input list="tracker-bestiary" value={quick.name} onChange={e => setQuick({ ...quick, name: e.target.value })} onKeyDown={e => e.key === 'Enter' && addQuick()} placeholder="Nome o mostro del bestiario" className={`${inputClass} w-full`} aria-label="Nome creatura" />
+            <datalist id="tracker-bestiary">{bestiary.monsters.map(m => <option key={m.id} value={m.name}>{`GS ${m.cr}`}</option>)}</datalist>
+            <p className="text-[10px] text-text-muted">Con un nome del bestiario PF, CA e iniziativa si compilano da soli.</p>
             <div className="grid grid-cols-4 gap-1.5">
               <label className="text-[10px] uppercase font-bold text-text-muted">Iniz.<input value={quick.bonus} onChange={e => setQuick({ ...quick, bonus: e.target.value })} className={`${inputClass} w-full text-center`} /></label>
               <label className="text-[10px] uppercase font-bold text-text-muted">PF<input value={quick.hp} onChange={e => setQuick({ ...quick, hp: e.target.value })} className={`${inputClass} w-full text-center`} /></label>
@@ -428,6 +482,16 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
       </div>
 
       <AnimatePresence>
+        {sheetFor && (() => {
+          const entry = state.entries.find(e => e.id === sheetFor);
+          const monster = entry?.monsterId ? bestiary.get(entry.monsterId) : undefined;
+          if (!entry || !monster) return null;
+          return (
+            <StatBlockModal key="sheet" monster={monster} label={entry.name} onClose={() => setSheetFor(null)}
+              legendary={entry.legendary ? { max: entry.legendary.max, used: entry.legendary.used, onChange: used => save(updateEntry(state, entry.id, { legendary: { ...entry.legendary!, used: Math.max(0, Math.min(entry.legendary!.max, used)) } })) } : undefined} />
+          );
+        })()}
+        {screenOpen && <ScreenLinkModal key="screen" code={campaign.id} hidden={state.entries.filter(e => e.hidden).length} onClose={() => setScreenOpen(false)} />}
         {conditionFor && (
           <ConditionPicker
             name={state.entries.find(e => e.id === conditionFor)?.name || ''}
@@ -505,8 +569,10 @@ const CombatantRow: React.FC<{
   entry: InitiativeEntry; isTurn: boolean; pc?: CharacterData; pcStats?: CharacterStats;
   onInitiative: (v: number | null) => void; onInitiativeCommit: () => void; onDamage: (v: number) => void; onHeal: (v: number) => void; onTemp: (v: number) => void;
   onToggleDefeated: () => void; onRemove: () => void; onAddCondition: () => void; onRemoveCondition: (id: string) => void;
-}> = ({ entry, isTurn, pc, pcStats, onInitiative, onInitiativeCommit, onDamage, onHeal, onTemp, onToggleDefeated, onRemove, onAddCondition, onRemoveCondition }) => {
+  onToggleHidden: () => void; onOpenSheet?: () => void; onLegendary?: (used: number) => void;
+}> = ({ entry, isTurn, pc, pcStats, onInitiative, onInitiativeCommit, onDamage, onHeal, onTemp, onToggleDefeated, onRemove, onAddCondition, onRemoveCondition, onToggleHidden, onOpenSheet, onLegendary }) => {
   const [amount, setAmount] = useState('');
+  const { ruleHint } = useRules();
   const hp = hpOf(entry, pc, pcStats);
   const value = Math.max(0, parseInt(amount, 10) || 0);
   const isNpc = entry.kind === 'npc' && entry.hp !== undefined;
@@ -526,17 +592,27 @@ const CombatantRow: React.FC<{
             {entry.kind === 'pc' ? <Shield className="w-4 h-4 text-accent shrink-0" /> : <Skull className="w-4 h-4 text-text-muted shrink-0" />}
             {entry.name}
             {entry.cr && <span className="text-[10px] text-text-muted font-normal">GS {entry.cr}</span>}
+            {entry.hidden && <span className="text-[10px] text-text-muted font-normal flex items-center gap-0.5"><EyeOff className="w-3 h-3" /> nascosto</span>}
           </div>
           <div className="flex items-center gap-3 text-xs text-text-muted mt-0.5">
             {hp ? <span className={hp.hp === 0 ? 'text-danger font-bold' : ''}>PF {hp.hp}/{hp.max}{hp.temp ? ` +${hp.temp}` : ''}</span> : <span>PF —</span>}
             {(pcStats?.acBase ?? entry.ac) !== undefined && <span>CA {pcStats?.acBase ?? entry.ac}</span>}
             {pc && <span className="italic">scheda del giocatore</span>}
+            {entry.legendary && onLegendary && (
+              <span className="flex items-center gap-1" title="Azioni leggendarie (tocca per usarne una)">
+                <CrownIcon className="w-3.5 h-3.5 text-accent" />
+                {Array.from({ length: entry.legendary.max }, (_, i) => {
+                  const available = i < entry.legendary!.max - entry.legendary!.used;
+                  return <button key={i} onClick={() => onLegendary(available ? entry.legendary!.used + 1 : entry.legendary!.used - 1)} className={`w-3 h-3 rotate-45 border ${available ? 'bg-accent border-accent' : 'border-border'}`} aria-label={available ? 'Usa un’azione leggendaria' : 'Recupera un’azione leggendaria'} />;
+                })}
+              </span>
+            )}
           </div>
           {hp && <div className="mt-1 max-w-48"><HpBar hp={hp.hp} max={hp.max} /></div>}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {(pc?.conditions || []).map(c => <Tag key={c} tone="danger">{PC_CONDITION_LABELS[c] || c}</Tag>)}
+            {(pc?.conditions || []).map(c => <span key={c} title={ruleHint(PC_CONDITION_LABELS[c] || c)}><Tag tone="danger">{PC_CONDITION_LABELS[c] || c}</Tag></span>)}
             {(entry.conditions || []).map(c => (
-              <button key={c.id} onClick={() => onRemoveCondition(c.id)} title="Rimuovi condizione" className="inline-flex items-center gap-1 px-2 py-0.5 border border-accent/50 text-accent bg-accent/10 text-[10px] font-bold uppercase font-serif rounded-[var(--radius-sm)] hover:border-danger hover:text-danger">
+              <button key={c.id} onClick={() => onRemoveCondition(c.id)} title={`${ruleHint(c.name) || c.name} — tocca per rimuovere`} className="inline-flex items-center gap-1 px-2 py-0.5 border border-accent/50 text-accent bg-accent/10 text-[10px] font-bold uppercase font-serif rounded-[var(--radius-sm)] hover:border-danger hover:text-danger">
                 {c.name}{c.rounds ? ` · ${c.rounds}r` : ''} <X className="w-3 h-3" />
               </button>
             ))}
@@ -553,6 +629,8 @@ const CombatantRow: React.FC<{
             <button onClick={() => { onTemp(value); setAmount(''); }} disabled={!value} className="p-1.5 border border-border hover:border-accent hover:text-accent disabled:opacity-30" title="PF temporanei" aria-label="PF temporanei"><ShieldPlus className="w-4 h-4" /></button>
           </>
         )}
+        {onOpenSheet && <button onClick={onOpenSheet} className="p-1.5 border border-border text-text-muted hover:text-accent hover:border-accent" title="Blocco statistiche" aria-label={`Statistiche di ${entry.name}`}><BookOpen className="w-4 h-4" /></button>}
+        {entry.kind === 'npc' && <button onClick={onToggleHidden} className={`p-1.5 border ${entry.hidden ? 'border-accent text-accent' : 'border-border text-text-muted hover:text-text-primary'}`} title={entry.hidden ? 'Mostra ai giocatori' : 'Nascondi ai giocatori'} aria-label={entry.hidden ? `Mostra ${entry.name} ai giocatori` : `Nascondi ${entry.name} ai giocatori`}>{entry.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>}
         <button onClick={onToggleDefeated} className={`p-1.5 border ${entry.defeated ? 'border-accent text-accent' : 'border-border text-text-muted hover:text-text-primary'}`} title={entry.defeated ? 'Riporta in combattimento' : 'Segna come sconfitto'} aria-label={entry.defeated ? 'Riporta in combattimento' : 'Segna come sconfitto'}>{entry.defeated ? <RotateCcw className="w-4 h-4" /> : <Skull className="w-4 h-4" />}</button>
         <button onClick={onRemove} className="p-1.5 text-text-muted hover:text-danger" aria-label={`Rimuovi ${entry.name}`}><Trash2 className="w-4 h-4" /></button>
       </div>
@@ -562,6 +640,7 @@ const CombatantRow: React.FC<{
 
 function ConditionPicker({ name, onClose, onPick }: { name: string; onClose: () => void; onPick: (name: string, rounds: number | null) => void }) {
   const [rounds, setRounds] = useState('');
+  const { ruleHint } = useRules();
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
       <motion.div initial={{ y: 12 }} animate={{ y: 0 }} role="dialog" aria-modal="true" aria-labelledby="cond-title" className="surface-card max-w-lg w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
@@ -576,8 +655,58 @@ function ConditionPicker({ name, onClose, onPick }: { name: string; onClose: () 
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {TRACKER_CONDITIONS.map(c => (
-            <OptionCard key={c} title={c} className="!p-2.5 [&>div]:!text-sm" onClick={() => onPick(c, rounds ? Math.max(1, parseInt(rounds, 10) || 1) : null)} />
+            <OptionCard key={c} title={c} className="!p-2.5 [&>div]:!text-sm" onClick={() => onPick(c, rounds ? Math.max(1, parseInt(rounds, 10) || 1) : null)}>{ruleHint(c) ? <span className="line-clamp-2 text-[11px]">{ruleHint(c)}</span> : null}</OptionCard>
           ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+const StatBlockModal: React.FC<{ monster: Monster; label?: string; legendary?: { used: number; max: number; onChange: (used: number) => void }; onClose: () => void }> = ({ monster, label, legendary, onClose }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex justify-end" onClick={onClose}>
+      <motion.aside initial={{ x: 40 }} animate={{ x: 0 }} exit={{ x: 40 }} role="dialog" aria-modal="true" aria-label={`Statistiche di ${label || monster.name}`} className="bg-bg border-l border-border w-full max-w-xl h-full overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-end"><button onClick={onClose} className="p-1.5 text-text-muted hover:text-text-primary" aria-label="Chiudi"><X className="w-5 h-5" /></button></div>
+        <MonsterStatBlock monster={monster} label={label} legendary={legendary} />
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+const ScreenLinkModal: React.FC<{ code: string; hidden: number; onClose: () => void }> = ({ code, hidden, onClose }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const url = screenUrl(code);
+  const [copied, setCopied] = useState(false);
+  const copy = () => navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }).catch(() => undefined);
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+      <motion.div initial={{ y: 12 }} animate={{ y: 0 }} role="dialog" aria-modal="true" aria-labelledby="screen-title" className="surface-card border-t-4 !border-t-accent max-w-lg w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <h3 id="screen-title" className="text-2xl uppercase flex items-center gap-2"><Tv className="w-6 h-6 text-accent" /> Schermo del tavolo</h3>
+          <button onClick={onClose} aria-label="Chiudi" className="text-text-muted"><X className="w-5 h-5" /></button>
+        </div>
+        <p className="text-sm text-text-muted">Apri questo link su una TV, un tablet o i telefoni dei giocatori: mostra l’ordine d’iniziativa e il turno in tempo reale, senza bisogno di accedere.</p>
+        <div className="flex gap-2">
+          <input readOnly value={url} onFocus={e => e.target.select()} className="flex-1 min-w-0 bg-panel-bg border border-border px-3 py-2 text-sm" aria-label="Link dello schermo" />
+          <button onClick={copy} className="secondary-action flex items-center gap-1.5"><Copy className="w-4 h-4" /> {copied ? 'Copiato' : 'Copia'}</button>
+        </div>
+        <ul className="text-sm space-y-1 list-disc pl-5 text-text-muted">
+          <li>I PF dei mostri appaiono solo come <strong>illeso / ferito / grave / a terra</strong>.</li>
+          <li>Le creature con l’occhio barrato non compaiono finché non le riveli{hidden ? ` (ora nascoste: ${hidden})` : ''}.</li>
+          <li>Note e statistiche del Master non vengono mai pubblicate.</li>
+        </ul>
+        <div className="flex justify-end gap-2">
+          <a href={url} target="_blank" rel="noreferrer" className="primary-action px-4 py-2.5 flex items-center gap-2"><ExternalLink className="w-4 h-4" /> Apri lo schermo</a>
         </div>
       </motion.div>
     </motion.div>
