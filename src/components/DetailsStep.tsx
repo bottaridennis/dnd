@@ -1,5 +1,6 @@
-import React from 'react';
-import { Camera, Type, Palette, AlignLeft, Gem, User, BookUser } from 'lucide-react';
+import React, { useState } from 'react';
+import { Camera, Type, Palette, AlignLeft, Gem, User, BookUser, Move } from 'lucide-react';
+import PortraitCropper, { readImageFile } from './PortraitCropper';
 import { useCharacter } from '../contexts/CharacterContext';
 import LanguageToolPicker from './LanguageToolPicker';
 import { Section, StepHeader } from './ui';
@@ -24,25 +25,13 @@ function Field({ label, icon: Icon, children, hint }: { label: string; icon: Rea
 
 export default function DetailsStep() {
   const { currentCharacter, dispatch } = useCharacter();
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   if (!currentCharacter) return null;
 
   const set = (field: string, value: string) => dispatch({ type: 'UPDATE_CHARACTER', payload: { [field]: value } });
 
   const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, 400 / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
-        set('portraitUrl', canvas.toDataURL('image/jpeg', 0.75));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+    readImageFile(file).then(setCropSrc).catch(e => window.alert(e instanceof Error ? e.message : 'Immagine non valida'));
   };
 
   return (
@@ -84,12 +73,16 @@ export default function DetailsStep() {
               ? <img src={currentCharacter.portraitUrl} alt="Ritratto" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               : <User className="w-16 h-16 text-text-muted" />}
           </div>
-          <label className="secondary-action w-full flex items-center justify-center gap-2 cursor-pointer">
-            <Camera className="w-4 h-4" /> Carica immagine
-            <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-          </label>
+          <div className="flex gap-2">
+            <label className="secondary-action flex-1 flex items-center justify-center gap-2 cursor-pointer">
+              <Camera className="w-4 h-4" /> {currentCharacter.portraitUrl ? 'Cambia foto' : 'Carica foto'}
+              <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+            </label>
+            {currentCharacter.portraitUrl && <button onClick={() => setCropSrc(currentCharacter.portraitUrl!)} className="secondary-action flex items-center gap-1.5" title="Sposta e ingrandisci la foto nel riquadro"><Move className="w-4 h-4" /> Centra</button>}
+          </div>
           <input value={currentCharacter.portraitUrl?.startsWith('data:') ? '' : currentCharacter.portraitUrl || ''} onChange={e => set('portraitUrl', e.target.value)} placeholder="…oppure incolla un URL" className={`${inputClass} text-xs`} aria-label="URL del ritratto" />
-          <p className="text-xs text-text-muted">L’immagine viene ridimensionata a 400 px e salvata con la scheda.</p>
+          <p className="text-xs text-text-muted">Dopo il caricamento puoi spostare e ingrandire la foto per inquadrarla come preferisci: nulla viene tagliato senza che tu lo decida.</p>
+          {cropSrc && <PortraitCropper src={cropSrc} onCancel={() => setCropSrc(null)} onConfirm={url => { set('portraitUrl', url); setCropSrc(null); }} />}
         </Section>
       </div>
 

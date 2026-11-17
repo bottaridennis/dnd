@@ -133,7 +133,11 @@ export default function Dashboard({ onNewCharacter, onOpenSheet }: DashboardProp
               >
                 <div className="relative h-36 overflow-hidden bg-gradient-to-br from-[#2a0a10] to-[#0d0d10]">
                   {char.portraitUrl
-                    ? <img src={char.portraitUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                    ? <>
+                        {/* Copertina larga: il ritratto quadrato resta intero, con la stessa foto sfumata sullo sfondo */}
+                        <img src={char.portraitUrl} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-xl scale-125 opacity-60" referrerPolicy="no-referrer" />
+                        <img src={char.portraitUrl} alt="" className="relative w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      </>
                     : <div className="w-full h-full grid place-items-center"><Shield className="w-16 h-16 text-white/15" strokeWidth={1.25} /></div>}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
                   <div className="absolute left-4 bottom-3 right-4 flex items-end justify-between text-white">
