@@ -15,8 +15,11 @@ import {
   Shield, Heart, Zap, Eye, User, Scroll, 
   Sword, Book, Backpack, Save, Plus, Minus,
   TrendingUp, Dna, MapPin, Hash, Sparkles,
-  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords, Printer, Download
+  Info, Search, Star, X, Edit3, Check, Dog, Camera, Lock, Swords, Printer, Download,
+  Move,
 } from 'lucide-react';
+import PortraitCropper, { readImageFile } from './PortraitCropper';
+import { CLASS_ORDERS, featBase } from '../lib/featChoices';
 import PrintSheet from './PrintSheet';
 import CampaignJoin from './CampaignJoin';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
@@ -52,6 +55,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   const { rollCheck } = useDice();
   const [activeTab, setActiveTab] = useState<SheetTab>('combat');
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [newItemText, setNewItemText] = useState('');
   const [featureModal, setFeatureModal] = useState<{isOpen: boolean, tab: 'spells'|'talenti'|'invocazioni'}>({ isOpen: false, tab: 'spells' });
   const [featureSearch, setFeatureSearch] = useState('');
@@ -559,7 +563,10 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
           <div key={`${feat}-${idx}`} className="bg-card-bg border border-accent/20 rounded p-5">
             <div className="text-[10px] font-black uppercase text-accent tracking-widest mb-1">{idx === 0 ? "Talento d'Origine" : "Talento d'Origine (Versatile)"}</div>
             <div className="flex justify-between items-center">
-              <div className="text-lg font-serif font-bold">{feat}</div>
+              <div className="min-w-0">
+                <div className="text-lg font-serif font-bold">{featBase(feat as string)}</div>
+                {(feat as string).includes('(') && <div className="text-xs text-text-muted">{(feat as string).slice((feat as string).indexOf('(') + 1, -1).replace(' | ', ' · 1° livello: ').replace(':', ' ·')}</div>}
+              </div>
               {getFeatDetails(feat as string) && (
                 <button onClick={() => setSelectedItem(getFeatDetails(feat as string))} className="text-accent underline text-[10px] font-black uppercase tracking-widest">Dettagli</button>
               )}
@@ -601,6 +608,10 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
           {Object.entries(classLevels).map(([classId, data]) => (
             <div key={classId} className="bg-card-bg border border-border rounded p-4">
               <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">{classesData.find(c => c.id === classId)?.name} {data.level}{data.subclass ? ` · ${data.subclass}` : ''}</div>
+              {data.order && CLASS_ORDERS[classId] && (() => {
+                const o = CLASS_ORDERS[classId].options.find(x => x.id === data.order);
+                return o ? <p className="text-xs mb-2"><strong>{CLASS_ORDERS[classId].title}: {o.name}.</strong> <span className="text-text-muted">{o.desc}</span></p> : null;
+              })()}
               <ul className="space-y-1 text-xs">
                 {getClassFeaturesUpTo(classId, data.level).filter(f => f.name !== 'Privilegio di Sottoclasse' || !data.subclass).map((f, idx) => (
                   <li key={idx} className="flex gap-2"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name === 'Sottoclasse' ? `Sottoclasse${data.subclass ? `: ${data.subclass}` : ' (da scegliere)'}` : f.name}</span></li>
@@ -637,21 +648,7 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
   };
 
   const handlePortraitFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX = 400;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setEditValues(prev => ({ ...prev, portraitUrl: canvas.toDataURL('image/jpeg', 0.75) }));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+    readImageFile(file).then(setCropSrc).catch(e => window.alert(e instanceof Error ? e.message : 'Immagine non valida'));
   };
 
   const renderAbilityTile = (ability: string, score: number, mod: number) => (
@@ -768,9 +765,21 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
                 {isEditing && (
                   <label className="absolute inset-0 grid place-items-center bg-black/60 text-white cursor-pointer opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity" title="Carica ritratto">
                     <Camera className="w-6 h-6" />
-                    <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handlePortraitFile(f); }} />
+                    <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handlePortraitFile(f); e.target.value = ''; }} />
                   </label>
                 )}
+                {isEditing && (
+                  <div className="flex gap-1 mt-1.5">
+                    <label className="flex-1 flex items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-black uppercase font-serif bg-black/40 border border-white/20 text-white cursor-pointer hover:border-white/50" title="Carica una foto">
+                      <Camera className="w-3.5 h-3.5" /> Foto
+                      <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) handlePortraitFile(f); e.target.value = ''; }} />
+                    </label>
+                    {editValues.portraitUrl && (
+                      <button onClick={() => setCropSrc(editValues.portraitUrl as string)} className="flex-1 flex items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-black uppercase font-serif bg-black/40 border border-white/20 text-white hover:border-white/50" title="Sposta e ingrandisci la foto nel riquadro"><Move className="w-3.5 h-3.5" /> Centra</button>
+                    )}
+                  </div>
+                )}
+                {cropSrc && <PortraitCropper src={cropSrc} onCancel={() => setCropSrc(null)} onConfirm={url => { setEditValues(prev => ({ ...prev, portraitUrl: url })); setCropSrc(null); }} />}
               </div>
               <div className="min-w-0 space-y-1.5">
                 {isEditing ? (

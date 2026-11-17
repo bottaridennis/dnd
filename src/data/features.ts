@@ -150,7 +150,7 @@ export const FEATURES = [
     "repeatable": false
   },
   {
-    "name": "Combattere con Due Armi",
+    "name": "Combattente con Due Armi",
     "prerequisite": "Talento Generale (Prerequisito: livello 4+, Forza o Destrezza 13+)",
     "description": "Ottieni i benefici seguenti.\r\n        <br><strong>Aumento Punteggio di Caratteristica</strong>. Aumenta la tua Forza o la tua Destrezza di 1, fino a un massimo di 20.\r\n        <br><strong>Combattere con Due Armi Potenziato</strong>. Quando compi l’azione Attaccare nel tuo turno e attacchi con un’arma che ha la proprietà Leggera, puoi effettuare un attacco extra come Azione Bonus più avanti nello stesso turno con un’arma diversa, che deve essere un’arma da mischia che non abbia la proprietà A Due Mani. Non aggiungi il tuo modificatore di caratteristica ai danni dell’attacco extra, a meno che quel modificatore non sia negativo.\r\n        <br><strong>Estrazione Rapida</strong>. Puoi estrarre o riporre due armi che non hanno la proprietà A Due Mani quando normalmente potresti estrarne o riporne solo una.\r\n        <br>",
     "repeatable": false

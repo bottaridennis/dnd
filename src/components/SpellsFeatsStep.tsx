@@ -154,7 +154,7 @@ export default function SpellsFeatsStep() {
                 {!check.ok && check.reason && <Tag tone="danger">{check.reason}</Tag>}
               </>}
             >
-              <span className="line-clamp-3 block" dangerouslySetInnerHTML={{ __html: fixTextEncoding(item.description || 'Contenuto personalizzato.') }} />
+              <span className="line-clamp-3" dangerouslySetInnerHTML={{ __html: fixTextEncoding(item.description || 'Contenuto personalizzato.') }} />
             </OptionCard>
           );
         })}

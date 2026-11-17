@@ -1,7 +1,8 @@
 import type { CharacterData } from '../contexts/CharacterContext';
 import { getSubclassSpells } from '../data/subclassFeatures';
-import { computeCharacterStats, getAllFeats, getClassLevels } from './characterRules';
+import { computeCharacterStats, getClassLevels } from './characterRules';
 import { CLASS_LABELS, getCharacterClassLevels, getMaxSpellLevel, type SpellLike } from './spellEligibility';
+import { MI_LISTS, parseMagicInitiate } from './featChoices';
 
 /**
  * Limiti di incantesimi secondo il Manuale del Giocatore 2024.
@@ -22,6 +23,10 @@ export interface SpellPool {
   lists: string[];
   maxLevel: number;
   used: number;
+  /** Incantesimi scelti espressamente per questa riserva (Iniziato alla Magia) */
+  reserved?: string[];
+  /** Campo del talento da cui nasce la riserva (es. "originFeat", "feats.2") */
+  source?: string;
 }
 
 export interface SpellCheck {
@@ -41,20 +46,27 @@ export interface SpellBudget {
   free: string[];
   isCaster: boolean;
   check: (spell: SpellLike) => SpellCheck;
+  /** Riserva a cui è assegnato ogni incantesimo scelto */
+  poolOf: (name: string) => string | undefined;
+  /** Si può aggiungere l'incantesimo proprio a questa riserva? */
+  checkForPool: (spell: SpellLike, poolId: string) => SpellCheck;
 }
-
-const MAGIC_INITIATE_LISTS: Record<string, string> = { chierico: 'cleric', druido: 'druid', mago: 'wizard' };
 
 function magicInitiatePools(character: Partial<CharacterData>): SpellPool[] {
   const pools: SpellPool[] = [];
-  getAllFeats(character).forEach((feat, idx) => {
-    const match = /^iniziato alla magia(?:\s*\(([^)]+)\))?/i.exec(feat.trim());
-    if (!match) return;
-    const list = match[1] ? MAGIC_INITIATE_LISTS[match[1].trim().toLocaleLowerCase('it')] : undefined;
+  const sources: [string, string | undefined][] = [
+    ['originFeat', character.originFeat], ['bonusOriginFeat', character.bonusOriginFeat],
+    ...(character.feats || []).map((f, i) => [`feats.${i}`, f] as [string, string]),
+  ];
+  sources.forEach(([source, feat]) => {
+    const choice = parseMagicInitiate(feat);
+    if (!choice) return;
+    const list = choice.list ? MI_LISTS[choice.list] : undefined;
     const lists = list ? [list] : ['cleric', 'druid', 'wizard'];
     const label = list ? `Iniziato alla Magia (${CLASS_LABELS[list]})` : 'Iniziato alla Magia';
-    pools.push({ id: `mi-${idx}-c`, label, kind: 'cantrip', capacity: 2, lists, maxLevel: 0, used: 0 });
-    pools.push({ id: `mi-${idx}-l`, label, kind: 'leveled', capacity: 1, lists, maxLevel: 1, used: 0 });
+    const id = `mi-${source}`;
+    pools.push({ id: `${id}-c`, label, kind: 'cantrip', capacity: 2, lists, maxLevel: 0, used: 0, reserved: choice.cantrips, source });
+    pools.push({ id: `${id}-l`, label, kind: 'leveled', capacity: 1, lists, maxLevel: 1, used: 0, reserved: choice.spell ? [choice.spell] : [], source });
   });
   return pools;
 }
@@ -103,8 +115,7 @@ function matchSpells(spells: SpellLike[], slots: SpellPool[]): number[] {
 
 export function getSpellBudget(character: CharacterData, library: SpellLike[]): SpellBudget {
   const pools = getSpellPools(character);
-  const slots = pools.flatMap(pool => Array.from({ length: pool.capacity }, () => pool));
-  const find = (name: string) => library.find(s => s.name === name || s.originalName === name);
+  const find = (name: string) => library.find(sp => sp.name === name || sp.originalName === name);
 
   const subclassSpells = new Set(Object.values(getClassLevels(character)).flatMap(c => getSubclassSpells(c.subclass, c.level)));
   const isFree = (spell: SpellLike) => subclassSpells.has(spell.name) || (typeof spell.originalName === 'string' && subclassSpells.has(spell.originalName));
@@ -117,16 +128,40 @@ export function getSpellBudget(character: CharacterData, library: SpellLike[]): 
     if (isFree(spell)) free.push(name); else counted.push({ name, spell });
   });
 
-  const assignment = matchSpells(counted.map(c => c.spell), slots);
-  assignment.forEach(k => { if (k >= 0) slots[k].used += 1; });
-  const excess = counted.filter((_, i) => assignment[i] < 0).map(c => c.name);
+  /**
+   * Assegna gli incantesimi alle riserve: prima quelli scelti espressamente per una riserva
+   * (Iniziato alla Magia), poi gli altri con l'abbinamento bipartito.
+   */
+  const assign = (list: { name: string; spell: SpellLike }[], extraReserve?: { name: string; poolId: string }) => {
+    const used = new Map(pools.map(p => [p.id, 0]));
+    const poolOf = new Map<string, string>();
+    const rest: { name: string; spell: SpellLike }[] = [];
+    list.forEach(c => {
+      const pool = pools.find(p => ((extraReserve && extraReserve.name === c.name && extraReserve.poolId === p.id) || p.reserved?.includes(c.name))
+        && accepts(p, c.spell) && used.get(p.id)! < p.capacity);
+      if (pool) { used.set(pool.id, used.get(pool.id)! + 1); poolOf.set(c.name, pool.id); } else rest.push(c);
+    });
+    const slots = pools.flatMap(pool => Array.from({ length: pool.capacity - used.get(pool.id)! }, () => pool));
+    const assignment = matchSpells(rest.map(c => c.spell), slots);
+    const excess: string[] = [];
+    assignment.forEach((k, i) => {
+      if (k >= 0) { used.set(slots[k].id, used.get(slots[k].id)! + 1); poolOf.set(rest[i].name, slots[k].id); } else excess.push(rest[i].name);
+    });
+    return { used, poolOf, excess };
+  };
+
+  const result = assign(counted);
+  pools.forEach(p => { p.used = result.used.get(p.id) || 0; });
+  const excess = result.excess;
 
   const sum = (kind: SpellPool['kind']) => pools.filter(p => p.kind === kind).reduce((acc, p) => acc + p.capacity, 0);
   const cantrips = { used: counted.filter(c => (c.spell.level ?? 0) === 0).length, max: sum('cantrip') };
   const leveled = { used: counted.filter(c => (c.spell.level ?? 0) > 0).length, max: sum('leveled') };
 
+  const isSelected = (spell: SpellLike) => (character.spells || []).some(n => n === spell.name || n === spell.originalName);
+
   const check = (spell: SpellLike): SpellCheck => {
-    const selected = (character.spells || []).some(n => n === spell.name || n === spell.originalName);
+    const selected = isSelected(spell);
     if (isFree(spell)) return { ok: true, eligible: true, reason: selected ? undefined : 'Già sempre preparato dalla sottoclasse' };
     const eligible = pools.some(p => accepts(p, spell));
     if (selected) return { ok: true, eligible };
@@ -139,11 +174,22 @@ export function getSpellBudget(character: CharacterData, library: SpellLike[]): 
       return { ok: false, eligible, reason: `Incantesimi di ${level}° livello non ancora accessibili` };
     }
     if (excess.length > 0) return { ok: false, eligible, reason: 'Rimuovi prima gli incantesimi in eccesso' };
-    const trial = matchSpells([...counted.map(c => c.spell), spell], slots.map(s => ({ ...s })));
-    if (trial[trial.length - 1] >= 0) return { ok: true, eligible };
+    const trial = assign([...counted, { name: spell.name, spell }]);
+    if (!trial.excess.length) return { ok: true, eligible };
     return { ok: false, eligible, reason: (spell.level ?? 0) === 0 ? 'Limite di trucchetti raggiunto' : 'Limite di incantesimi preparati raggiunto' };
   };
 
-  return { pools, cantrips, leveled, excess, free, isCaster: pools.length > 0, check };
-}
+  const checkForPool = (spell: SpellLike, poolId: string): SpellCheck => {
+    const pool = pools.find(p => p.id === poolId);
+    if (!pool) return { ok: false, eligible: false, reason: 'Riserva non trovata' };
+    const eligible = accepts(pool, spell);
+    if (!eligible) return { ok: false, eligible, reason: pool.kind === 'cantrip' ? 'Non è un trucchetto di questa lista' : 'Non è un incantesimo di 1° livello di questa lista' };
+    if (result.poolOf.get(spell.name) === poolId) return { ok: true, eligible };
+    if (isSelected(spell)) return { ok: false, eligible, reason: 'Già scelto altrove' };
+    if (pool.used >= pool.capacity) return { ok: false, eligible, reason: pool.kind === 'cantrip' ? 'Hai già scelto i 2 trucchetti' : 'Hai già scelto l’incantesimo' };
+    const trial = assign([...counted, { name: spell.name, spell }], { name: spell.name, poolId });
+    return trial.excess.length ? { ok: false, eligible, reason: 'Non c’è più posto per questo incantesimo' } : { ok: true, eligible };
+  };
 
+  return { pools, cantrips, leveled, excess, free, isCaster: pools.length > 0, check, poolOf: n => result.poolOf.get(n), checkForPool };
+}

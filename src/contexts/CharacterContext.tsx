@@ -98,7 +98,7 @@ export interface CharacterData {
   exhaustion?: number;
   containers?: ContainerData[];
   // D&D 2024 Resource Tracking
-  classes?: Record<string, { level: number, subclass?: string }>;
+  classes?: Record<string, { level: number, subclass?: string, order?: string }>;
   resources?: {
     spentSpellSlots: Record<number, number>;
     spentPactSlots: number;

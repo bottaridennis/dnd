@@ -36,6 +36,12 @@ import { getOriginChoiceRequirements } from './LanguageToolPicker';
 import { STANDARD_LANGUAGES } from '../data/languages';
 import DetailsStep from './DetailsStep';
 import SpellsFeatsStep from './SpellsFeatsStep';
+import ClassFeaturesStep from './ClassFeaturesStep';
+import { getClassFeatureRequirements, getOriginFeatRequirements } from '../lib/levelOneChoices';
+import { autoCompleteChoices } from '../lib/autoChoices';
+import OriginFeatsStep from './OriginFeatsStep';
+import { FEAT_PICKS, featBase, formatMagicInitiate, getOriginFeatSlots, parseMagicInitiate } from '../lib/featChoices';
+import type { SpellLike } from '../lib/spellEligibility';
 import { getSpellBudget } from '../lib/spellBudget';
 import { getFeatBudget, getInvocationBudget } from '../lib/featBudget';
 import { INVOCATIONS } from '../data/invocations';
@@ -58,15 +64,26 @@ const shuffle = <T,>(list: T[]): T[] => {
 };
 const pick = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 
-const STEPS = [
-  'Classe',
-  'Origine',
-  'Caratteristiche',
-  'Dettagli',
-  'Magie e Talenti',
-  'Equipaggiamento',
-  'Riepilogo'
-];
+type StepId = 'class' | 'origin' | 'abilities' | 'details' | 'originFeats' | 'classFeatures' | 'spells' | 'equipment' | 'summary';
+const STEP_LABEL: Record<StepId, string> = {
+  class: 'Classe', origin: 'Origine', abilities: 'Caratteristiche', details: 'Dettagli', originFeats: 'Talenti d’origine',
+  classFeatures: 'Privilegi di classe', spells: 'Magie', equipment: 'Equipaggiamento', summary: 'Riepilogo',
+};
+
+/** Passi della creazione: quelli facoltativi compaiono solo se il personaggio ha qualcosa da scegliere. */
+function getSteps(character: CharacterData | null, spells: SpellLike[]): StepId[] {
+  if (!character) return ['class', 'origin', 'abilities', 'details', 'equipment', 'summary'];
+  const budget = getSpellBudget(character, spells);
+  const hasClassSpells = budget.pools.some(p => !p.id.startsWith('mi-'));
+  const invocations = getInvocationBudget(character, INVOCATIONS).max > 0;
+  return [
+    'class', 'origin', 'abilities', 'details',
+    ...(getOriginFeatSlots(character).length ? ['originFeats' as const] : []),
+    ...(getClassFeatureRequirements(character).length ? ['classFeatures' as const] : []),
+    ...(hasClassSpells || invocations || budget.excess.length ? ['spells' as const] : []),
+    'equipment', 'summary',
+  ];
+}
 
 interface WizardProps {
   onComplete: () => void;
@@ -81,8 +98,30 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   // Automate species benefits
   useSpeciesAutomation();
 
-  const [currentStep, setCurrentStep] = useState(0);
+  const [stepId, setStepId] = useState<StepId>('class');
+  const STEPS = getSteps(currentCharacter, homebrew.spells);
+  // Il passo è tenuto per nome: se ne compare o scompare uno, non si perde il punto in cui si è
+  const currentStep = Math.max(0, STEPS.indexOf(stepId));
+  const setCurrentStep = (next: number | ((prev: number) => number)) => {
+    const idx = typeof next === 'function' ? next(currentStep) : next;
+    setStepId(STEPS[Math.max(0, Math.min(STEPS.length - 1, idx))]);
+  };
   const [isSaving, setIsSaving] = useState(false);
+
+  /** Incantesimi scelti con un Iniziato alla Magia (per toglierli se il talento cambia). */
+  const magicInitiateSpells = (feat?: string) => {
+    const mi = parseMagicInitiate(feat);
+    return mi ? [...mi.cantrips, ...(mi.spell ? [mi.spell] : [])] : [];
+  };
+  /** Al cambio di classe gli incantesimi si azzerano: anche le scelte di Iniziato alla Magia (la lista resta). */
+  const resetMagicInitiate = () => {
+    const out: Partial<CharacterData> = {};
+    (['originFeat', 'bonusOriginFeat'] as const).forEach(field => {
+      const mi = parseMagicInitiate(currentCharacter?.[field]);
+      if (mi) out[field] = formatMagicInitiate({ list: mi.list, cantrips: [] });
+    });
+    return out;
+  };
 
   const getBgSkills = () => backgroundsData.find(b => b.id === currentCharacter?.backgroundId)?.skills || [];
   const getClassSkillPicks = () => {
@@ -99,15 +138,15 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const stepRequirements = (): Requirement[] => {
     if (!currentCharacter) return [];
     const charClass = classesData.find(c => c.id === currentCharacter.classId);
-    switch (currentStep) {
-      case 0: {
+    switch (STEPS[currentStep]) {
+      case 'class': {
         const picks = getClassSkillPicks().length;
         return [
           { id: 'class', label: 'Scegli una classe', done: Boolean(charClass), help: 'Tocca una delle carte qui sotto: la classe decide come combatti e che magie usi. Nel dubbio, il Guerriero è il più semplice.' },
           ...(charClass ? [{ id: 'class-skills', label: `Scegli ${charClass.skillChoices} abilità (${picks}/${charClass.skillChoices})`, done: picks === charClass.skillChoices, help: `Tocca ${charClass.skillChoices} abilità nell’elenco “Competenze di classe”: sono le cose in cui il tuo eroe è bravo.` }] : []),
         ];
       }
-      case 1: {
+      case 'origin': {
         const species = speciesData.find(s => s.id === currentCharacter.speciesId) as any;
         const list: Requirement[] = [{ id: 'species', label: 'Scegli una specie', done: Boolean(species), help: 'Tocca una specie nel riquadro “Specie” (umano, elfo, nano…).' }];
         if (species?.subOptions) list.push({ id: 'lineage', label: 'Scegli il lignaggio', done: species.subOptions.some((o: any) => o.id === currentCharacter.speciesSubOption), help: `${species.name}: scegli una delle varianti sotto “Lignaggio”.` });
@@ -120,7 +159,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         }
         return list;
       }
-      case 2: {
+      case 'abilities': {
         const boosts = currentCharacter.selectedBoosts || [];
         const required = currentCharacter.boostMode === '1/1/1' ? 3 : 2;
         const allowed = backgroundsData.find(b => b.id === currentCharacter.backgroundId)?.boosts || [];
@@ -136,7 +175,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
             : `Tocca “Applica bonus” sotto ${allowedNames}: ognuna riceve +1.` },
         ];
       }
-      case 3: {
+      case 'details': {
         const req = getOriginChoiceRequirements(currentCharacter);
         const langs = (currentCharacter.languages || []).length;
         const tools = (currentCharacter.toolProficiencies || []).length;
@@ -146,7 +185,11 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
           ...(req.toolCount > 0 ? [{ id: 'tools', label: `Scegli gli strumenti (${tools}/${req.toolCount})`, done: tools === req.toolCount, help: `Nel riquadro “Strumenti” scegli ${req.toolLabel}.` }] : []),
         ];
       }
-      case 4: {
+      case 'originFeats':
+        return getOriginFeatRequirements(currentCharacter, homebrew.spells);
+      case 'classFeatures':
+        return getClassFeatureRequirements(currentCharacter);
+      case 'spells': {
         const budget = getSpellBudget(currentCharacter, homebrew.spells);
         const feats = getFeatBudget(currentCharacter, homebrew.feats);
         const invocations = getInvocationBudget(currentCharacter, INVOCATIONS);
@@ -154,9 +197,14 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         if (budget.excess.length) list.push({ id: 'spells', label: `Togli ${budget.excess.length} incantesim${budget.excess.length === 1 ? 'o' : 'i'} di troppo`, done: false, help: `Hai scelto più incantesimi di quelli permessi: tocca quelli evidenziati in rosso per toglierli (${budget.excess.join(', ')}).` });
         if (feats.excess.length) list.push({ id: 'spells', label: 'Togli i talenti non permessi', done: false, help: `Nella scheda “Talenti” togli: ${feats.excess.join(', ')}.` });
         if (invocations.excess.length) list.push({ id: 'spells', label: 'Togli le suppliche in eccesso', done: false, help: `Nella scheda “Suppliche Occulte” togli: ${invocations.excess.join(', ')}.` });
-        if (budget.cantrips.max > 0) list.push({ id: 'spells', label: `Trucchetti (${budget.cantrips.used}/${budget.cantrips.max})`, done: budget.cantrips.used >= budget.cantrips.max, optional: true, help: `Consigliato: scegli ${budget.cantrips.max} trucchetti, le magie che puoi usare senza limiti.` });
-        if (budget.leveled.max > 0) list.push({ id: 'spells', label: `Incantesimi preparati (${budget.leveled.used}/${budget.leveled.max})`, done: budget.leveled.used >= budget.leveled.max, optional: true, help: `Consigliato: scegli ${budget.leveled.max} incantesimi di 1° livello da preparare.` });
-        if (invocations.max > 0) list.push({ id: 'spells', label: `Suppliche Occulte (${invocations.used}/${invocations.max})`, done: invocations.used >= invocations.max, optional: true, help: 'Consigliato: nella scheda “Suppliche Occulte” scegli i poteri del tuo patto.' });
+        // Tabelle di classe: trucchetti e incantesimi preparati vanno scelti tutti (Iniziato alla Magia ha il suo passo)
+        const classPools = budget.pools.filter(p => !p.id.startsWith('mi-'));
+        const sum = (kind: 'cantrip' | 'leveled', key: 'used' | 'capacity') => classPools.filter(p => p.kind === kind).reduce((a, p) => a + p[key], 0);
+        const cMax = sum('cantrip', 'capacity');
+        const lMax = sum('leveled', 'capacity');
+        if (cMax > 0) list.push({ id: 'spells', label: `Scegli ${cMax} trucchetti (${sum('cantrip', 'used')}/${cMax})`, done: sum('cantrip', 'used') >= cMax, help: `La tabella della tua classe al 1° livello dà ${cMax} trucchetti: sono magie che usi senza limiti. Tocca le carte “Trucchetto” nella scheda Incantesimi.` });
+        if (lMax > 0) list.push({ id: 'spells', label: `Scegli ${lMax} incantesimi preparati (${sum('leveled', 'used')}/${lMax})`, done: sum('leveled', 'used') >= lMax, help: `La tabella della tua classe al 1° livello dà ${lMax} incantesimi preparati di 1° livello: tocca le carte “Livello 1”.` });
+        if (invocations.max > 0) list.push({ id: 'spells', label: `Scegli ${invocations.max} Supplic${invocations.max === 1 ? 'a Occulta' : 'he Occulte'} (${invocations.used}/${invocations.max})`, done: invocations.used >= invocations.max, help: 'Il Warlock al 1° livello sceglie una Supplica Occulta: apri la scheda “Suppliche Occulte” e tocca quella che preferisci (Armatura d’Ombre o un Patto sono ottimi per iniziare).' });
         return list;
       }
       default:
@@ -199,7 +247,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   };
 
   // Ogni passo si apre dall'inizio della pagina
-  React.useEffect(() => { window.scrollTo({ top: 0 }); setShowBlocked(false); }, [currentStep]);
+  React.useEffect(() => { window.scrollTo({ top: 0 }); setShowBlocked(false); }, [stepId]);
 
   // Completata una scelta, se la prossima da fare è più in basso la si porta in vista
   const lastTarget = React.useRef<{ step: number; id?: string }>({ step: -1 });
@@ -232,7 +280,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     if (!currentCharacter || !user) return;
     setIsSaving(true);
 
-    const classes = { [currentCharacter.classId]: { level: 1, ...(currentCharacter.subclassId ? { subclass: currentCharacter.subclassId } : {}) } };
+    const order = currentCharacter.classes?.[currentCharacter.classId]?.order;
+    const classes = { [currentCharacter.classId]: { level: 1, ...(currentCharacter.subclassId ? { subclass: currentCharacter.subclassId } : {}), ...(order ? { order } : {}) } };
     const prepared: CharacterData = { ...currentCharacter, level: 1, classes, userId: user.uid };
     // PF iniziali (PHB 2024): massimo del Dado Vita + modificatore di Costituzione (+ Nano, + talento Duro)
     const hpMax = computeHpMax(prepared, getModifiers(getFinalScores(prepared)).CON);
@@ -278,9 +327,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
     const languages = shuffle(STANDARD_LANGUAGES.filter(l => !originReq.fixedLanguages.includes(l))).slice(0, originReq.languageCount);
     const toolProficiencies = shuffle(originReq.toolOptions.filter(t => !originReq.fixedTools.includes(t))).slice(0, originReq.toolCount);
 
-    dispatch({
-      type: 'UPDATE_CHARACTER',
-      payload: {
+    const payload: Partial<CharacterData> = {
         name: pick(names),
         classId: randomClass.id,
         speciesId: randomSpecies.id,
@@ -304,10 +351,13 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
         description: 'Un avventuriero generato casualmente in cerca di gloria.',
         inventoryItems,
         currency: { cp: 0, sp: 0, ep: 0, gp: gold, pp: 0 },
-      }
-    });
+        expertiseSkills: [], feats: [], spells: [], invocations: [], weaponMasteries: {},
+    };
+    // Anche le scelte di talenti, privilegi e incantesimi, secondo le tabelle del manuale
+    const draft = { ...(currentCharacter as CharacterData), ...payload } as CharacterData;
+    dispatch({ type: 'UPDATE_CHARACTER', payload: { ...payload, ...autoCompleteChoices(draft, homebrew.spells) } });
 
-    setCurrentStep(6);
+    setStepId('summary');
   };
 
   const renderClassSkillPicker = () => {
@@ -351,8 +401,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
   const currentClass = classesData.find(c => c.id === currentCharacter.classId);
 
   const renderStep = () => {
-    switch (currentStep) {
-      case 0:
+    switch (STEPS[currentStep]) {
+      case 'class':
         return (
           <div className="space-y-6">
             <StepHeader eyebrow="Capitolo 1" title="Scegli la classe" description="La classe definisce il tuo ruolo nel gruppo: come combatti, quale magia usi e quali competenze ottieni." />
@@ -364,7 +414,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   <OptionCard
                     key={cls.id}
                     selected={currentCharacter.classId === cls.id}
-                    onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], spells: [], invocations: [], weaponMasteries: {}, toolProficiencies: [], languages: [] } })}
+                    onClick={() => cls.id !== currentCharacter.classId && dispatch({ type: 'UPDATE_CHARACTER', payload: { classId: cls.id, classes: { [cls.id]: { level: 1 } }, subclassId: '', proficientSkills: [], expertiseSkills: [], feats: [], spells: [], invocations: [], weaponMasteries: {}, toolProficiencies: [], languages: [], ...resetMagicInitiate() } })}
                     title={<span className="flex items-center gap-2"><Icon className="w-5 h-5 text-accent shrink-0" />{cls.name}</span>}
                     subtitle={CLASS_BLURBS[cls.id]}
                     meta={<>
@@ -381,7 +431,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
             {currentClass && renderClassSkillPicker()}
           </div>
         );
-      case 1:
+      case 'origin':
         return (
           <div className="space-y-8">
             <StepHeader eyebrow="Capitolo 2" title="Origine" description="Specie e background: da dove vieni e cosa facevi prima dell'avventura. Il background assegna aumenti di caratteristica, abilità e un Talento d'Origine." />
@@ -392,7 +442,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   <OptionCard
                     key={sp.id}
                     selected={currentCharacter.speciesId === sp.id}
-                    onClick={() => sp.id !== currentCharacter.speciesId && dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesId: sp.id, speciesSubOption: '', speciesSkills: [], bonusOriginFeat: '' } })}
+                    onClick={() => sp.id !== currentCharacter.speciesId && dispatch({ type: 'UPDATE_CHARACTER', payload: { speciesId: sp.id, speciesSubOption: '', speciesSkills: [], bonusOriginFeat: '', spells: (currentCharacter.spells || []).filter(s => !magicInitiateSpells(currentCharacter.bonusOriginFeat).includes(s)) } })}
                     title={sp.name}
                     subtitle={`${sp.size} · ${sp.speed} m${sp.darkvision ? ` · Scurov. ${sp.darkvision} m` : ''}`}
                     className="!p-3"
@@ -467,7 +517,10 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {ORIGIN_FEATS.map(feat => (
-                      <ToggleChip key={feat} selected={currentCharacter.bonusOriginFeat === feat} onClick={() => dispatch({ type: 'UPDATE_CHARACTER', payload: { bonusOriginFeat: feat } })}>{feat}</ToggleChip>
+                      <ToggleChip key={feat} selected={featBase(currentCharacter.bonusOriginFeat || '') === feat}
+                        onClick={() => featBase(currentCharacter.bonusOriginFeat || '') !== feat && dispatch({ type: 'UPDATE_CHARACTER', payload: { bonusOriginFeat: feat, spells: (currentCharacter.spells || []).filter(sp => !magicInitiateSpells(currentCharacter.bonusOriginFeat).includes(sp)) } })}>
+                        {feat}{FEAT_PICKS[feat] || feat === 'Iniziato alla Magia' ? <span className="text-[9px] uppercase opacity-70">· con scelte</span> : null}
+                      </ToggleChip>
                     ))}
                   </div>
                 </div>
@@ -489,6 +542,7 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
                           backgroundId: bg.id,
                           selectedBoosts: [],
                           originFeat: bg.feat,
+                          spells: (currentCharacter.spells || []).filter(sp => !magicInitiateSpells(currentCharacter.originFeat).includes(sp)),
                           toolProficiencies: [],
                           proficientSkills: (currentCharacter.proficientSkills || []).filter(s => !bg.skills.includes(s)),
                           speciesSkills: (currentCharacter.speciesSkills || []).filter(s => !bg.skills.includes(s)),
@@ -510,15 +564,19 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
             {currentCharacter.backgroundId && getClassSkillPicks().length < (currentClass?.skillChoices || 0) && renderClassSkillPicker()}
           </div>
         );
-      case 2:
+      case 'abilities':
         return <AbilityScoresStep />;
-      case 3:
+      case 'details':
         return <DetailsStep />;
-      case 4:
+      case 'originFeats':
+        return <OriginFeatsStep />;
+      case 'classFeatures':
+        return <ClassFeaturesStep />;
+      case 'spells':
         return <SpellsFeatsStep />;
-      case 5:
+      case 'equipment':
         return <StartingEquipment />;
-      case 6:
+      case 'summary':
         return <SummaryStep />;
       default:
         return null;
@@ -533,7 +591,8 @@ export default function CharacterWizard({ onComplete, onCancel }: WizardProps) {
       <div className="bg-card-bg border-b border-border sticky top-16 z-30">
         <div className="max-w-6xl mx-auto px-4 md:px-8 flex items-center gap-4">
           <ol className="flex-1 flex overflow-x-auto no-scrollbar" aria-label="Passi della creazione">
-            {STEPS.map((step, idx) => {
+            {STEPS.map((stepKey, idx) => {
+              const step = STEP_LABEL[stepKey];
               const done = idx < currentStep;
               const active = idx === currentStep;
               const reachable = idx <= currentStep || (idx === currentStep + 1 && canProceed());

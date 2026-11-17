@@ -9,6 +9,7 @@ import { backgroundsData, classesData, speciesData, ALL_SKILLS } from '../data/r
 import { findArmor, findWeapon, type ArmorData } from '../data/weaponsData';
 import { getModifier } from './utils';
 import { getFixedClassTools, getFixedLanguages } from '../data/languages';
+import { getFeatProficiencies } from './featChoices';
 
 export const ABILITIES: Ability[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
 
@@ -28,7 +29,7 @@ export const POINT_BUY_COSTS: Record<number, number> = { 8: 0, 9: 1, 10: 2, 11: 
 export const POINT_BUY_BUDGET = 27;
 export const STANDARD_ARRAY = [15, 14, 13, 12, 10, 8];
 
-export type ClassLevelMap = Record<string, { level: number; subclass?: string }>;
+export type ClassLevelMap = Record<string, { level: number; subclass?: string; /** Ordine Divino / Primordiale (Chierico, Druido) */ order?: string }>;
 
 type CharacterLike = Pick<CharacterData, 'classId' | 'level'> & Partial<CharacterData>;
 
@@ -42,7 +43,7 @@ export function getClassLevels(character: CharacterLike): ClassLevelMap {
   if (entries.length > 0) {
     const map: ClassLevelMap = {};
     entries.forEach(([id, data]) => {
-      map[id] = { level: data.level, subclass: data.subclass || (id === character.classId ? character.subclassId || undefined : undefined) };
+      map[id] = { level: data.level, subclass: data.subclass || (id === character.classId ? character.subclassId || undefined : undefined), ...((data as { order?: string }).order ? { order: (data as { order?: string }).order } : {}) };
     });
     return map;
   }
@@ -305,7 +306,7 @@ export function computeDarkvision(character: Partial<CharacterData>): number {
 
 export function getSkillProficiencies(character: Partial<CharacterData>): string[] {
   const bgSkills = backgroundsData.find(b => b.id === character.backgroundId)?.skills || [];
-  return Array.from(new Set([...(character.proficientSkills || []), ...(character.speciesSkills || []), ...bgSkills]))
+  return Array.from(new Set([...(character.proficientSkills || []), ...(character.speciesSkills || []), ...bgSkills, ...getFeatProficiencies(character).skills]))
     .filter(skill => ALL_SKILLS.includes(skill));
 }
 
@@ -382,7 +383,8 @@ export function getSpellcastingInfo(character: CharacterLike, mods: Record<Abili
       ability,
       saveDc: 8 + proficiency + mods[ability],
       attackBonus: proficiency + mods[ability],
-      cantrips: CANTRIPS_KNOWN[key]?.[idx] ?? 0,
+      // Taumaturgo (Chierico) e Sapiente (Druido) conoscono un trucchetto in più
+      cantrips: (CANTRIPS_KNOWN[key]?.[idx] ?? 0) + (['thaumaturge', 'magician'].includes(data.order || '') ? 1 : 0),
       prepared: PREPARED_SPELLS[key]?.[idx] ?? 0,
     });
   });
@@ -525,11 +527,14 @@ export function computeCharacterStats(character: CharacterData) {
 
   const proficiencies = getSkillProficiencies(character);
   const expertise = character.expertiseSkills || [];
+  // Taumaturgo / Sapiente: + modificatore di Saggezza (minimo +1) ad alcune prove di Intelligenza
+  const orders = getClassLevels(character);
+  const orderSkills = [...(orders.cleric?.order === 'thaumaturge' ? ['Arcano', 'Religione'] : []), ...(orders.druid?.order === 'magician' ? ['Arcano', 'Natura'] : [])];
   const skills = ALL_SKILLS.map(name => {
     const ability = SKILL_ABILITIES[name];
     const isProficient = proficiencies.includes(name) || expertise.includes(name);
     const isExpert = expertise.includes(name);
-    const bonus = isExpert ? proficiencyBonus * 2 : isProficient ? proficiencyBonus : 0;
+    const bonus = (isExpert ? proficiencyBonus * 2 : isProficient ? proficiencyBonus : 0) + (orderSkills.includes(name) ? Math.max(1, mods.WIS) : 0);
     return { name, ability, isProficient, isExpert, mod: mods[ability] + bonus - d20Penalty, passive: 10 + mods[ability] + bonus };
   });
 
@@ -590,9 +595,12 @@ export function getProficiencySummary(character: CharacterLike) {
   if (hasFeat(character, 'Armatura Media (Addestramento)')) armor.add('Media');
   if (hasFeat(character, 'Armatura Pesante (Addestramento)')) armor.add('Pesante');
   if (hasFeat(character, 'Addestramento alle Armi Marziali')) weapons.add('Marziali');
+  // Ordini di 1° livello
+  if (classLevels.cleric?.order === 'protector') { armor.add('Pesante'); weapons.add('Marziali'); }
+  if (classLevels.druid?.order === 'warden') { armor.add('Media'); weapons.add('Marziali'); }
 
   const bgTools = (backgroundsData.find(b => b.id === character.backgroundId)?.tools || []).filter(t => !t.includes('(uno)'));
-  const tools = Array.from(new Set([...bgTools, ...getFixedClassTools(classLevels), ...(character.toolProficiencies || [])]));
+  const tools = Array.from(new Set([...bgTools, ...getFixedClassTools(classLevels), ...(character.toolProficiencies || []), ...getFeatProficiencies(character).tools]));
   const languages = Array.from(new Set([...getFixedLanguages(classLevels), ...(character.languages || [])]));
   return { armor: Array.from(armor), weapons: Array.from(weapons), tools, languages };
 }
