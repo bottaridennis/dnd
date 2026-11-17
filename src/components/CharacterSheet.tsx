@@ -19,6 +19,7 @@ import {
   Move,
 } from 'lucide-react';
 import PortraitCropper, { readImageFile } from './PortraitCropper';
+import { CLASS_ORDERS, featBase } from '../lib/featChoices';
 import PrintSheet from './PrintSheet';
 import CampaignJoin from './CampaignJoin';
 import { formatModifier, abilityMap, fixTextEncoding } from '../lib/utils';
@@ -562,7 +563,10 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
           <div key={`${feat}-${idx}`} className="bg-card-bg border border-accent/20 rounded p-5">
             <div className="text-[10px] font-black uppercase text-accent tracking-widest mb-1">{idx === 0 ? "Talento d'Origine" : "Talento d'Origine (Versatile)"}</div>
             <div className="flex justify-between items-center">
-              <div className="text-lg font-serif font-bold">{feat}</div>
+              <div className="min-w-0">
+                <div className="text-lg font-serif font-bold">{featBase(feat as string)}</div>
+                {(feat as string).includes('(') && <div className="text-xs text-text-muted">{(feat as string).slice((feat as string).indexOf('(') + 1, -1).replace(' | ', ' · 1° livello: ').replace(':', ' ·')}</div>}
+              </div>
               {getFeatDetails(feat as string) && (
                 <button onClick={() => setSelectedItem(getFeatDetails(feat as string))} className="text-accent underline text-[10px] font-black uppercase tracking-widest">Dettagli</button>
               )}
@@ -604,6 +608,10 @@ export default function CharacterSheet(_props: { onBack?: () => void } = {}) {
           {Object.entries(classLevels).map(([classId, data]) => (
             <div key={classId} className="bg-card-bg border border-border rounded p-4">
               <div className="text-[10px] font-black uppercase tracking-widest text-accent mb-2">{classesData.find(c => c.id === classId)?.name} {data.level}{data.subclass ? ` · ${data.subclass}` : ''}</div>
+              {data.order && CLASS_ORDERS[classId] && (() => {
+                const o = CLASS_ORDERS[classId].options.find(x => x.id === data.order);
+                return o ? <p className="text-xs mb-2"><strong>{CLASS_ORDERS[classId].title}: {o.name}.</strong> <span className="text-text-muted">{o.desc}</span></p> : null;
+              })()}
               <ul className="space-y-1 text-xs">
                 {getClassFeaturesUpTo(classId, data.level).filter(f => f.name !== 'Privilegio di Sottoclasse' || !data.subclass).map((f, idx) => (
                   <li key={idx} className="flex gap-2"><span className="text-text-muted font-mono w-6 shrink-0">{f.level}</span><span>{f.name === 'Sottoclasse' ? `Sottoclasse${data.subclass ? `: ${data.subclass}` : ' (da scegliere)'}` : f.name}</span></li>
