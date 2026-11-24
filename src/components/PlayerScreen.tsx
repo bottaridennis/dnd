@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Expand, Hexagon, Shield, Skull, Swords, EyeOff } from 'lucide-react';
-import { screenService, type HealthStatus, type ScreenState } from '../services/screenService';
+import { screenErrorMessage, screenService, type HealthStatus, type ScreenState } from '../services/screenService';
 
 const STATUS_STYLE: Record<HealthStatus, string> = {
   illeso: 'text-[#4cc27a] border-[#4cc27a]/50',
@@ -16,7 +16,7 @@ export default function PlayerScreen({ code }: { code: string }) {
 
   useEffect(() => {
     document.title = 'Forge · Schermo del tavolo';
-    return screenService.subscribe(code, s => { setScreen(s); setError(null); }, () => setError('Schermo non raggiungibile: controlla il codice o la connessione.'));
+    return screenService.subscribe(code, s => { setScreen(s); setError(null); }, e => setError(screenErrorMessage(e)));
   }, [code]);
 
   // Lo schermo resta acceso finché la pagina è aperta (dove supportato)

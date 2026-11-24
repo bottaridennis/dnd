@@ -84,5 +84,13 @@ export const screenService = {
   },
 };
 
+/** Spiega un errore di pubblicazione o lettura dello schermo. */
+export function screenErrorMessage(e: unknown): string {
+  const code = (e as { code?: string })?.code || '';
+  if (code === 'permission-denied') return 'Le regole Firestore non permettono ancora lo schermo del tavolo: pubblica le regole aggiornate (Firebase Console → Firestore → database “forge-heroes” → Regole), con il blocco campaignScreens.';
+  if (code === 'unavailable') return 'Connessione assente: lo schermo si aggiornerà al ritorno della rete.';
+  return 'Schermo non raggiungibile: controlla il codice o la connessione.';
+}
+
 /** Link dello schermo: funziona senza accesso, anche su una TV o un tablet condiviso. */
 export const screenUrl = (code: string) => `${window.location.origin}${import.meta.env.BASE_URL}#/tavolo/${code}`;

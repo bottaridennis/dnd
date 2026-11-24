@@ -13,7 +13,7 @@ import {
 } from '../data/encounters';
 import { useBestiary } from '../hooks/useBestiary';
 import { crValue, initiativeBonusOf, type Monster } from '../lib/bestiary';
-import { buildScreenState, screenService, screenUrl, type PcInfo } from '../services/screenService';
+import { buildScreenState, screenErrorMessage, screenService, screenUrl, type PcInfo } from '../services/screenService';
 import MonsterStatBlock from './MonsterStatBlock';
 import { useRules } from '../contexts/RulesContext';
 import {
@@ -333,13 +333,16 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id, campaign.name, campaign.dmId, JSON.stringify(campaign.initiative), party, stats]);
   const lastPublished = React.useRef('');
+  const [screenError, setScreenError] = useState<string | null>(null);
   useEffect(() => {
     const { updatedAt, ...comparable } = screenPayload;
     const key = JSON.stringify(comparable);
     if (key === lastPublished.current) return;
     const t = window.setTimeout(() => {
       lastPublished.current = key;
-      screenService.publish({ ...comparable, updatedAt }).catch(e => console.warn('Schermo del tavolo non aggiornato:', e));
+      screenService.publish({ ...comparable, updatedAt })
+        .then(() => setScreenError(null))
+        .catch(e => { lastPublished.current = ''; setScreenError(screenErrorMessage(e)); console.warn('Schermo del tavolo non aggiornato:', e); });
     }, 400);
     return () => window.clearTimeout(t);
   }, [screenPayload]);
@@ -411,7 +414,7 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
         <div className="flex flex-wrap items-center gap-2 ml-auto">
           {missing > 0 && <button onClick={() => save(rollMissingInitiative(state))} className="secondary-action flex items-center gap-1.5"><Dices className="w-4 h-4" /> Tira iniziative ({missing})</button>}
           <button onClick={addParty} className="secondary-action flex items-center gap-1.5" title="Aggiungi i personaggi mancanti"><Users className="w-4 h-4" /> Gruppo</button>
-          <button onClick={() => setScreenOpen(true)} className="secondary-action flex items-center gap-1.5" title="Link per la TV o i telefoni dei giocatori"><Tv className="w-4 h-4" /> Schermo</button>
+          <button onClick={() => setScreenOpen(true)} className="secondary-action flex items-center gap-1.5" title="Link per la TV o i telefoni dei giocatori"><Tv className="w-4 h-4" /> Schermo{screenError && <span className="w-2 h-2 rounded-full bg-danger" aria-label="errore" />}</button>
           {state.entries.some(e => e.hidden) && <button onClick={() => save(withLog({ ...state, entries: state.entries.map(e => (e.hidden ? { ...e, hidden: false } : e)) }, 'Il Master rivela tutte le creature'))} className="secondary-action flex items-center gap-1.5"><Eye className="w-4 h-4" /> Rivela tutti</button>}
           {!state.active ? (
             <button onClick={() => save(startCombat(missing ? rollMissingInitiative(state) : state))} className="primary-action px-5 py-2.5 flex items-center gap-2"><Play className="w-4 h-4" /> Inizia il combattimento</button>
@@ -491,7 +494,7 @@ function CombatTracker({ campaign, party, stats, onPrepare }: { campaign: Campai
               legendary={entry.legendary ? { max: entry.legendary.max, used: entry.legendary.used, onChange: used => save(updateEntry(state, entry.id, { legendary: { ...entry.legendary!, used: Math.max(0, Math.min(entry.legendary!.max, used)) } })) } : undefined} />
           );
         })()}
-        {screenOpen && <ScreenLinkModal key="screen" code={campaign.id} hidden={state.entries.filter(e => e.hidden).length} onClose={() => setScreenOpen(false)} />}
+        {screenOpen && <ScreenLinkModal key="screen" code={campaign.id} error={screenError} hidden={state.entries.filter(e => e.hidden).length} onClose={() => setScreenOpen(false)} />}
         {conditionFor && (
           <ConditionPicker
             name={state.entries.find(e => e.id === conditionFor)?.name || ''}
@@ -679,7 +682,7 @@ const StatBlockModal: React.FC<{ monster: Monster; label?: string; legendary?: {
   );
 }
 
-const ScreenLinkModal: React.FC<{ code: string; hidden: number; onClose: () => void }> = ({ code, hidden, onClose }) => {
+const ScreenLinkModal: React.FC<{ code: string; hidden: number; error: string | null; onClose: () => void }> = ({ code, hidden, error, onClose }) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -695,6 +698,8 @@ const ScreenLinkModal: React.FC<{ code: string; hidden: number; onClose: () => v
           <h3 id="screen-title" className="text-2xl uppercase flex items-center gap-2"><Tv className="w-6 h-6 text-accent" /> Schermo del tavolo</h3>
           <button onClick={onClose} aria-label="Chiudi" className="text-text-muted"><X className="w-5 h-5" /></button>
         </div>
+        {error ? <p role="alert" className="text-sm text-danger border border-danger/40 bg-danger/10 px-3 py-2"><strong>Lo schermo non si aggiorna.</strong> {error}</p>
+          : <p className="text-xs text-success font-bold">Pubblicazione attiva: lo schermo si aggiorna a ogni cambiamento finché questa pagina resta aperta.</p>}
         <p className="text-sm text-text-muted">Apri questo link su una TV, un tablet o i telefoni dei giocatori: mostra l’ordine d’iniziativa e il turno in tempo reale, senza bisogno di accedere.</p>
         <div className="flex gap-2">
           <input readOnly value={url} onFocus={e => e.target.select()} className="flex-1 min-w-0 bg-panel-bg border border-border px-3 py-2 text-sm" aria-label="Link dello schermo" />
